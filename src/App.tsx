@@ -15,7 +15,8 @@ import platesData from './data/plates.json';
   function getPlateLoading(target: number): { total: number, perSide: number, breakdown: number[] } {
     let weightNeeded = target - barWeight;
     if (weightNeeded < 0) return { total: barWeight, perSide: 0, breakdown: [] };
-  let best: number[] | null = null;
+    let best: number[] = [];
+    let found = false;
     let minOver = Infinity;
 
     // Try to find the closest possible weight >= target
@@ -24,6 +25,7 @@ import platesData from './data/plates.json';
         if (current >= weightNeeded && current - weightNeeded < minOver) {
           minOver = current - weightNeeded;
           best = used.slice();
+          found = true;
         }
         return;
       }
@@ -36,10 +38,10 @@ import platesData from './data/plates.json';
       used[idx] = 0;
     }
     search(0, 0, new Array(availablePlates.length).fill(0), availablePlates.map(p => p.quantity));
-    let total = best ? best.reduce((sum: number, cnt: number, i: number) => sum + cnt * availablePlates[i].weight * 2, barWeight) : barWeight;
+    let total = found ? best.reduce((sum: number, cnt: number, i: number) => sum + cnt * availablePlates[i].weight * 2, barWeight) : barWeight;
     let perSide = (total - barWeight) / 2;
     let breakdown: number[] = [];
-    if (best) {
+    if (found) {
       best.forEach((cnt: number, i: number) => {
         for (let j = 0; j < cnt; j++) breakdown.push(availablePlates[i].weight);
       });
@@ -206,21 +208,18 @@ function App() {
           <Line type="monotone" dataKey="squat" stroke="#5e9eff" strokeWidth={3} dot={{r: 4}} />
           <ReferenceLine y={319.5} label="Goal" stroke="#ff5e5e" strokeDasharray="3 3" />
         </LineChart>
-        <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>
-          Next work set: {renderSetWithPlates(nextSquat)}
-        </div>
-        <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em'}}>
-          Warm-up sets:
-          <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
-            {warmupSquat.map((set, i) => {
-              const { total } = getPlateLoading(Number(set.weight));
-              return (
+        <div style={{display: 'flex', justifyContent: 'center', width: '100%'}}>
+          <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em', textAlign: 'left', minWidth: 220}}>
+            <div>Warm-up sets:</div>
+            <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
+              {warmupSquat.map((set, i) => (
                 <li key={i} style={{marginBottom: '0.3em'}}>
                   {set.reps} x {renderSetWithPlates(set.weight)}
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+            <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>Work set: {renderSetWithPlates(nextSquat)}</div>
+          </div>
         </div>
       </div>
 
@@ -235,18 +234,18 @@ function App() {
           <Line type="monotone" dataKey="bench" stroke="#5e9eff" strokeWidth={3} dot={{r: 4}} />
           <ReferenceLine y={256} label="Goal" stroke="#ff5e5e" strokeDasharray="3 3" />
         </LineChart>
-        <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>
-          Next work set: {renderSetWithPlates(nextBench)}
-        </div>
-        <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em'}}>
-          Warm-up sets:
-          <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
-            {warmupBench.map((set, i) => (
-              <li key={i} style={{marginBottom: '0.3em'}}>
-                {set.reps} x {renderSetWithPlates(set.weight)}
-              </li>
-            ))}
-          </ul>
+        <div style={{display: 'flex', justifyContent: 'center', width: '100%'}}>
+          <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em', textAlign: 'left', minWidth: 220}}>
+            <div>Warm-up sets:</div>
+            <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
+              {warmupBench.map((set, i) => (
+                <li key={i} style={{marginBottom: '0.3em'}}>
+                  {set.reps} x {renderSetWithPlates(set.weight)}
+                </li>
+              ))}
+            </ul>
+            <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>Work set: {renderSetWithPlates(nextBench)}</div>
+          </div>
         </div>
       </div>
 
@@ -261,18 +260,18 @@ function App() {
           <Line type="monotone" dataKey="deadlift" stroke="#5e9eff" strokeWidth={3} dot={{r: 4}} />
           <ReferenceLine y={384} label="Goal" stroke="#ff5e5e" strokeDasharray="3 3" />
         </LineChart>
-        <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>
-          Next work set: {renderSetWithPlates(nextDeadlift)}
-        </div>
-        <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em'}}>
-          Warm-up sets:
-          <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
-            {warmupDeadlift.map((set, i) => (
-              <li key={i} style={{marginBottom: '0.3em'}}>
-                {set.reps} x {renderSetWithPlates(set.weight)}
-              </li>
-            ))}
-          </ul>
+        <div style={{display: 'flex', justifyContent: 'center', width: '100%'}}>
+          <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em', textAlign: 'left', minWidth: 220}}>
+            <div>Warm-up sets:</div>
+            <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
+              {warmupDeadlift.map((set, i) => (
+                <li key={i} style={{marginBottom: '0.3em'}}>
+                  {set.reps} x {renderSetWithPlates(set.weight)}
+                </li>
+              ))}
+            </ul>
+            <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>Work set: {renderSetWithPlates(nextDeadlift)}</div>
+          </div>
         </div>
       </div>
 
@@ -287,18 +286,18 @@ function App() {
           <Line type="monotone" dataKey="press" stroke="#5e9eff" strokeWidth={3} dot={{r: 4}} />
           <ReferenceLine y={179} label="Goal" stroke="#ff5e5e" strokeDasharray="3 3" />
         </LineChart>
-        <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>
-          Next work set: {renderSetWithPlates(nextPress)}
-        </div>
-        <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em'}}>
-          Warm-up sets:
-          <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
-            {warmupPress.map((set, i) => (
-              <li key={i} style={{marginBottom: '0.3em'}}>
-                {set.reps} x {renderSetWithPlates(set.weight)}
-              </li>
-            ))}
-          </ul>
+        <div style={{display: 'flex', justifyContent: 'center', width: '100%'}}>
+          <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em', textAlign: 'left', minWidth: 220}}>
+            <div>Warm-up sets:</div>
+            <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
+              {warmupPress.map((set, i) => (
+                <li key={i} style={{marginBottom: '0.3em'}}>
+                  {set.reps} x {renderSetWithPlates(set.weight)}
+                </li>
+              ))}
+            </ul>
+            <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>Work set: {renderSetWithPlates(nextPress)}</div>
+          </div>
         </div>
       </div>
       <div className="card">
@@ -312,18 +311,18 @@ function App() {
           <Line type="monotone" dataKey="row" stroke="#5e9eff" strokeWidth={3} dot={{r: 4}} />
           <ReferenceLine y={135} label="Goal" stroke="#ff5e5e" strokeDasharray="3 3" />
         </LineChart>
-        <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>
-          Next work set: {renderSetWithPlates(nextRow)}
-        </div>
-        <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em'}}>
-          Warm-up sets:
-          <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
-            {warmupRow.map((set, i) => (
-              <li key={i} style={{marginBottom: '0.3em'}}>
-                {set.reps} x {renderSetWithPlates(set.weight)}
-              </li>
-            ))}
-          </ul>
+        <div style={{display: 'flex', justifyContent: 'center', width: '100%'}}>
+          <div style={{marginTop: '0.5em', color: '#a3c9ff', fontSize: '1em', textAlign: 'left', minWidth: 220}}>
+            <div>Warm-up sets:</div>
+            <ul style={{listStyle: 'none', padding: 0, margin: '0.5em 0 0 0', display: 'block'}}>
+              {warmupRow.map((set, i) => (
+                <li key={i} style={{marginBottom: '0.3em'}}>
+                  {set.reps} x {renderSetWithPlates(set.weight)}
+                </li>
+              ))}
+            </ul>
+            <div style={{marginTop: '1em', fontWeight: 500, color: '#a3c9ff', fontSize: '1.1em'}}>Work set: {renderSetWithPlates(nextRow)}</div>
+          </div>
         </div>
       </div>
     </div>
