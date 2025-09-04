@@ -1,0 +1,33 @@
+{
+    "daily": {
+        "steps": 8000,
+        "calories": 800
+    },
+    "schemes": {
+        "squat": "3x5",
+        "deadlift": "1x5",
+        "press": "3x5",
+        "bench": "3x5"
+    },
+    "beginner": {
+        "squat": 1.25,
+        "deadlift": 1.5,
+        "press": 0.7,
+        "bench": 1.0,
+        "duration": "6 months"
+    },
+    "intermediate": {
+        "squat": 1.75,
+        "deadlift": 2.0,
+        "press": 0.9,
+        "bench": 1.2,
+        "duration": "1-2 years"
+    },
+    "advanced": {
+        "squat": 2.0,
+        "deadlift": 2.5,
+        "press": 1.0,
+        "bench": 1.5,
+        "duration": "3-4 years"
+    }
+}
