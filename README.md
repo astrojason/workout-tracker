@@ -1,69 +1,89 @@
-# React + TypeScript + Vite
+# Health Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A personal health and workout tracking dashboard built with Next.js and deployed on Vercel.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 📊 **Health Metrics Tracking**: Monitor daily steps and calories with streak counters
+- 🏋️ **Workout Progress**: Track strength training progress for major lifts (squat, bench, deadlift, OHP, rows)
+- 📈 **Data Visualization**: Interactive charts using Recharts
+- 🔧 **Plate Calculator**: Smart barbell plate loading calculator based on available equipment
+- 📱 **PWA Support**: Works as a Progressive Web App with offline capabilities
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: CSS-in-JS with custom Apple-inspired dark theme
+- **Charts**: Recharts
+- **Deployment**: Vercel
+- **PWA**: Service Worker for offline functionality
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+### Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Deployment to Vercel
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. **Install Vercel CLI** (if not already installed):
+   ```bash
+   npm i -g vercel
+   ```
+
+2. **Deploy to Vercel**:
+   ```bash
+   vercel
+   ```
+
+3. **Follow the prompts**:
+   - Link to existing project or create new
+   - Set project name
+   - Choose deployment settings
+
+4. **Automatic Deployments**: 
+   - Push to `main` branch for automatic production deployments
+   - All branches get preview deployments
+
+### Environment Setup
+
+The app loads data from static JSON files in `/public/data/`:
+- `goals.json` - Daily goals and strength targets
+- `plates.json` - Available barbell plates for calculations
+- `stats.json` - Historical workout and health data
+
+## Project Structure
+
 ```
+src/
+├── app/
+│   ├── layout.tsx          # Root layout with metadata
+│   ├── page.tsx            # Main dashboard page
+│   └── globals.css         # Global styles
+public/
+├── data/
+│   ├── goals.json          # Goals and targets
+│   ├── plates.json         # Available plates
+│   └── stats.json          # Historical data
+├── manifest.json           # PWA manifest
+└── service-worker.js       # Service worker for PWA
+```
+
+## License
+
+This project is for personal use.

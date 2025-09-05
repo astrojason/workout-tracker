@@ -1,0 +1,84 @@
+[
+    {
+        "date": "2025-08-21",
+        "calories": 827,
+        "steps": 8049
+    },
+    {
+        "date": "2025-08-22",
+        "calories": 1011,
+        "steps": 8423
+    },
+    {
+        "date": "2025-08-23",
+        "calories": 880,
+        "steps": 8591
+    },
+    {
+        "date": "2025-08-24",
+        "calories": 1055,
+        "steps": 9391
+    },
+    {
+        "date": "2025-08-25",
+        "calories": 946,
+        "steps": 8247
+    },
+    {
+        "date": "2025-08-26",
+        "calories": 1118,
+        "steps": 11168
+    },
+    {
+        "date": "2025-08-27",
+        "calories": 1108,
+        "steps": 10644
+    },
+    {
+        "date": "2025-08-28",
+        "calories": 1030,
+        "steps": 10540
+    },
+    {
+        "date": "2025-08-29",
+        "calories": 1191,
+        "steps": 14388
+    },
+    {
+        "date": "2025-08-30",
+        "calories": 909,
+        "steps": 10487
+    },
+    {
+        "date": "2025-08-31",
+        "calories": 900,
+        "steps": 8841
+    },
+    {
+        "date": "2025-09-01",
+        "squat": 105,
+        "bench": 105,
+        "deadlift": 185,
+        "press": 95,
+        "steps": 10270,
+        "calories": 1672
+    },
+    {
+        "date": "2025-09-02",
+        "calories": 900,
+        "steps": 8841
+    },
+    {
+        "date": "2025-09-03",
+        "squat": 107.5,
+        "bench": 112,
+        "row": 85,
+        "steps": 8106,
+        "calories": 1370
+    },
+    {
+        "date": "2025-09-04",
+        "calories": 1020,
+        "steps": 8984
+    }
+]

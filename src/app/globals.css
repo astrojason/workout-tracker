@@ -1,0 +1,186 @@
+/* Apple-inspired Dark Mode Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600&display=swap');
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /* https://kilianvalkhof.com/2022/css-html/your-css-reset-needs-text-size-adjust-probably/ */
+  html {
+    -moz-text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+
+  body,
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  figure,
+  blockquote,
+  dl,
+  dd {
+    margin: 0;
+  }
+
+  /* https://www.scottohara.me/blog/2019/01/12/lists-and-safari.html */
+  [role="list"] {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    min-block-size: 100vh;
+    line-height: 1.6;
+  }
+
+  h1,
+  h2,
+  h3,
+  button,
+  input,
+  label {
+    line-height: 1.1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  img,
+  picture {
+    max-inline-size: 100%;
+    display: block;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+@layer base {
+  html {
+    background: linear-gradient(135deg, #181c20 0%, #23272b 100%);
+    color: #f5f6fa;
+    min-height: 100vh;
+  }
+
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background: linear-gradient(135deg, #181c20 0%, #23272b 100%);
+    color: #f5f6fa;
+    min-height: 100vh;
+    margin: 0;
+    letter-spacing: 0.01em;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  #root {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    border-radius: 32px;
+    background: rgba(30, 32, 36, 0.7);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.25), 0 1.5px 4px 0 rgba(255,255,255,0.02) inset;
+    backdrop-filter: blur(16px) saturate(180%);
+  }
+
+  .card {
+    padding: 2em 2.5em;
+    margin: 2em 0;
+    background: rgba(36, 38, 44, 0.85);
+    border-radius: 24px;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.18);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: box-shadow 0.2s;
+  }
+  .card:hover {
+    box-shadow: 0 4px 24px 0 rgba(0,0,0,0.28);
+  }
+
+  button, .btn {
+    font-family: inherit;
+    font-size: 1.1rem;
+    padding: 0.7em 2em;
+    border-radius: 18px;
+    border: none;
+    background: linear-gradient(90deg, #2d3136 0%, #3a3f45 100%);
+    color: #f5f6fa;
+    box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.12);
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+    outline: none;
+  }
+  button:hover, .btn:hover {
+    background: linear-gradient(90deg, #3a3f45 0%, #2d3136 100%);
+    box-shadow: 0 4px 16px 0 rgba(0,0,0,0.18);
+    transform: translateY(-2px) scale(1.03);
+  }
+
+  input, select, textarea {
+    background: rgba(36, 38, 44, 0.85);
+    color: #f5f6fa;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.7em 1em;
+    margin: 0.5em 0;
+    font-size: 1rem;
+    outline: none;
+    transition: border 0.2s, background 0.2s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border: 1.5px solid #5e9eff;
+    background: rgba(36, 38, 44, 1);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #f5f6fa;
+    margin-bottom: 0.5em;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  }
+
+  a {
+    color: #5e9eff;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  a:hover {
+    color: #a3c9ff;
+  }
+
+  .read-the-docs {
+    color: #888;
+  }
+}
+
+.main-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  border-radius: 32px;
+  background: rgba(30, 32, 36, 0.7);
+  box-shadow: 0 8px 32px 0 rgba(0,0,0,0.25), 0 1.5px 4px 0 rgba(255,255,255,0.02) inset;
+  backdrop-filter: blur(16px) saturate(180%);
+}
