@@ -1,0 +1,491 @@
+import { describe, it, expect } from "vitest";
+import {
+  calculateBarbell,
+  nearestPowerBlock,
+  plateDisplayString,
+  plateFullDisplayString,
+  getEquipmentDisplay,
+  equipmentDisplayText,
+  equipmentShortText,
+} from "../equipment-calculator";
+import type { Exercise, PlateConfiguration } from "../types";
+
+// Helper to create a minimal exercise for getEquipmentDisplay tests
+function makeExercise(overrides: Partial<Exercise>): Exercise {
+  return {
+    id: "test-id",
+    order: 1,
+    name: "Test Exercise",
+    phase: "main",
+    equipmentType: "barbell_45",
+    equipmentDetail: null,
+    baseWeight: { type: "fixed", value: 100 },
+    sets: 3,
+    repMin: 8,
+    repMax: { type: "count", value: 12 },
+    restSeconds: 120,
+    progressionRule: "add_5lb",
+    isUnilateral: false,
+    notes: null,
+    ...overrides,
+  };
+}
+
+describe("calculateBarbell", () => {
+  it("returns bar only when target equals bar weight", () => {
+    const result = calculateBarbell(45, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("returns bar only when target is less than bar weight", () => {
+    const result = calculateBarbell(30, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("returns bar only when target is zero", () => {
+    const result = calculateBarbell(0, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("returns bar only when target is negative", () => {
+    const result = calculateBarbell(-10, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("calculates 135 on 45lb bar (1x45 per side)", () => {
+    const result = calculateBarbell(135, 45);
+    expect(result.achievedWeight).toBe(135);
+    expect(result.perSide).toEqual([{ plate: 45, count: 1 }]);
+  });
+
+  it("calculates 185 on 45lb bar (1x45 + 1x25 per side)", () => {
+    // perSide needs 70 lbs = 45 + 25
+    const result = calculateBarbell(185, 45);
+    expect(result.achievedWeight).toBe(185);
+    expect(result.perSide).toContainEqual({ plate: 45, count: 1 });
+    expect(result.perSide).toContainEqual({ plate: 25, count: 1 });
+  });
+
+  it("calculates 95 on 45lb bar (1x25 per side)", () => {
+    const result = calculateBarbell(95, 45);
+    expect(result.achievedWeight).toBe(95);
+    expect(result.perSide).toEqual([{ plate: 25, count: 1 }]);
+  });
+
+  it("calculates 65 on 45lb bar (1x10 per side)", () => {
+    const result = calculateBarbell(65, 45);
+    expect(result.achievedWeight).toBe(65);
+    expect(result.perSide).toEqual([{ plate: 10, count: 1 }]);
+  });
+
+  it("calculates 55 on 45lb bar (1x5 per side)", () => {
+    const result = calculateBarbell(55, 45);
+    expect(result.achievedWeight).toBe(55);
+    expect(result.perSide).toEqual([{ plate: 5, count: 1 }]);
+  });
+
+  it("handles fractional plates: 46 on 45lb bar (1x0.5 per side)", () => {
+    const result = calculateBarbell(46, 45);
+    expect(result.achievedWeight).toBe(46);
+    expect(result.perSide).toEqual([{ plate: 0.5, count: 1 }]);
+  });
+
+  it("handles 0.75 plates: 46.5 on 45lb bar", () => {
+    const result = calculateBarbell(46.5, 45);
+    expect(result.achievedWeight).toBe(46.5);
+    expect(result.perSide).toEqual([{ plate: 0.75, count: 1 }]);
+  });
+
+  it("rounds up to achievable weight when exact match impossible", () => {
+    // 143 on 45lb bar: per side = 49, no exact plate combo
+    // Should round up to nearest achievable
+    const result = calculateBarbell(143, 45);
+    expect(result.achievedWeight).toBeGreaterThanOrEqual(143);
+    expect(result.perSide.length).toBeGreaterThan(0);
+  });
+
+  it("works with 35lb bar", () => {
+    const result = calculateBarbell(105, 35);
+    expect(result.achievedWeight).toBe(105);
+    expect(result.perSide).toContainEqual({ plate: 35, count: 1 });
+  });
+
+  it("works with EZ bar (15lb)", () => {
+    const result = calculateBarbell(65, 15);
+    expect(result.achievedWeight).toBe(65);
+    expect(result.perSide).toEqual([{ plate: 25, count: 1 }]);
+  });
+
+  it("uses multiple plate denominations for complex weight", () => {
+    // 215 on 45lb bar: per side = 85 = 45 + 35 + 5
+    const result = calculateBarbell(215, 45);
+    expect(result.achievedWeight).toBe(215);
+    const total = result.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+    expect(total).toBe(85);
+  });
+
+  it("uses greedy algorithm for 145 on 45lb bar (per side = 50 = 45 + 5)", () => {
+    // Greedy picks largest first: 45 + 5 = 50, not 2x25
+    const result = calculateBarbell(145, 45);
+    expect(result.achievedWeight).toBe(145);
+    expect(result.perSide).toContainEqual({ plate: 45, count: 1 });
+    expect(result.perSide).toContainEqual({ plate: 5, count: 1 });
+  });
+
+  it("uses 2x10 plates when needed", () => {
+    // 85 on 45lb bar: per side = 20 = 2x10
+    const result = calculateBarbell(85, 45);
+    expect(result.achievedWeight).toBe(85);
+    expect(result.perSide).toEqual([{ plate: 10, count: 2 }]);
+  });
+
+  it("respects max plate count limits", () => {
+    // Only 1x45 per side available, so can't do 2x45
+    const result = calculateBarbell(225, 45);
+    // per side = 90. Can't do 2x45. Should do 45+35+10 = 90
+    expect(result.achievedWeight).toBe(225);
+    const has45 = result.perSide.find((p) => p.plate === 45);
+    expect(has45?.count).toBe(1); // max 1 per side
+  });
+
+  it("preserves target weight in result", () => {
+    const result = calculateBarbell(185, 45);
+    expect(result.targetWeight).toBe(185);
+    expect(result.barWeight).toBe(45);
+  });
+});
+
+describe("nearestPowerBlock", () => {
+  it("returns exact weight when already a valid increment", () => {
+    expect(nearestPowerBlock(25)).toBe(25);
+    expect(nearestPowerBlock(5)).toBe(5);
+    expect(nearestPowerBlock(50)).toBe(50);
+    expect(nearestPowerBlock(27.5)).toBe(27.5);
+  });
+
+  it("rounds to nearest 2.5 increment", () => {
+    expect(nearestPowerBlock(26)).toBe(25);
+    expect(nearestPowerBlock(28)).toBe(27.5);
+    expect(nearestPowerBlock(24)).toBe(25);
+  });
+
+  it("clamps to minimum of 5", () => {
+    expect(nearestPowerBlock(3)).toBe(5);
+    expect(nearestPowerBlock(0)).toBe(5);
+    expect(nearestPowerBlock(1)).toBe(5);
+  });
+
+  it("clamps to maximum of 50", () => {
+    expect(nearestPowerBlock(60)).toBe(50);
+    expect(nearestPowerBlock(100)).toBe(50);
+    expect(nearestPowerBlock(55)).toBe(50);
+  });
+
+  it("handles boundary values", () => {
+    expect(nearestPowerBlock(5)).toBe(5);
+    expect(nearestPowerBlock(50)).toBe(50);
+  });
+
+  it("handles negative values by clamping to minimum", () => {
+    expect(nearestPowerBlock(-5)).toBe(5);
+  });
+});
+
+describe("plateDisplayString", () => {
+  it("returns 'Bar only' for empty plates", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [],
+    };
+    expect(plateDisplayString(config)).toBe("Bar only (45 lbs)");
+  });
+
+  it("displays single plate type", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 135, barWeight: 45, achievedWeight: 135,
+      perSide: [{ plate: 45, count: 1 }],
+    };
+    expect(plateDisplayString(config)).toBe("1x45");
+  });
+
+  it("displays multiple plate types joined with +", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 185, barWeight: 45, achievedWeight: 185,
+      perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
+    };
+    expect(plateDisplayString(config)).toBe("1x45 + 1x25");
+  });
+
+  it("displays fractional plate weights cleanly", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 50, barWeight: 45, achievedWeight: 50,
+      perSide: [{ plate: 2.5, count: 1 }],
+    };
+    expect(plateDisplayString(config)).toBe("1x2.5");
+  });
+});
+
+describe("plateFullDisplayString", () => {
+  it("returns 'Bar only' for empty plates", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [],
+    };
+    expect(plateFullDisplayString(config)).toBe("Bar only (45 lbs)");
+  });
+
+  it("shows 'Each side:' prefix with total weight", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 185, barWeight: 45, achievedWeight: 185,
+      perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
+    };
+    expect(plateFullDisplayString(config)).toBe("Each side: 1x45 + 1x25 (185 lbs)");
+  });
+});
+
+describe("getEquipmentDisplay", () => {
+  it("returns barbell display for barbell_45", () => {
+    const ex = makeExercise({ equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 135);
+    expect(result.type).toBe("barbell");
+  });
+
+  it("returns bar only for barbell_45 when weight <= 45", () => {
+    const ex = makeExercise({ equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 45);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.perSide).toEqual([]);
+      expect(result.config.achievedWeight).toBe(45);
+    }
+  });
+
+  it("returns barbell display for barbell_35", () => {
+    const ex = makeExercise({ equipmentType: "barbell_35" });
+    const result = getEquipmentDisplay(ex, 35);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.achievedWeight).toBe(35);
+    }
+  });
+
+  it("returns barbell display for barbell_ez (15lb bar)", () => {
+    const ex = makeExercise({ equipmentType: "barbell_ez" });
+    const result = getEquipmentDisplay(ex, 15);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.barWeight).toBe(15);
+    }
+  });
+
+  it("returns powerblock for standard powerblock exercise", () => {
+    const ex = makeExercise({ equipmentType: "powerblock" });
+    const result = getEquipmentDisplay(ex, 25);
+    expect(result.type).toBe("powerblock");
+    if (result.type === "powerblock") {
+      expect(result.weight).toBe(25);
+    }
+  });
+
+  it("returns dumbbell for powerblock with '2lb' detail", () => {
+    const ex = makeExercise({ equipmentType: "powerblock", equipmentDetail: "2lb" });
+    const result = getEquipmentDisplay(ex, 2);
+    expect(result.type).toBe("dumbbell");
+    if (result.type === "dumbbell") {
+      expect(result.weight).toBe(2);
+    }
+  });
+
+  it("returns dumbbell for powerblock when weight < 5", () => {
+    const ex = makeExercise({ equipmentType: "powerblock" });
+    const result = getEquipmentDisplay(ex, 3);
+    expect(result.type).toBe("dumbbell");
+  });
+
+  it("returns powerblock with zero weight", () => {
+    const ex = makeExercise({ equipmentType: "powerblock" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("powerblock");
+    if (result.type === "powerblock") {
+      expect(result.weight).toBe(0);
+    }
+  });
+
+  it("returns band with correct info for known bands", () => {
+    const bands = [
+      { name: "Orange", range: "2-12 lbs" },
+      { name: "Purple", range: "5-35 lbs" },
+      { name: "Red", range: "10-50 lbs" },
+      { name: "Blue", range: "20-80 lbs" },
+    ];
+    for (const band of bands) {
+      const ex = makeExercise({ equipmentType: "band", equipmentDetail: band.name });
+      const result = getEquipmentDisplay(ex, 0);
+      expect(result.type).toBe("band");
+      if (result.type === "band") {
+        expect(result.name).toBe(band.name);
+        expect(result.range).toBe(band.range);
+      }
+    }
+  });
+
+  it("returns band with unknown name when detail not in lookup", () => {
+    const ex = makeExercise({ equipmentType: "band", equipmentDetail: "Green" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("band");
+    if (result.type === "band") {
+      expect(result.name).toBe("Green");
+      expect(result.range).toBe("");
+    }
+  });
+
+  it("returns band with 'Unknown' when no detail", () => {
+    const ex = makeExercise({ equipmentType: "band", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("band");
+    if (result.type === "band") {
+      expect(result.name).toBe("Unknown");
+    }
+  });
+
+  it("returns bodyweight with detail", () => {
+    const ex = makeExercise({ equipmentType: "bodyweight", equipmentDetail: "Pull-up bar" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("bodyweight");
+    if (result.type === "bodyweight") {
+      expect(result.detail).toBe("Pull-up bar");
+    }
+  });
+
+  it("returns bodyweight with null detail", () => {
+    const ex = makeExercise({ equipmentType: "bodyweight", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("bodyweight");
+    if (result.type === "bodyweight") {
+      expect(result.detail).toBeNull();
+    }
+  });
+
+  it("returns assisted with weight and detail", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "Purple Band" });
+    const result = getEquipmentDisplay(ex, 30);
+    expect(result.type).toBe("assisted");
+    if (result.type === "assisted") {
+      expect(result.weight).toBe(30);
+      expect(result.detail).toBe("Purple Band");
+    }
+  });
+
+  it("returns kettlebell with weight", () => {
+    const ex = makeExercise({ equipmentType: "kettlebell" });
+    const result = getEquipmentDisplay(ex, 35);
+    expect(result.type).toBe("kettlebell");
+    if (result.type === "kettlebell") {
+      expect(result.weight).toBe(35);
+    }
+  });
+});
+
+describe("equipmentDisplayText", () => {
+  it("displays barbell with plate info", () => {
+    const text = equipmentDisplayText({
+      type: "barbell",
+      config: {
+        targetWeight: 185, barWeight: 45, achievedWeight: 185,
+        perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
+      },
+    });
+    expect(text).toBe("Each side: 1x45 + 1x25 (185 lbs)");
+  });
+
+  it("displays bar only for barbell", () => {
+    const text = equipmentDisplayText({
+      type: "barbell",
+      config: { targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [] },
+    });
+    expect(text).toBe("Bar only (45 lbs)");
+  });
+
+  it("displays powerblock weight", () => {
+    expect(equipmentDisplayText({ type: "powerblock", weight: 25 })).toBe("PowerBlock: 25 lbs");
+  });
+
+  it("displays dumbbell weight", () => {
+    expect(equipmentDisplayText({ type: "dumbbell", weight: 2 })).toBe("Dumbbell: 2 lbs");
+  });
+
+  it("displays band with range", () => {
+    expect(equipmentDisplayText({ type: "band", name: "Orange", range: "2-12 lbs" }))
+      .toBe("Orange Band (2-12 lbs)");
+  });
+
+  it("displays bodyweight with detail", () => {
+    expect(equipmentDisplayText({ type: "bodyweight", detail: "Pull-up bar" })).toBe("Pull-up bar");
+  });
+
+  it("displays 'Bodyweight' when no detail", () => {
+    expect(equipmentDisplayText({ type: "bodyweight", detail: null })).toBe("Bodyweight");
+  });
+
+  it("displays assisted with weight and detail", () => {
+    const text = equipmentDisplayText({ type: "assisted", weight: 30, detail: "Purple Band" });
+    expect(text).toBe("Purple Band (~30 lb assistance)");
+  });
+
+  it("displays assisted with weight but no detail", () => {
+    const text = equipmentDisplayText({ type: "assisted", weight: 30, detail: null });
+    expect(text).toBe("30 lb assistance");
+  });
+
+  it("displays 'Assisted' when zero weight and no detail", () => {
+    expect(equipmentDisplayText({ type: "assisted", weight: 0, detail: null })).toBe("Assisted");
+  });
+
+  it("displays assisted with detail but zero weight", () => {
+    expect(equipmentDisplayText({ type: "assisted", weight: 0, detail: "Band" })).toBe("Band");
+  });
+
+  it("displays kettlebell weight", () => {
+    expect(equipmentDisplayText({ type: "kettlebell", weight: 35 })).toBe("Kettlebell: 35 lbs");
+  });
+});
+
+describe("equipmentShortText", () => {
+  it("shows weight for barbell", () => {
+    const text = equipmentShortText({
+      type: "barbell",
+      config: { targetWeight: 185, barWeight: 45, achievedWeight: 185, perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }] },
+    });
+    expect(text).toBe("185 lbs");
+  });
+
+  it("shows weight for powerblock", () => {
+    expect(equipmentShortText({ type: "powerblock", weight: 25 })).toBe("25 lbs");
+  });
+
+  it("shows weight for dumbbell", () => {
+    expect(equipmentShortText({ type: "dumbbell", weight: 10 })).toBe("10 lbs");
+  });
+
+  it("shows weight for kettlebell", () => {
+    expect(equipmentShortText({ type: "kettlebell", weight: 35 })).toBe("35 lbs");
+  });
+
+  it("shows band name", () => {
+    expect(equipmentShortText({ type: "band", name: "Orange", range: "2-12 lbs" })).toBe("Orange Band");
+  });
+
+  it("shows BW for bodyweight", () => {
+    expect(equipmentShortText({ type: "bodyweight", detail: null })).toBe("BW");
+  });
+
+  it("shows assist weight for assisted", () => {
+    expect(equipmentShortText({ type: "assisted", weight: 30, detail: null })).toBe("30 lb assist");
+  });
+
+  it("shows 'Assisted' for zero weight assisted", () => {
+    expect(equipmentShortText({ type: "assisted", weight: 0, detail: null })).toBe("Assisted");
+  });
+});

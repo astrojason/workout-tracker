@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcuserdata
+*.xcworkspace
+build/
+DerivedData/
+
+# iOS
+GoogleService-Info.plist
+
+# Data files (imported via web UI, not needed at runtime)
+*.csv
+Gym_Equipment.md
+
+# Web (also has web/.gitignore)
+web/node_modules/
+web/.next/
+web/.env.local
+web/.env*.local
+
+# Claude Code
+.claude/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*~

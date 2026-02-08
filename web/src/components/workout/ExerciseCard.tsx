@@ -1,0 +1,74 @@
+"use client";
+
+import type { Exercise, EquipmentDisplay } from "@/lib/types";
+import { repTargetDisplay, formatRestTime, PHASE_COLORS } from "@/lib/types";
+import { equipmentDisplayText } from "@/lib/equipment-calculator";
+
+interface ExerciseCardProps {
+  exercise: Exercise;
+  setNumber: number;
+  weight: number;
+  equipmentDisplay: EquipmentDisplay;
+}
+
+export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay }: ExerciseCardProps) {
+  const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
+
+  return (
+    <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+      {/* Exercise Name */}
+      <h2 className="text-2xl font-bold mb-4">{exercise.name}</h2>
+
+      {/* Phase badge */}
+      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${phaseColor} mb-4`}>
+        {exercise.phase.charAt(0).toUpperCase() + exercise.phase.slice(1)}
+      </span>
+
+      {/* Set / Rep / Rest info */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-gray-800 rounded-xl p-3 text-center">
+          <div className="text-xs text-gray-400">Set</div>
+          <div className="text-lg font-bold">{setNumber} of {exercise.sets}</div>
+        </div>
+        <div className="bg-gray-800 rounded-xl p-3 text-center">
+          <div className="text-xs text-gray-400">Reps</div>
+          <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax)}</div>
+        </div>
+        {exercise.restSeconds > 0 && (
+          <div className="bg-gray-800 rounded-xl p-3 text-center">
+            <div className="text-xs text-gray-400">Rest</div>
+            <div className="text-lg font-bold">{formatRestTime(exercise.restSeconds)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Equipment */}
+      <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4">
+        <div className="text-indigo-300 font-semibold">
+          {equipmentDisplayText(equipmentDisplay)}
+        </div>
+      </div>
+
+      {/* Unilateral */}
+      {exercise.isUnilateral && (
+        <div className="text-orange-400 font-semibold text-sm mb-2">
+          &#x2194; Each Side
+        </div>
+      )}
+
+      {/* Notes */}
+      {exercise.notes && (
+        <div className="bg-gray-800/50 rounded-xl p-3 text-sm text-gray-400">
+          {exercise.notes}
+        </div>
+      )}
+
+      {/* Progression */}
+      {exercise.progressionRule !== "none" && exercise.progressionRule !== "maintain" && (
+        <div className="text-green-400 text-xs mt-3">
+          &#x2197; Progression: {exercise.progressionRule.replace(/_/g, " ")}
+        </div>
+      )}
+    </div>
+  );
+}

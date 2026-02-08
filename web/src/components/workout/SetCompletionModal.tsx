@@ -1,0 +1,109 @@
+"use client";
+
+import { useState } from "react";
+import type { Exercise } from "@/lib/types";
+
+interface SetCompletionModalProps {
+  exercise: Exercise;
+  setNumber: number;
+  targetWeight: number;
+  onSave: (actualReps: number, actualWeight: number, failed: boolean, notes?: string) => void;
+  onCancel: () => void;
+}
+
+export function SetCompletionModal({
+  exercise, setNumber, targetWeight, onSave, onCancel,
+}: SetCompletionModalProps) {
+  const defaultReps = exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin;
+  const [reps, setReps] = useState(defaultReps);
+  const [weight, setWeight] = useState(targetWeight);
+  const [failed, setFailed] = useState(false);
+  const [notes, setNotes] = useState("");
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
+      <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-gray-800">
+        <h3 className="text-lg font-bold mb-6">Set {setNumber}</h3>
+
+        {/* Reps */}
+        <div className="mb-5">
+          <label className="text-sm text-gray-400 block mb-2">Reps Completed</label>
+          <div className="flex items-center justify-center gap-4">
+            <button
+              onClick={() => setReps(Math.max(0, reps - 1))}
+              className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-bold transition"
+            >
+              -
+            </button>
+            <span className="text-4xl font-bold w-16 text-center font-mono">{reps}</span>
+            <button
+              onClick={() => setReps(reps + 1)}
+              className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-bold transition"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Weight */}
+        {targetWeight > 0 && (
+          <div className="mb-5">
+            <label className="text-sm text-gray-400 block mb-2">Weight (lbs)</label>
+            <input
+              type="number"
+              value={weight}
+              onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
+              step="2.5"
+              className="w-full bg-gray-800 rounded-xl px-4 py-3 text-xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
+            />
+          </div>
+        )}
+
+        {/* Failed toggle */}
+        <div className="mb-5 flex items-center justify-between">
+          <span className="text-sm text-gray-400">Failed Set</span>
+          <button
+            onClick={() => setFailed(!failed)}
+            className={`w-12 h-7 rounded-full transition ${
+              failed ? "bg-red-500" : "bg-gray-700"
+            } relative`}
+          >
+            <div
+              className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${
+                failed ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Notes */}
+        <div className="mb-6">
+          <label className="text-sm text-gray-400 block mb-2">Notes (optional)</label>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="How did it feel?"
+            className="w-full bg-gray-800 rounded-xl px-4 py-3 text-sm border border-gray-700 focus:border-indigo-500 outline-none"
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(reps, weight, failed, notes || undefined)}
+            className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
