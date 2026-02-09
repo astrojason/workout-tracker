@@ -1,7 +1,7 @@
 "use client";
 
 import type { Exercise, EquipmentDisplay } from "@/lib/types";
-import { repTargetDisplay, formatRestTime, PHASE_COLORS } from "@/lib/types";
+import { repTargetDisplay, formatRestTime, PHASE_COLORS, isTimeBased } from "@/lib/types";
 import { equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface ExerciseCardProps {
@@ -31,8 +31,8 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay }: 
           <div className="text-lg font-bold">{setNumber} of {exercise.sets}</div>
         </div>
         <div className="bg-gray-800 rounded-xl p-3 text-center">
-          <div className="text-xs text-gray-400">Reps</div>
-          <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax)}</div>
+          <div className="text-xs text-gray-400">{isTimeBased(exercise) ? "Duration" : "Reps"}</div>
+          <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax, exercise)}</div>
         </div>
         {exercise.restSeconds > 0 && (
           <div className="bg-gray-800 rounded-xl p-3 text-center">

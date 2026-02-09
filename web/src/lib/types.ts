@@ -174,8 +174,28 @@ export function barWeight(type: EquipmentType): number | null {
   }
 }
 
-export function repTargetDisplay(repMin: number, repMax: RepTarget): string {
+export function isTimeBased(exercise: Exercise): boolean {
+  if (exercise.progressionRule === "add_time") return true;
+  if (exercise.phase === "mobility" && exercise.repMin >= 30) return true;
+  return false;
+}
+
+function formatTimeValue(seconds: number): string {
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} min`;
+  if (seconds >= 60) {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec.toString().padStart(2, "0")}`;
+  }
+  return `${seconds}s`;
+}
+
+export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: Exercise): string {
   if (repMax.type === "failure") return "To Failure";
+  if (exercise && isTimeBased(exercise)) {
+    if (repMax.type === "count" && repMin === repMax.value) return formatTimeValue(repMin);
+    if (repMax.type === "count") return `${formatTimeValue(repMin)}-${formatTimeValue(repMax.value)}`;
+  }
   if (repMin === repMax.value) return `${repMin} reps`;
   return `${repMin}-${repMax.value} reps`;
 }
