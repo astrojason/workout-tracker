@@ -64,6 +64,18 @@ export async function saveProgram(userId: string, program: Omit<Program, "id"> &
   return id;
 }
 
+export async function deleteProgramDoc(userId: string, programId: string) {
+  await deleteDoc(doc(programsCol(userId), programId));
+}
+
+export async function deleteAllWorkoutsForProgram(userId: string, programName: string) {
+  const q = query(workoutsCol(userId), where("programName", "==", programName));
+  const snap = await getDocs(q);
+  for (const d of snap.docs) {
+    await deleteDoc(d.ref);
+  }
+}
+
 // ── Workouts (exercise definitions by program/week/day) ──
 
 function workoutDocId(programName: string, week: number, day: string): string {

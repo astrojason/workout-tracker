@@ -6,6 +6,7 @@ import {
   getPrograms, getSettings, updateSettings,
   getWorkoutsForProgram, getAllWorkoutsForProgram,
   getCompletedDays, saveProgram, saveWorkout,
+  deleteProgramDoc, deleteAllWorkoutsForProgram,
 } from "@/lib/firestore";
 import { parseCSV } from "@/lib/csv-parser";
 import { DAY_ORDER } from "@/lib/types";
@@ -120,6 +121,49 @@ export function usePrograms(userId: string | null) {
     }
   }, [userId, settings]);
 
+  const deleteProgram = useCallback(async (programId: string, programName: string) => {
+    if (!userId) return;
+    await deleteProgramDoc(userId, programId);
+    await deleteAllWorkoutsForProgram(userId, programName);
+
+    // Update local state
+    setPrograms((prev) => prev.filter((p) => p.id !== programId));
+
+    // Clean up currentWeeks
+    const { [programName]: _, ...restWeeks } = settings.currentWeeks;
+    setSettingsState((prev) => ({ ...prev, currentWeeks: restWeeks }));
+    await updateSettings(userId, { currentWeeks: restWeeks });
+
+    // Clean up caches
+    setWorkoutsCache((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith(`${programName}_`)) delete next[key];
+      }
+      return next;
+    });
+    setCompletedDaysCache((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith(`${programName}_`)) delete next[key];
+      }
+      return next;
+    });
+  }, [userId, settings]);
+
+  const updateWorkout = useCallback(async (workout: Workout) => {
+    if (!userId) return;
+    await saveWorkout(userId, workout);
+    // Refresh cache for this program/week
+    const workouts = await getWorkoutsForProgram(userId, workout.programName, workout.week);
+    setWorkoutsCache((prev) => ({ ...prev, [`${workout.programName}_${workout.week}`]: workouts }));
+  }, [userId]);
+
+  const loadWorkoutsForWeek = useCallback(async (programName: string, week: number): Promise<Workout[]> => {
+    if (!userId) return [];
+    return getWorkoutsForProgram(userId, programName, week);
+  }, [userId]);
+
   const updateUserSettings = useCallback(async (updates: Partial<UserSettings>) => {
     if (!userId) return;
     setSettingsState((prev) => ({ ...prev, ...updates }));
@@ -146,6 +190,9 @@ export function usePrograms(userId: string | null) {
     getAvailableDays,
     getCompletedDaysForProgram,
     importCSV,
+    deleteProgram,
+    updateWorkout,
+    loadWorkoutsForWeek,
     updateUserSettings,
     refreshCompletedDays,
   };

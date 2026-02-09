@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Exercise } from "@/lib/types";
+import { isTimeBased, formatTimeValue } from "@/lib/types";
 
 interface SetCompletionModalProps {
   exercise: Exercise;
@@ -20,24 +21,31 @@ export function SetCompletionModal({
   const [failed, setFailed] = useState(false);
   const [notes, setNotes] = useState("");
 
+  const timeBased = isTimeBased(exercise);
+  const increment = timeBased ? 15 : 1;
+
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
       <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-gray-800">
         <h3 className="text-lg font-bold mb-6">Set {setNumber}</h3>
 
-        {/* Reps */}
+        {/* Reps / Duration */}
         <div className="mb-5">
-          <label className="text-sm text-gray-400 block mb-2">Reps Completed</label>
+          <label className="text-sm text-gray-400 block mb-2">
+            {timeBased ? "Duration Completed" : "Reps Completed"}
+          </label>
           <div className="flex items-center justify-center gap-4">
             <button
-              onClick={() => setReps(Math.max(0, reps - 1))}
+              onClick={() => setReps(Math.max(0, reps - increment))}
               className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-bold transition"
             >
               -
             </button>
-            <span className="text-4xl font-bold w-16 text-center font-mono">{reps}</span>
+            <span className="text-4xl font-bold w-24 text-center font-mono">
+              {timeBased ? formatTimeValue(reps) : reps}
+            </span>
             <button
-              onClick={() => setReps(reps + 1)}
+              onClick={() => setReps(reps + increment)}
               className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-bold transition"
             >
               +

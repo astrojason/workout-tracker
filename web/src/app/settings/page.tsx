@@ -9,12 +9,14 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
     programs, settings, currentWeek, setCurrentWeek,
-    importCSV, updateUserSettings,
+    importCSV, deleteProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   async function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -32,6 +34,16 @@ export default function SettingsPage() {
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDelete(programId: string, programName: string) {
+    setDeletingId(programId);
+    try {
+      await deleteProgram(programId, programName);
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   }
 
@@ -58,16 +70,59 @@ export default function SettingsPage() {
                   <div className="font-semibold">{program.name}</div>
                   <div className="text-xs text-gray-500">{program.totalWeeks} weeks</div>
                 </div>
-                <select
-                  value={currentWeek(program.name)}
-                  onChange={(e) => setCurrentWeek(program.name, parseInt(e.target.value))}
-                  className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
-                >
-                  {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
-                    <option key={w} value={w}>Week {w}</option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={currentWeek(program.name)}
+                    onChange={(e) => setCurrentWeek(program.name, parseInt(e.target.value))}
+                    className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
+                  >
+                    {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
+                      <option key={w} value={w}>Week {w}</option>
+                    ))}
+                  </select>
+                  <Link
+                    href={`/programs/${program.id}`}
+                    className="text-gray-600 hover:text-indigo-400 transition p-1"
+                    title="Edit exercises"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </Link>
+                  <button
+                    onClick={() => setConfirmDeleteId(program.id)}
+                    disabled={deletingId === program.id}
+                    className="text-gray-600 hover:text-red-400 transition p-1"
+                    title="Delete program"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </div>
+              {confirmDeleteId === program.id && (
+                <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
+                  <p className="text-sm text-gray-300 mb-2">
+                    Delete {program.name}? This removes all workouts but keeps history.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDelete(program.id, program.name)}
+                      disabled={deletingId === program.id}
+                      className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
+                    >
+                      {deletingId === program.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
 

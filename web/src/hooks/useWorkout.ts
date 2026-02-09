@@ -9,11 +9,162 @@ import { saveSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 
+const STORAGE_KEY = "activeWorkout";
+const REST_END_KEY = "activeWorkoutRestEnd";
+
+// Serialization helpers for sessionStorage
+function serializeSession(session: ActiveSession): string {
+  return JSON.stringify({
+    ...session,
+    startTime: session.startTime.toISOString(),
+    completedSets: session.completedSets.map((s) => ({
+      ...s,
+      timestamp: s.timestamp instanceof Timestamp
+        ? s.timestamp.toDate().toISOString()
+        : s.timestamp instanceof Date
+          ? s.timestamp.toISOString()
+          : s.timestamp,
+    })),
+  });
+}
+
+function deserializeSession(json: string): ActiveSession | null {
+  try {
+    const data = JSON.parse(json);
+    return {
+      ...data,
+      startTime: new Date(data.startTime),
+      completedSets: data.completedSets.map((s: Record<string, unknown>) => ({
+        ...s,
+        timestamp: Timestamp.fromDate(new Date(s.timestamp as string)),
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistSession(session: ActiveSession | null, restEnd: Date | null) {
+  try {
+    if (session) {
+      sessionStorage.setItem(STORAGE_KEY, serializeSession(session));
+      if (restEnd) {
+        sessionStorage.setItem(REST_END_KEY, restEnd.toISOString());
+      } else {
+        sessionStorage.removeItem(REST_END_KEY);
+      }
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(REST_END_KEY);
+    }
+  } catch {
+    // sessionStorage may be unavailable
+  }
+}
+
+function clearPersistedSession() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(REST_END_KEY);
+  } catch {
+    // sessionStorage may be unavailable
+  }
+}
+
 export function useWorkout(userId: string | null) {
   const [session, setSession] = useState<ActiveSession | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const { playTimerComplete, playSetComplete, initAudio } = useSound();
+
+  // Restore session from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const restored = deserializeSession(saved);
+        if (restored) {
+          setSession(restored);
+
+          // Restore rest timer if active
+          const restEndStr = sessionStorage.getItem(REST_END_KEY);
+          if (restEndStr && restored.isResting) {
+            const restEnd = new Date(restEndStr);
+            const remaining = Math.max(0, Math.round((restEnd.getTime() - Date.now()) / 1000));
+            if (remaining > 0) {
+              // Timer still has time — restart it
+              restEndRef.current = restEnd;
+              startRestTimerFromEnd(restEnd);
+            } else {
+              // Timer expired while away — advance state
+              setSession((prev) => {
+                if (!prev) return prev;
+                const exercise = prev.workout.exercises[prev.currentExerciseIndex];
+                const completed = prev.completedSets.filter((s) => s.exerciseOrder === exercise.order).length;
+                const setsRemaining = exercise.sets - completed;
+
+                if (setsRemaining > 0) {
+                  return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
+                } else if (prev.currentExerciseIndex < prev.workout.exercises.length - 1) {
+                  return { ...prev, isResting: false, currentExerciseIndex: prev.currentExerciseIndex + 1, currentSetNumber: 1 };
+                }
+                return { ...prev, isResting: false };
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, []);
+
+  // Persist session to sessionStorage on every change
+  useEffect(() => {
+    persistSession(session, restEndRef.current);
+  }, [session]);
+
+  // WakeLock management
+  useEffect(() => {
+    async function requestWakeLock() {
+      try {
+        if ("wakeLock" in navigator && session) {
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        }
+      } catch {
+        // WakeLock request can fail (e.g., low battery)
+      }
+    }
+
+    async function releaseWakeLock() {
+      try {
+        await wakeLockRef.current?.release();
+        wakeLockRef.current = null;
+      } catch {
+        // Ignore release errors
+      }
+    }
+
+    if (session) {
+      requestWakeLock();
+
+      // Re-acquire on visibility change (WakeLock is released when tab is hidden)
+      function handleVisibilityChange() {
+        if (document.visibilityState === "visible" && session) {
+          requestWakeLock();
+        }
+      }
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      return () => {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        releaseWakeLock();
+      };
+    } else {
+      releaseWakeLock();
+    }
+  }, [!!session]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -52,17 +203,17 @@ export function useWorkout(userId: string | null) {
     ? session.completedSets.filter((s) => s.exerciseOrder === currentExercise?.order).length
     : 0;
 
-  function startRestTimer(seconds: number) {
-    const endDate = new Date(Date.now() + seconds * 1000);
+  function startRestTimerFromEnd(endDate: Date) {
+    const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
     restEndRef.current = endDate;
 
-    setSession((prev) => prev ? { ...prev, isResting: true, restTimeRemaining: seconds } : prev);
+    setSession((prev) => prev ? { ...prev, isResting: true, restTimeRemaining: remaining } : prev);
 
     timerRef.current = setInterval(() => {
-      const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
-      setSession((prev) => prev ? { ...prev, restTimeRemaining: remaining } : prev);
+      const rem = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
+      setSession((prev) => prev ? { ...prev, restTimeRemaining: rem } : prev);
 
-      if (remaining <= 0) {
+      if (rem <= 0) {
         clearInterval(timerRef.current!);
         timerRef.current = null;
         restEndRef.current = null;
@@ -84,6 +235,11 @@ export function useWorkout(userId: string | null) {
         });
       }
     }, 1000);
+  }
+
+  function startRestTimer(seconds: number) {
+    const endDate = new Date(Date.now() + seconds * 1000);
+    startRestTimerFromEnd(endDate);
   }
 
   const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, notes?: string) => {
@@ -209,6 +365,7 @@ export function useWorkout(userId: string | null) {
       sets,
     });
 
+    clearPersistedSession();
     setSession((prev) => prev ? { ...prev, prsAchieved: allPRs } : prev);
   }
 
@@ -226,6 +383,7 @@ export function useWorkout(userId: string | null) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    clearPersistedSession();
     setSession(null);
   }, []);
 

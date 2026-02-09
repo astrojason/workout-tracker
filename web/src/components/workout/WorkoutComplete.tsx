@@ -1,7 +1,7 @@
 "use client";
 
 import type { ActiveSession } from "@/lib/types";
-import { cleanWeight, formatDuration } from "@/lib/types";
+import { cleanWeight, formatDuration, isTimeBased, formatTimeValue } from "@/lib/types";
 
 interface WorkoutCompleteProps {
   session: ActiveSession;
@@ -86,7 +86,9 @@ export function WorkoutComplete({ session, onDone }: WorkoutCompleteProps) {
           <div className="space-y-1">
             {grouped.map((group) => {
               const done = group.sets.filter((s) => s.completed);
-              const reps = done.map((s) => s.actualReps).join(", ");
+              const exercise = session.workout.exercises.find((e) => e.name === group.name);
+              const timeBased = exercise ? isTimeBased(exercise) : false;
+              const reps = done.map((s) => timeBased ? formatTimeValue(s.actualReps) : s.actualReps).join(", ");
               const w = done[0]?.actualWeight ?? 0;
               return (
                 <div key={group.name} className="flex justify-between text-sm py-1">

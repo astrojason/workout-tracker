@@ -180,7 +180,7 @@ export function isTimeBased(exercise: Exercise): boolean {
   return false;
 }
 
-function formatTimeValue(seconds: number): string {
+export function formatTimeValue(seconds: number): string {
   if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} min`;
   if (seconds >= 60) {
     const min = Math.floor(seconds / 60);
