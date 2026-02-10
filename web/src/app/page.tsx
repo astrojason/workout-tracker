@@ -1,17 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useWorkout } from "@/hooks/useWorkout";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
+import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
+import { isChecklistWorkout } from "@/lib/types";
+import type { Workout } from "@/lib/types";
 import Link from "next/link";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { programs, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, importCSV, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
+  const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
 
   if (authLoading) {
     return (
@@ -41,6 +46,20 @@ export default function HomePage() {
           Sign in with Google
         </button>
       </div>
+    );
+  }
+
+  // Checklist workout (e.g. Daily Mobility)
+  if (checklistWorkout && user) {
+    return (
+      <ChecklistWorkout
+        workout={checklistWorkout}
+        userId={user.uid}
+        onClose={() => {
+          setChecklistWorkout(null);
+          refreshCompletedDays();
+        }}
+      />
     );
   }
 
@@ -119,10 +138,22 @@ export default function HomePage() {
               todaysWorkout={getTodaysWorkout(program.name)}
               availableDays={getAvailableDays(program.name)}
               completedDays={getCompletedDaysForProgram(program.name)}
-              onStartWorkout={(w) => workout.startWorkout(w)}
+              onStartWorkout={(w) => {
+                if (isChecklistWorkout(w)) {
+                  setChecklistWorkout(w);
+                } else {
+                  workout.startWorkout(w);
+                }
+              }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.name, day);
-                if (w) workout.startWorkout(w);
+                if (w) {
+                  if (isChecklistWorkout(w)) {
+                    setChecklistWorkout(w);
+                  } else {
+                    workout.startWorkout(w);
+                  }
+                }
               }}
             />
           ))}

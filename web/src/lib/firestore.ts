@@ -131,6 +131,45 @@ export async function saveSession(userId: string, session: Omit<WorkoutSessionDo
   return ref.id;
 }
 
+export async function getTodayChecklistSession(
+  userId: string, programName: string, dayOfWeek: string
+): Promise<(WorkoutSessionDoc & { firestoreId: string }) | null> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const q = query(
+    sessionsCol(userId),
+    where("programName", "==", programName),
+    where("dayOfWeek", "==", dayOfWeek),
+    where("date", ">=", Timestamp.fromDate(today)),
+    where("date", "<", Timestamp.fromDate(tomorrow)),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { ...(d.data() as WorkoutSessionDoc), firestoreId: d.id };
+}
+
+export async function upsertChecklistSession(
+  userId: string,
+  firestoreId: string | null,
+  session: Omit<WorkoutSessionDoc, "id">
+): Promise<string> {
+  if (firestoreId) {
+    const ref = doc(sessionsCol(userId), firestoreId);
+    await setDoc(ref, { ...session, date: Timestamp.now() });
+    return firestoreId;
+  }
+  const ref = await addDoc(sessionsCol(userId), {
+    ...session,
+    date: Timestamp.now(),
+  });
+  return ref.id;
+}
+
 export async function getSessions(
   userId: string, limitCount: number = 50
 ): Promise<WorkoutSessionDoc[]> {

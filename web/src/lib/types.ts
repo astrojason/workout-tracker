@@ -175,6 +175,14 @@ export function barWeight(type: EquipmentType): number | null {
   }
 }
 
+const CHECKLIST_RULES: ProgressionRule[] = ["none", "maintain", "add_time", "add_reps"];
+
+export function isChecklistWorkout(workout: Workout): boolean {
+  return workout.exercises.every(
+    (ex) => ex.restSeconds === 0 && CHECKLIST_RULES.includes(ex.progressionRule)
+  );
+}
+
 export function isTimeBased(exercise: Exercise): boolean {
   if (exercise.progressionRule === "add_time") return true;
   if (exercise.phase === "mobility" && exercise.repMin >= 30) return true;
