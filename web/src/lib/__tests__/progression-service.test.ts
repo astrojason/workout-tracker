@@ -6,10 +6,12 @@ import { Timestamp } from "firebase/firestore";
 // Mock firestore module
 vi.mock("../firestore", () => ({
   getLastSetsForExercise: vi.fn(),
+  getLastTwoSessionSets: vi.fn(),
 }));
 
-import { getLastSetsForExercise } from "../firestore";
+import { getLastSetsForExercise, getLastTwoSessionSets } from "../firestore";
 const mockGetLastSets = vi.mocked(getLastSetsForExercise);
+const mockGetLastTwoSessions = vi.mocked(getLastTwoSessionSets);
 
 function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
@@ -50,6 +52,7 @@ function makeCompletedSet(overrides: Partial<CompletedSet> = {}): CompletedSet {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetLastTwoSessions.mockResolvedValue([]);
 });
 
 describe("applyProgression", () => {

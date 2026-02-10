@@ -8,7 +8,7 @@ interface SetCompletionModalProps {
   exercise: Exercise;
   setNumber: number;
   targetWeight: number;
-  onSave: (actualReps: number, actualWeight: number, failed: boolean, notes?: string) => void;
+  onSave: (actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => void;
   onCancel: () => void;
 }
 
@@ -19,10 +19,17 @@ export function SetCompletionModal({
   const [reps, setReps] = useState(defaultReps);
   const [weight, setWeight] = useState(targetWeight);
   const [failed, setFailed] = useState(false);
+  const [rating, setRating] = useState<"easy" | "normal" | "hard">("normal");
   const [notes, setNotes] = useState("");
 
   const timeBased = isTimeBased(exercise);
   const increment = timeBased ? 15 : 1;
+
+  const ratingOptions: { value: "easy" | "normal" | "hard"; label: string; color: string; activeColor: string }[] = [
+    { value: "easy", label: "Easy", color: "text-gray-400", activeColor: "bg-green-600 text-white" },
+    { value: "normal", label: "Normal", color: "text-gray-400", activeColor: "bg-indigo-600 text-white" },
+    { value: "hard", label: "Hard", color: "text-gray-400", activeColor: "bg-red-600 text-white" },
+  ];
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
@@ -67,6 +74,24 @@ export function SetCompletionModal({
           </div>
         )}
 
+        {/* Rating */}
+        <div className="mb-5">
+          <label className="text-sm text-gray-400 block mb-2">Difficulty</label>
+          <div className="flex rounded-xl overflow-hidden border border-gray-700">
+            {ratingOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setRating(opt.value)}
+                className={`flex-1 py-2.5 text-sm font-semibold transition ${
+                  rating === opt.value ? opt.activeColor : "bg-gray-800 " + opt.color + " hover:bg-gray-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Failed toggle */}
         <div className="mb-5 flex items-center justify-between">
           <span className="text-sm text-gray-400">Failed Set</span>
@@ -105,7 +130,7 @@ export function SetCompletionModal({
             Cancel
           </button>
           <button
-            onClick={() => onSave(reps, weight, failed, notes || undefined)}
+            onClick={() => onSave(reps, weight, failed, rating, notes || undefined)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition"
           >
             Save

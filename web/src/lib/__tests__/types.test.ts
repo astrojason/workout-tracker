@@ -34,8 +34,8 @@ describe("barWeight", () => {
 });
 
 describe("repTargetDisplay", () => {
-  it("returns 'To Failure' for failure rep target", () => {
-    expect(repTargetDisplay(8, { type: "failure" })).toBe("To Failure");
+  it("returns 'AMRAP' for failure rep target", () => {
+    expect(repTargetDisplay(8, { type: "failure" })).toBe("AMRAP");
   });
 
   it("returns single rep count when min equals max", () => {
@@ -50,9 +50,9 @@ describe("repTargetDisplay", () => {
     expect(repTargetDisplay(1, { type: "count", value: 3 })).toBe("1-3 reps");
   });
 
-  it("returns 'To Failure' regardless of repMin value", () => {
-    expect(repTargetDisplay(1, { type: "failure" })).toBe("To Failure");
-    expect(repTargetDisplay(20, { type: "failure" })).toBe("To Failure");
+  it("returns 'AMRAP' regardless of repMin value", () => {
+    expect(repTargetDisplay(1, { type: "failure" })).toBe("AMRAP");
+    expect(repTargetDisplay(20, { type: "failure" })).toBe("AMRAP");
   });
 
   it("shows time for mobility exercises with high reps", () => {

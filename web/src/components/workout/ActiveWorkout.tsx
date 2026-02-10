@@ -9,14 +9,17 @@ import { SetCompletionModal } from "./SetCompletionModal";
 
 interface ActiveWorkoutProps {
   session: ActiveSession;
-  onCompleteSet: (actualReps: number, actualWeight: number, failed: boolean, notes?: string) => void;
+  onCompleteSet: (actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => void;
   onSkipSet: () => void;
   onSkipRest: () => void;
   onEndWorkout: () => void;
+  onHardWeightDecision?: (action: "keep" | "reduce") => void;
+  showHardPrompt?: boolean;
 }
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
+  onHardWeightDecision, showHardPrompt,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -116,12 +119,38 @@ export function ActiveWorkout({
           exercise={exercise}
           setNumber={session.currentSetNumber}
           targetWeight={weight}
-          onSave={(reps, w, failed, notes) => {
+          onSave={(reps, w, failed, rating, notes) => {
             setShowCompletion(false);
-            onCompleteSet(reps, w, failed, notes);
+            onCompleteSet(reps, w, failed, rating, notes);
           }}
           onCancel={() => setShowCompletion(false)}
         />
+      )}
+
+      {/* Hard Weight Decision Prompt */}
+      {showHardPrompt && onHardWeightDecision && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-sm mx-4 border border-gray-800">
+            <h3 className="text-lg font-bold mb-2">That was hard</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              Would you like to keep the same weight or reduce it for the remaining sets?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onHardWeightDecision("keep")}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+              >
+                Keep Weight
+              </button>
+              <button
+                onClick={() => onHardWeightDecision("reduce")}
+                className="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold transition"
+              >
+                Reduce
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* End Workout Confirmation */}

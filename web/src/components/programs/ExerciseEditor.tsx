@@ -181,7 +181,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
             <div className="flex gap-2 items-center">
               <select value={repMaxType} onChange={(e) => setRepMaxType(e.target.value as "count" | "failure")} className="input-field flex-1">
                 <option value="count">Count</option>
-                <option value="failure">Failure</option>
+                <option value="failure">AMRAP</option>
               </select>
               {repMaxType === "count" && (
                 <input

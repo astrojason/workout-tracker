@@ -172,6 +172,24 @@ export async function getLastSetsForExercise(
   return [];
 }
 
+export async function getLastTwoSessionSets(
+  userId: string, exerciseName: string
+): Promise<CompletedSet[][]> {
+  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(30));
+  const snap = await getDocs(q);
+
+  const result: CompletedSet[][] = [];
+  for (const d of snap.docs) {
+    const session = d.data() as WorkoutSessionDoc;
+    const sets = (session.sets || []).filter((s) => s.exerciseName === exerciseName);
+    if (sets.length > 0) {
+      result.push(sets);
+      if (result.length === 2) break;
+    }
+  }
+  return result;
+}
+
 export async function getExerciseHistory(
   userId: string, exerciseName: string, limitCount: number = 50
 ): Promise<{ date: Date; weight: number; reps: number; volume: number }[]> {

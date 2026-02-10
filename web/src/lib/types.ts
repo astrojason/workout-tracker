@@ -90,6 +90,7 @@ export interface CompletedSet {
   completed: boolean;
   timestamp: Timestamp | Date;
   notes: string | null;
+  rating?: "easy" | "normal" | "hard";
 }
 
 export interface WorkoutSessionDoc {
@@ -191,7 +192,7 @@ export function formatTimeValue(seconds: number): string {
 }
 
 export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: Exercise): string {
-  if (repMax.type === "failure") return "To Failure";
+  if (repMax.type === "failure") return "AMRAP";
   if (exercise && isTimeBased(exercise)) {
     if (repMax.type === "count" && repMin === repMax.value) return formatTimeValue(repMin);
     if (repMax.type === "count") return `${formatTimeValue(repMin)}-${formatTimeValue(repMax.value)}`;

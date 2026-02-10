@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { Workout, Exercise, ActiveSession, CompletedSet, PRResult } from "@/lib/types";
-import { resolveWeight } from "@/lib/progression-service";
-import { getEquipmentDisplay } from "@/lib/equipment-calculator";
+import { resolveWeight, getProgressionIncrement, adjustForEquipment } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -73,9 +72,11 @@ function clearPersistedSession() {
 
 export function useWorkout(userId: string | null) {
   const [session, setSession] = useState<ActiveSession | null>(null);
+  const [showHardPrompt, setShowHardPrompt] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const pendingHardRef = useRef<{ exerciseId: string } | null>(null);
   const { playTimerComplete, playSetComplete, initAudio } = useSound();
 
   // Restore session from sessionStorage on mount
@@ -242,7 +243,7 @@ export function useWorkout(userId: string | null) {
     startRestTimerFromEnd(endDate);
   }
 
-  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, notes?: string) => {
+  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => {
     if (!session || !currentExercise) return;
 
     const targetReps = currentExercise.repMax.type === "count" ? currentExercise.repMax.value : currentExercise.repMin;
@@ -259,6 +260,7 @@ export function useWorkout(userId: string | null) {
       completed: !failed,
       timestamp: Timestamp.now(),
       notes: notes || null,
+      rating,
     };
 
     playSetComplete();
@@ -267,23 +269,48 @@ export function useWorkout(userId: string | null) {
     const setsCompletedNow = newSets.filter((s) => s.exerciseOrder === currentExercise.order).length;
     const setsRemaining = currentExercise.sets - setsCompletedNow;
 
-    if (setsRemaining > 0) {
+    // Mid-workout weight adjustments based on rating
+    let updatedWeights = session.resolvedWeights;
+    if (rating === "easy" && setsRemaining > 0) {
+      const increment = getProgressionIncrement(currentExercise);
+      if (increment > 0) {
+        const newWeight = adjustForEquipment(currentWeight + increment, currentExercise);
+        updatedWeights = { ...updatedWeights, [currentExercise.id]: newWeight };
+      }
+    }
+
+    const updatedSession = { ...session, completedSets: newSets, resolvedWeights: updatedWeights };
+
+    // If rated hard, show prompt before proceeding (only if sets remain)
+    if (rating === "hard" && setsRemaining > 0) {
+      pendingHardRef.current = { exerciseId: currentExercise.id };
       if (currentExercise.restSeconds > 0) {
-        setSession({ ...session, completedSets: newSets });
+        setSession(updatedSession);
         startRestTimer(currentExercise.restSeconds);
       } else {
-        setSession({ ...session, completedSets: newSets, currentSetNumber: session.currentSetNumber + 1 });
+        setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
+      }
+      setShowHardPrompt(true);
+      return;
+    }
+
+    if (setsRemaining > 0) {
+      if (currentExercise.restSeconds > 0) {
+        setSession(updatedSession);
+        startRestTimer(currentExercise.restSeconds);
+      } else {
+        setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
       }
     } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
       if (currentExercise.restSeconds > 0) {
-        setSession({ ...session, completedSets: newSets });
+        setSession(updatedSession);
         startRestTimer(currentExercise.restSeconds);
       } else {
-        setSession({ ...session, completedSets: newSets, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
+        setSession({ ...updatedSession, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
       }
     } else {
       // Last exercise, last set
-      setSession({ ...session, completedSets: newSets });
+      setSession(updatedSession);
       endWorkoutInternal(newSets);
     }
   }, [session, currentExercise, currentWeight, playSetComplete]);
@@ -387,16 +414,41 @@ export function useWorkout(userId: string | null) {
     setSession(null);
   }, []);
 
+  const handleHardWeightDecision = useCallback((action: "keep" | "reduce") => {
+    setShowHardPrompt(false);
+    if (!session || !pendingHardRef.current) return;
+
+    if (action === "reduce") {
+      const exerciseId = pendingHardRef.current.exerciseId;
+      const exercise = session.workout.exercises.find((e) => e.id === exerciseId);
+      if (exercise) {
+        const increment = getProgressionIncrement(exercise);
+        if (increment > 0) {
+          const currentWt = session.resolvedWeights[exerciseId] ?? 0;
+          const reduced = adjustForEquipment(Math.max(0, currentWt - increment), exercise);
+          setSession((prev) => prev ? {
+            ...prev,
+            resolvedWeights: { ...prev.resolvedWeights, [exerciseId]: reduced },
+          } : prev);
+        }
+      }
+    }
+
+    pendingHardRef.current = null;
+  }, [session]);
+
   return {
     session,
     currentExercise,
     currentWeight,
     setsCompletedForCurrent,
+    showHardPrompt,
     startWorkout,
     completeSet,
     skipSet,
     skipRest,
     endWorkout,
     dismissWorkout,
+    handleHardWeightDecision,
   };
 }

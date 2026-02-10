@@ -1,7 +1,7 @@
 "use client";
 
 import type { ActiveSession } from "@/lib/types";
-import { cleanWeight } from "@/lib/types";
+import { getEquipmentDisplay, equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface RestTimerProps {
   session: ActiveSession;
@@ -10,6 +10,7 @@ interface RestTimerProps {
 
 export function RestTimer({ session, onSkipRest }: RestTimerProps) {
   const exercise = session.workout.exercises[session.currentExerciseIndex];
+  const weight = session.resolvedWeights[exercise.id] ?? 0;
   const totalRest = exercise.restSeconds || 120;
   const progress = session.restTimeRemaining / totalRest;
 
@@ -25,16 +26,18 @@ export function RestTimer({ session, onSkipRest }: RestTimerProps) {
 
   let nextLabel = "";
   let nextDetail = "";
+  let equipText = "";
 
   if (setsRemaining > 0) {
     nextLabel = "Next Set";
     nextDetail = `${exercise.name} - Set ${session.currentSetNumber + 1}`;
+    equipText = equipmentDisplayText(getEquipmentDisplay(exercise, weight));
   } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
     const next = session.workout.exercises[session.currentExerciseIndex + 1];
     const nextWeight = session.resolvedWeights[next.id] ?? 0;
     nextLabel = "Up Next";
     nextDetail = next.name;
-    if (nextWeight > 0) nextDetail += ` (${cleanWeight(nextWeight)} lbs)`;
+    equipText = equipmentDisplayText(getEquipmentDisplay(next, nextWeight));
   }
 
   return (
@@ -64,6 +67,9 @@ export function RestTimer({ session, onSkipRest }: RestTimerProps) {
           <div className="bg-gray-800/80 rounded-xl p-4 mb-8 backdrop-blur">
             <p className="text-xs text-gray-400">{nextLabel}</p>
             <p className="font-semibold">{nextDetail}</p>
+            {equipText && (
+              <p className="text-sm text-indigo-300 mt-1">{equipText}</p>
+            )}
           </div>
         )}
 

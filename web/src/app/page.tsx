@@ -77,6 +77,8 @@ export default function HomePage() {
         onEndWorkout={async () => {
           await workout.endWorkout();
         }}
+        showHardPrompt={workout.showHardPrompt}
+        onHardWeightDecision={workout.handleHardWeightDecision}
       />
     );
   }

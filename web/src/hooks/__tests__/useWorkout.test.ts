@@ -11,6 +11,8 @@ vi.mock("@/lib/firestore", () => ({
 
 vi.mock("@/lib/progression-service", () => ({
   resolveWeight: vi.fn().mockResolvedValue(135),
+  getProgressionIncrement: vi.fn().mockReturnValue(5),
+  adjustForEquipment: vi.fn().mockImplementation((target: number) => target),
 }));
 
 vi.mock("@/lib/pr-detector", () => ({
@@ -142,7 +144,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.session!.completedSets).toHaveLength(1);
@@ -162,7 +164,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(5, 135, true);
+      result.current.completeSet(5, 135, true, "normal");
     });
 
     expect(result.current.session!.completedSets[0].completed).toBe(false);
@@ -178,7 +180,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     // No rest timer, should advance directly
@@ -217,7 +219,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.session!.currentExerciseIndex).toBe(1);
@@ -235,7 +237,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.session!.isResting).toBe(true);
@@ -277,13 +279,13 @@ describe("useWorkout", () => {
     expect(result.current.setsCompletedForCurrent).toBe(0);
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.setsCompletedForCurrent).toBe(1);
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.setsCompletedForCurrent).toBe(2);
@@ -299,7 +301,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false, "Felt easy");
+      result.current.completeSet(10, 135, false, "normal", "Felt easy");
     });
 
     expect(result.current.session!.completedSets[0].notes).toBe("Felt easy");
@@ -315,7 +317,7 @@ describe("useWorkout", () => {
     });
 
     act(() => {
-      result.current.completeSet(10, 135, false);
+      result.current.completeSet(10, 135, false, "normal");
     });
 
     expect(result.current.session!.completedSets[0].notes).toBeNull();
