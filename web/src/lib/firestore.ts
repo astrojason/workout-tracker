@@ -137,20 +137,20 @@ export async function getTodayChecklistSession(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Query by programName + dayOfWeek + recent date, filter today client-side
-  // to avoid requiring a composite index on date inequality + equality fields
+  // Use single equality filter + orderBy to avoid composite index requirement.
+  // Filter dayOfWeek and today's date client-side.
   const q = query(
     sessionsCol(userId),
     where("programName", "==", programName),
-    where("dayOfWeek", "==", dayOfWeek),
     orderBy("date", "desc"),
-    limit(3)
+    limit(10)
   );
   const snap = await getDocs(q);
   for (const d of snap.docs) {
     const data = d.data() as WorkoutSessionDoc;
     const sessionDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date as unknown as string);
-    if (sessionDate >= today) {
+    if (sessionDate < today) break; // Past today, stop looking
+    if (data.dayOfWeek === dayOfWeek) {
       return { ...data, firestoreId: d.id };
     }
   }
