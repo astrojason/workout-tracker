@@ -20,11 +20,15 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
   // Load today's session on mount
   useEffect(() => {
     async function load() {
-      const existing = await getTodayChecklistSession(userId, workout.programName, workout.dayOfWeek);
-      if (existing) {
-        setFirestoreId(existing.firestoreId);
-        const orders = new Set(existing.sets.filter((s) => s.completed).map((s) => s.exerciseOrder));
-        setCompletedOrders(orders);
+      try {
+        const existing = await getTodayChecklistSession(userId, workout.programName, workout.dayOfWeek);
+        if (existing) {
+          setFirestoreId(existing.firestoreId);
+          const orders = new Set(existing.sets.filter((s) => s.completed).map((s) => s.exerciseOrder));
+          setCompletedOrders(orders);
+        }
+      } catch (e) {
+        console.error("Failed to load checklist session:", e);
       }
       setLoading(false);
     }

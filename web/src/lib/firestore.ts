@@ -136,21 +136,25 @@ export async function getTodayChecklistSession(
 ): Promise<(WorkoutSessionDoc & { firestoreId: string }) | null> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
+  // Query by programName + dayOfWeek + recent date, filter today client-side
+  // to avoid requiring a composite index on date inequality + equality fields
   const q = query(
     sessionsCol(userId),
     where("programName", "==", programName),
     where("dayOfWeek", "==", dayOfWeek),
-    where("date", ">=", Timestamp.fromDate(today)),
-    where("date", "<", Timestamp.fromDate(tomorrow)),
-    limit(1)
+    orderBy("date", "desc"),
+    limit(3)
   );
   const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { ...(d.data() as WorkoutSessionDoc), firestoreId: d.id };
+  for (const d of snap.docs) {
+    const data = d.data() as WorkoutSessionDoc;
+    const sessionDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date as unknown as string);
+    if (sessionDate >= today) {
+      return { ...data, firestoreId: d.id };
+    }
+  }
+  return null;
 }
 
 export async function upsertChecklistSession(
