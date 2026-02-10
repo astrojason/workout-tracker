@@ -137,24 +137,30 @@ export async function getTodayChecklistSession(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Use single equality filter + orderBy to avoid composite index requirement.
-  // Filter dayOfWeek and today's date client-side.
+  // Use single equality filter only — no orderBy — to avoid composite index requirement.
+  // Filter dayOfWeek and today's date entirely client-side.
   const q = query(
     sessionsCol(userId),
     where("programName", "==", programName),
-    orderBy("date", "desc"),
-    limit(10)
   );
   const snap = await getDocs(q);
+  let best: (WorkoutSessionDoc & { firestoreId: string }) | null = null;
   for (const d of snap.docs) {
     const data = d.data() as WorkoutSessionDoc;
+    if (data.dayOfWeek !== dayOfWeek) continue;
     const sessionDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date as unknown as string);
-    if (sessionDate < today) break; // Past today, stop looking
-    if (data.dayOfWeek === dayOfWeek) {
-      return { ...data, firestoreId: d.id };
+    if (sessionDate < today) continue;
+    // Keep the most recent match
+    if (!best) {
+      best = { ...data, firestoreId: d.id };
+    } else {
+      const bestDate = best.date instanceof Timestamp ? best.date.toDate() : new Date(best.date as unknown as string);
+      if (sessionDate > bestDate) {
+        best = { ...data, firestoreId: d.id };
+      }
     }
   }
-  return null;
+  return best;
 }
 
 export async function upsertChecklistSession(
