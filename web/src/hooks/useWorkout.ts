@@ -11,7 +11,7 @@ import { useSound } from "./useSound";
 const STORAGE_KEY = "activeWorkout";
 const REST_END_KEY = "activeWorkoutRestEnd";
 
-// Serialization helpers for sessionStorage
+// Serialization helpers for localStorage (survives tab/browser close)
 function serializeSession(session: ActiveSession): string {
   return JSON.stringify({
     ...session,
@@ -46,27 +46,27 @@ function deserializeSession(json: string): ActiveSession | null {
 function persistSession(session: ActiveSession | null, restEnd: Date | null) {
   try {
     if (session) {
-      sessionStorage.setItem(STORAGE_KEY, serializeSession(session));
+      localStorage.setItem(STORAGE_KEY, serializeSession(session));
       if (restEnd) {
-        sessionStorage.setItem(REST_END_KEY, restEnd.toISOString());
+        localStorage.setItem(REST_END_KEY, restEnd.toISOString());
       } else {
-        sessionStorage.removeItem(REST_END_KEY);
+        localStorage.removeItem(REST_END_KEY);
       }
     } else {
-      sessionStorage.removeItem(STORAGE_KEY);
-      sessionStorage.removeItem(REST_END_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(REST_END_KEY);
     }
   } catch {
-    // sessionStorage may be unavailable
+    // localStorage may be unavailable
   }
 }
 
 function clearPersistedSession() {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(REST_END_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(REST_END_KEY);
   } catch {
-    // sessionStorage may be unavailable
+    // localStorage may be unavailable
   }
 }
 
@@ -79,17 +79,17 @@ export function useWorkout(userId: string | null) {
   const pendingHardRef = useRef<{ exerciseId: string } | null>(null);
   const { playTimerComplete, playSetComplete, initAudio } = useSound();
 
-  // Restore session from sessionStorage on mount
+  // Restore session from localStorage on mount
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const restored = deserializeSession(saved);
         if (restored) {
           setSession(restored);
 
           // Restore rest timer if active
-          const restEndStr = sessionStorage.getItem(REST_END_KEY);
+          const restEndStr = localStorage.getItem(REST_END_KEY);
           if (restEndStr && restored.isResting) {
             const restEnd = new Date(restEndStr);
             const remaining = Math.max(0, Math.round((restEnd.getTime() - Date.now()) / 1000));
@@ -117,11 +117,11 @@ export function useWorkout(userId: string | null) {
         }
       }
     } catch {
-      // sessionStorage unavailable
+      // localStorage unavailable
     }
   }, []);
 
-  // Persist session to sessionStorage on every change
+  // Persist session to localStorage on every change
   useEffect(() => {
     persistSession(session, restEndRef.current);
   }, [session]);
