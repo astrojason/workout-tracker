@@ -96,6 +96,8 @@ export default function HomePage() {
         onEndWorkout={async () => {
           await workout.endWorkout();
         }}
+        onUpdateWeight={workout.updateWeight}
+        onUpdateSets={workout.updateSets}
         showHardPrompt={workout.showHardPrompt}
         onHardWeightDecision={workout.handleHardWeightDecision}
       />

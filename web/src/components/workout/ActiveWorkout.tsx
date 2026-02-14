@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ActiveSession } from "@/lib/types";
+import type { ActiveSession, Exercise } from "@/lib/types";
 import { getEquipmentDisplay } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
@@ -13,21 +13,126 @@ interface ActiveWorkoutProps {
   onSkipSet: () => void;
   onSkipRest: () => void;
   onEndWorkout: () => void;
+  onUpdateWeight: (exerciseId: string, newWeight: number) => void;
+  onUpdateSets: (exerciseId: string, newSets: number) => void;
   onHardWeightDecision?: (action: "keep" | "reduce") => void;
   showHardPrompt?: boolean;
 }
 
+function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
+  currentSets: number;
+  completedSets: number;
+  onSave: (sets: number) => void;
+  onCancel: () => void;
+}) {
+  const minSets = Math.max(1, completedSets + 1);
+  const [sets, setSets] = useState(Math.max(currentSets, minSets));
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
+      <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 border border-gray-800">
+        <h3 className="text-lg font-bold mb-4">Adjust Sets</h3>
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <button
+            onClick={() => setSets(Math.max(minSets, sets - 1))}
+            className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
+          >
+            -
+          </button>
+          <span className="text-4xl font-bold w-16 text-center font-mono">{sets}</span>
+          <button
+            onClick={() => setSets(sets + 1)}
+            className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
+          >
+            +
+          </button>
+        </div>
+        {completedSets > 0 && (
+          <p className="text-xs text-gray-500 text-center mb-4">{completedSets} already completed</p>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition">
+            Cancel
+          </button>
+          <button onClick={() => onSave(sets)} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition">
+            Update
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
+  currentWeight: number;
+  exercise: Exercise;
+  onSave: (weight: number) => void;
+  onCancel: () => void;
+}) {
+  const [weight, setWeight] = useState(currentWeight);
+  const step = exercise.equipmentType === "powerblock" ? 2.5 : 5;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
+      <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 border border-gray-800">
+        <h3 className="text-lg font-bold mb-4">Adjust Weight</h3>
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <button
+            onClick={() => setWeight(Math.max(0, weight - step))}
+            className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
+          >
+            -
+          </button>
+          <input
+            type="number"
+            value={weight}
+            onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
+            step={step}
+            className="w-28 bg-gray-800 rounded-xl px-4 py-3 text-2xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
+          />
+          <button
+            onClick={() => setWeight(weight + step)}
+            className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
+          >
+            +
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 text-center mb-6">lbs</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition">
+            Cancel
+          </button>
+          <button onClick={() => onSave(weight)} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition">
+            Update
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onHardWeightDecision, showHardPrompt,
+  onUpdateWeight, onUpdateSets, onHardWeightDecision, showHardPrompt,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showWeightEditor, setShowWeightEditor] = useState(false);
+  const [showSetsEditor, setShowSetsEditor] = useState(false);
 
   const exercise = session.workout.exercises[session.currentExerciseIndex];
   const weight = session.resolvedWeights[exercise.id] ?? 0;
   const equipDisplay = getEquipmentDisplay(exercise, weight);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
+
+  // Next exercise preview
+  const completedForCurrent = session.completedSets.filter(
+    (s) => s.exerciseOrder === exercise.order
+  ).length;
+  const setsRemainingForCurrent = exercise.sets - completedForCurrent;
+  const nextExercise = setsRemainingForCurrent <= 1 && session.currentExerciseIndex < session.workout.exercises.length - 1
+    ? session.workout.exercises[session.currentExerciseIndex + 1]
+    : null;
 
   const elapsed = Math.round((Date.now() - session.startTime.getTime()) / 1000);
   const minutes = Math.floor(elapsed / 60);
@@ -72,18 +177,33 @@ export function ActiveWorkout({
       </div>
 
       {/* Exercise Card */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-4 space-y-3">
         <ExerciseCard
           exercise={exercise}
           setNumber={session.currentSetNumber}
           weight={weight}
           equipmentDisplay={equipDisplay}
+          onEditWeight={weight > 0 ? () => setShowWeightEditor(true) : undefined}
+          onEditSets={() => setShowSetsEditor(true)}
         />
-      </div>
 
-      {/* Screen lock indicator */}
-      <div className="text-center text-xs text-gray-600 py-1">
-        Screen lock disabled during workout
+        {/* Next Exercise Preview */}
+        {nextExercise && (
+          <div className="bg-gray-900/60 rounded-xl p-3 border border-gray-800/50">
+            <p className="text-xs text-gray-500 mb-1">Up Next</p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-300">{nextExercise.name}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs ${phaseColors[nextExercise.phase] || "bg-gray-600"}`}>
+                {nextExercise.phase.charAt(0).toUpperCase() + nextExercise.phase.slice(1)}
+              </span>
+            </div>
+            {(session.resolvedWeights[nextExercise.id] ?? 0) > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {session.resolvedWeights[nextExercise.id]} lbs &middot; {nextExercise.sets} sets
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -151,6 +271,32 @@ export function ActiveWorkout({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Weight Editor */}
+      {showWeightEditor && (
+        <WeightEditor
+          currentWeight={weight}
+          exercise={exercise}
+          onSave={(newWeight) => {
+            onUpdateWeight(exercise.id, newWeight);
+            setShowWeightEditor(false);
+          }}
+          onCancel={() => setShowWeightEditor(false)}
+        />
+      )}
+
+      {/* Sets Editor */}
+      {showSetsEditor && (
+        <SetsEditor
+          currentSets={exercise.sets}
+          completedSets={completedForCurrent}
+          onSave={(newSets) => {
+            onUpdateSets(exercise.id, newSets);
+            setShowSetsEditor(false);
+          }}
+          onCancel={() => setShowSetsEditor(false)}
+        />
       )}
 
       {/* End Workout Confirmation */}

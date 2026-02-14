@@ -414,6 +414,23 @@ export function useWorkout(userId: string | null) {
     setSession(null);
   }, []);
 
+  const updateWeight = useCallback((exerciseId: string, newWeight: number) => {
+    setSession((prev) => prev ? {
+      ...prev,
+      resolvedWeights: { ...prev.resolvedWeights, [exerciseId]: newWeight },
+    } : prev);
+  }, []);
+
+  const updateSets = useCallback((exerciseId: string, newSets: number) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      const exercises = prev.workout.exercises.map((e) =>
+        e.id === exerciseId ? { ...e, sets: newSets } : e
+      );
+      return { ...prev, workout: { ...prev.workout, exercises } };
+    });
+  }, []);
+
   const handleHardWeightDecision = useCallback((action: "keep" | "reduce") => {
     setShowHardPrompt(false);
     if (!session || !pendingHardRef.current) return;
@@ -449,6 +466,8 @@ export function useWorkout(userId: string | null) {
     skipRest,
     endWorkout,
     dismissWorkout,
+    updateWeight,
+    updateSets,
     handleHardWeightDecision,
   };
 }
