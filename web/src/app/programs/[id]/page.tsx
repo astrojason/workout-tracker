@@ -138,7 +138,9 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                   ? "Progressive"
                   : exercise.baseWeight.value > 0
                     ? `${cleanWeight(exercise.baseWeight.value)} lbs`
-                    : "BW";
+                    : exercise.equipmentType === "bodyweight"
+                      ? "BW"
+                      : exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
 
                 return (
                   <div key={exercise.id} className="px-4 py-3">

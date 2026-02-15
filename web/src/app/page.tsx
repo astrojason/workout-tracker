@@ -98,6 +98,7 @@ export default function HomePage() {
         }}
         onUpdateWeight={workout.updateWeight}
         onUpdateSets={workout.updateSets}
+        onDismiss={workout.dismissWorkout}
         showHardPrompt={workout.showHardPrompt}
         onHardWeightDecision={workout.handleHardWeightDecision}
       />

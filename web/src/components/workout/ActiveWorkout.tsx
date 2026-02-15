@@ -15,6 +15,7 @@ interface ActiveWorkoutProps {
   onEndWorkout: () => void;
   onUpdateWeight: (exerciseId: string, newWeight: number) => void;
   onUpdateSets: (exerciseId: string, newSets: number) => void;
+  onDismiss: () => void;
   onHardWeightDecision?: (action: "keep" | "reduce") => void;
   showHardPrompt?: boolean;
 }
@@ -118,7 +119,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onHardWeightDecision, showHardPrompt,
+  onUpdateWeight, onUpdateSets, onDismiss, onHardWeightDecision, showHardPrompt,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -309,19 +310,25 @@ export function ActiveWorkout({
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
           <div className="bg-gray-900 rounded-2xl p-6 max-w-sm mx-4 border border-gray-800">
             <h3 className="text-lg font-bold mb-2">End Workout?</h3>
-            <p className="text-gray-400 text-sm mb-6">Your progress will be saved.</p>
-            <div className="flex gap-3">
+            <p className="text-gray-400 text-sm mb-6">You still have exercises remaining.</p>
+            <div className="space-y-3">
               <button
                 onClick={() => setShowEndConfirm(false)}
-                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition"
               >
-                Cancel
+                Continue Workout
               </button>
               <button
                 onClick={() => { setShowEndConfirm(false); onEndWorkout(); }}
-                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 font-bold transition"
+                className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 font-bold transition"
               >
-                End Workout
+                Save &amp; End Workout
+              </button>
+              <button
+                onClick={() => { setShowEndConfirm(false); onDismiss(); }}
+                className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-gray-400"
+              >
+                Discard &amp; Go Home
               </button>
             </div>
           </div>

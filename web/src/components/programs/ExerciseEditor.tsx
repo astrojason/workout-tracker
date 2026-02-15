@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget } from "@/lib/types";
+import { isTimeBased as detectTimeBased } from "@/lib/types";
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: "warmup", label: "Warmup" },
@@ -58,7 +59,9 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
   const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
   const [progressionRule, setProgressionRule] = useState<ProgressionRule>(exercise?.progressionRule ?? "none");
+  const [timeBased, setTimeBased] = useState(exercise ? detectTimeBased(exercise) : false);
   const [isUnilateral, setIsUnilateral] = useState(exercise?.isUnilateral ?? false);
+  const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
   function handleSave() {
@@ -68,7 +71,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
       ? { type: "progressive" }
       : { type: "fixed", value: weightValue };
 
-    const repMax: RepTarget = repMaxType === "failure"
+    const repMax: RepTarget = finalSetAmrap
       ? { type: "failure" }
       : { type: "count", value: repMaxValue };
 
@@ -172,28 +175,36 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
           </div>
         </Field>
 
-        {/* Reps */}
+        {/* Time Based toggle */}
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm text-gray-400">Time Based (seconds)</span>
+          <button
+            onClick={() => setTimeBased(!timeBased)}
+            className={`w-12 h-7 rounded-full transition relative ${timeBased ? "bg-indigo-600" : "bg-gray-700"}`}
+          >
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${timeBased ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        {/* Reps / Duration */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Field label="Rep Min" noMargin>
-            <input type="number" value={repMin} onChange={(e) => setRepMin(parseInt(e.target.value) || 0)} min={0} className="input-field" />
+          <Field label={timeBased ? "Duration Min (s)" : "Rep Min"} noMargin>
+            <input type="number" value={repMin} onChange={(e) => setRepMin(parseInt(e.target.value) || 0)} min={0} step={timeBased ? 5 : 1} className="input-field" />
           </Field>
-          <Field label="Rep Max" noMargin>
-            <div className="flex gap-2 items-center">
-              <select value={repMaxType} onChange={(e) => setRepMaxType(e.target.value as "count" | "failure")} className="input-field flex-1">
-                <option value="count">Count</option>
-                <option value="failure">AMRAP</option>
-              </select>
-              {repMaxType === "count" && (
-                <input
-                  type="number"
-                  value={repMaxValue}
-                  onChange={(e) => setRepMaxValue(parseInt(e.target.value) || 0)}
-                  min={0}
-                  className="input-field w-16"
-                />
-              )}
-            </div>
+          <Field label={timeBased ? "Duration Max (s)" : "Rep Max"} noMargin>
+            <input type="number" value={repMaxValue} onChange={(e) => setRepMaxValue(parseInt(e.target.value) || 0)} min={0} step={timeBased ? 5 : 1} className="input-field" />
           </Field>
+        </div>
+
+        {/* Final Set AMRAP */}
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm text-gray-400">Final Set AMRAP</span>
+          <button
+            onClick={() => setFinalSetAmrap(!finalSetAmrap)}
+            className={`w-12 h-7 rounded-full transition relative ${finalSetAmrap ? "bg-indigo-600" : "bg-gray-700"}`}
+          >
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${finalSetAmrap ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
         </div>
 
         {/* Rest */}
@@ -261,9 +272,18 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
           font-size: 0.875rem;
           border: 1px solid rgb(55 65 81);
           outline: none;
+          color: white;
         }
         .input-field:focus {
           border-color: rgb(99 102 241);
+        }
+        select.input-field {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 0.5rem center;
+          background-size: 1.25rem;
+          padding-right: 2rem;
         }
         .btn-stepper {
           width: 2.5rem;
