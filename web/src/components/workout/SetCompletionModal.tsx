@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Exercise } from "@/lib/types";
-import { isTimeBased, formatTimeValue } from "@/lib/types";
+import { isTimeBased } from "@/lib/types";
 
 interface SetCompletionModalProps {
   exercise: Exercise;
@@ -23,7 +23,7 @@ export function SetCompletionModal({
   const [notes, setNotes] = useState("");
 
   const timeBased = isTimeBased(exercise);
-  const increment = timeBased ? 15 : 1;
+  const increment = timeBased ? 5 : 1;
 
   const ratingOptions: { value: "easy" | "normal" | "hard"; label: string; color: string; activeColor: string }[] = [
     { value: "easy", label: "Easy", color: "text-gray-400", activeColor: "bg-green-600 text-white" },
@@ -48,9 +48,12 @@ export function SetCompletionModal({
             >
               -
             </button>
-            <span className="text-4xl font-bold w-24 text-center font-mono">
-              {timeBased ? formatTimeValue(reps) : reps}
-            </span>
+            <input
+              type="number"
+              value={reps}
+              onChange={(e) => setReps(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-24 bg-gray-800 rounded-xl px-2 py-1 text-4xl font-bold text-center font-mono border border-gray-700 focus:border-indigo-500 outline-none"
+            />
             <button
               onClick={() => setReps(reps + increment)}
               className="w-12 h-12 rounded-xl bg-gray-800 hover:bg-gray-700 text-xl font-bold transition"

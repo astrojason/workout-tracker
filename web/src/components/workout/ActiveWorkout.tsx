@@ -39,7 +39,12 @@ function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
           >
             -
           </button>
-          <span className="text-4xl font-bold w-16 text-center font-mono">{sets}</span>
+          <input
+            type="number"
+            value={sets}
+            onChange={(e) => setSets(Math.max(minSets, parseInt(e.target.value) || minSets))}
+            className="w-20 bg-gray-800 rounded-xl px-2 py-1 text-4xl font-bold text-center font-mono border border-gray-700 focus:border-indigo-500 outline-none"
+          />
           <button
             onClick={() => setSets(sets + 1)}
             className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
