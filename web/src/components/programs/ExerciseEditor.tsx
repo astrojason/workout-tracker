@@ -179,7 +179,15 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
         <div className="mb-4 flex items-center justify-between">
           <span className="text-sm text-gray-400">Time Based (seconds)</span>
           <button
-            onClick={() => setTimeBased(!timeBased)}
+            onClick={() => {
+              const next = !timeBased;
+              setTimeBased(next);
+              if (next && progressionRule !== "add_time") {
+                setProgressionRule("add_time");
+              } else if (!next && progressionRule === "add_time") {
+                setProgressionRule("none");
+              }
+            }}
             className={`w-12 h-7 rounded-full transition relative ${timeBased ? "bg-indigo-600" : "bg-gray-700"}`}
           >
             <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${timeBased ? "translate-x-6" : "translate-x-1"}`} />
