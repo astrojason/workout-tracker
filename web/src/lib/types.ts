@@ -61,6 +61,7 @@ export interface Workout {
   week: number;
   dayOfWeek: string;
   exercises: Exercise[];
+  isChecklist?: boolean;
 }
 
 export interface Program {
@@ -178,6 +179,9 @@ export function barWeight(type: EquipmentType): number | null {
 const CHECKLIST_RULES: ProgressionRule[] = ["none", "maintain", "add_time", "add_reps"];
 
 export function isChecklistWorkout(workout: Workout): boolean {
+  // Explicit flag takes priority (set via editor or CSV import)
+  if (workout.isChecklist !== undefined) return workout.isChecklist;
+  // Fallback heuristic for legacy workouts without the flag
   return workout.exercises.every(
     (ex) => ex.restSeconds === 0 && CHECKLIST_RULES.includes(ex.progressionRule)
   );

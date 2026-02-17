@@ -172,6 +172,7 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
       week: data.week,
       dayOfWeek: data.day,
       exercises: data.exercises,
+      isChecklist: data.day === "Daily",
     });
   }
 

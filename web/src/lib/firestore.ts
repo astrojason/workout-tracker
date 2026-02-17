@@ -118,6 +118,7 @@ export async function saveWorkout(userId: string, workout: Workout) {
     week: workout.week,
     dayOfWeek: workout.dayOfWeek,
     exercises: workout.exercises,
+    ...(workout.isChecklist !== undefined && { isChecklist: workout.isChecklist }),
   });
 }
 

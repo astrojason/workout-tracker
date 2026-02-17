@@ -5,7 +5,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { ExerciseEditor } from "@/components/programs/ExerciseEditor";
 import type { Exercise, Workout } from "@/lib/types";
-import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, cleanWeight } from "@/lib/types";
+import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, cleanWeight, isChecklistWorkout } from "@/lib/types";
 import Link from "next/link";
 
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -126,7 +126,26 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       {!loadingWorkouts && sortedWorkouts.map((workout) => (
         <div key={workout.id} className="mb-6">
           {/* Day Header */}
-          <h2 className="text-lg font-bold text-gray-300 mb-3">{workout.dayOfWeek}</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-gray-300">{workout.dayOfWeek}</h2>
+            <button
+              onClick={async () => {
+                const updatedWorkout = { ...workout, isChecklist: !isChecklistWorkout(workout) };
+                await updateWorkout(updatedWorkout);
+                setWorkouts((prev) => prev.map((w) => w.id === workout.id ? updatedWorkout : w));
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition ${
+                isChecklistWorkout(workout)
+                  ? "bg-green-900/40 text-green-400 border border-green-800/50"
+                  : "bg-gray-800 text-gray-500 border border-gray-700"
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              Checklist
+            </button>
+          </div>
 
           <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
             {workout.exercises
