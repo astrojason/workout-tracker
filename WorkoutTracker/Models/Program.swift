@@ -56,6 +56,10 @@ struct Workout: Identifiable, Codable {
         exercises.reduce(0) { $0 + $1.sets }
     }
 
+    var isChecklistDefault: Bool {
+        dayOfWeek == "Daily"
+    }
+
     var dayDisplayName: String {
         switch dayOfWeek {
         case "Monday": return "Monday (Push)"

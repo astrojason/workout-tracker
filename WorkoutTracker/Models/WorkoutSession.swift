@@ -17,10 +17,13 @@ class WorkoutSession: Identifiable {
     var startTime: Date = Date()
     var prsAchieved: [PersonalRecord] = []
     var showingSetCompletion: Bool = false
+    var isChecklistMode: Bool = false
+    var checklistExerciseIndex: Int?
 
     init(workout: Workout, resolvedWeights: [UUID: Double] = [:]) {
         self.workout = workout
         self.resolvedWeights = resolvedWeights
+        self.isChecklistMode = workout.isChecklistDefault
     }
 
     var currentExercise: Exercise {
@@ -33,11 +36,36 @@ class WorkoutSession: Identifiable {
 
     var progress: Double {
         guard totalExercises > 0 else { return 0 }
+        if isChecklistMode {
+            return Double(completedExerciseCount) / Double(totalExercises)
+        }
         return Double(currentExerciseIndex) / Double(totalExercises)
     }
 
     var currentWeight: Double {
         resolvedWeights[currentExercise.id] ?? currentExercise.baseWeight.fixedValue ?? 0
+    }
+
+    func setsCompleted(for exercise: Exercise) -> Int {
+        completedSets.filter { $0.exerciseOrder == exercise.order }.count
+    }
+
+    func isExerciseComplete(_ exercise: Exercise) -> Bool {
+        setsCompleted(for: exercise) >= exercise.sets
+    }
+
+    var completedExerciseCount: Int {
+        workout.exercises.filter { isExerciseComplete($0) }.count
+    }
+
+    var checklistExercise: Exercise? {
+        guard let index = checklistExerciseIndex,
+              index < workout.exercises.count else { return nil }
+        return workout.exercises[index]
+    }
+
+    func checklistWeight(for exercise: Exercise) -> Double {
+        resolvedWeights[exercise.id] ?? exercise.baseWeight.fixedValue ?? 0
     }
 
     var setsCompletedForCurrentExercise: Int {

@@ -17,25 +17,15 @@ struct ActiveWorkoutView: View {
                     // Progress Bar
                     progressBar(session)
 
-                    // Exercise Card
-                    ScrollView {
-                        ExerciseCardView(
-                            exercise: session.currentExercise,
-                            setNumber: session.currentSetNumber,
-                            weight: session.currentWeight,
-                            equipmentDisplay: manager.equipmentDisplay(for: session.currentExercise)
-                        )
-                        .padding()
+                    if session.isChecklistMode {
+                        checklistContent(session)
+                    } else {
+                        sequentialContent(session)
                     }
-
-                    Spacer()
-
-                    // Action Buttons
-                    actionButtons(session)
                 }
 
-                // Rest Timer Overlay
-                if session.isResting {
+                // Rest Timer Overlay (sequential mode only)
+                if session.isResting && !session.isChecklistMode {
                     RestTimerView()
                 }
             }
@@ -58,33 +48,113 @@ struct ActiveWorkoutView: View {
         )
     }
 
-    // MARK: - Header
+    // MARK: - Sequential Content (existing behavior)
 
-    private func workoutHeader(_ session: WorkoutSession) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(session.workout.programName)
-                    .font(.headline)
-                Text(session.workout.dayOfWeek)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private func sequentialContent(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                ExerciseCardView(
+                    exercise: session.currentExercise,
+                    setNumber: session.currentSetNumber,
+                    weight: session.currentWeight,
+                    equipmentDisplay: manager.equipmentDisplay(for: session.currentExercise)
+                )
+                .padding()
             }
 
             Spacer()
 
-            // Phase Badge
-            Text(session.currentExercise.phase.displayName)
-                .font(.caption.bold())
+            actionButtons(session)
+        }
+    }
+
+    // MARK: - Checklist Content
+
+    private func checklistContent(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(Array(session.workout.exercises.enumerated()), id: \.element.id) { index, exercise in
+                        ChecklistExerciseRow(
+                            exercise: exercise,
+                            setsCompleted: session.setsCompleted(for: exercise),
+                            isComplete: session.isExerciseComplete(exercise),
+                            weight: session.checklistWeight(for: exercise),
+                            onTap: {
+                                session.checklistExerciseIndex = index
+                                session.showingSetCompletion = true
+                            },
+                            onSkip: {
+                                manager.skipChecklistExercise(exercise)
+                            }
+                        )
+                    }
+                }
+                .padding()
+            }
+
+            // End Workout button
+            VStack(spacing: 12) {
+                Button {
+                    showingEndConfirmation = true
+                } label: {
+                    Text("End Workout")
+                        .font(.subheadline)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Header
+
+    private func workoutHeader(_ session: WorkoutSession) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.workout.programName)
+                        .font(.headline)
+                    Text(session.workout.dayOfWeek)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if !session.isChecklistMode {
+                    // Phase Badge (sequential only)
+                    Text(session.currentExercise.phase.displayName)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(phaseColor(session.currentExercise.phase))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+
+                // Timer
+                Text(session.elapsedTimeFormatted)
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            // Mode Toggle
+            Button {
+                session.isChecklistMode.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: session.isChecklistMode ? "list.bullet" : "arrow.forward")
+                        .font(.caption2)
+                    Text(session.isChecklistMode ? "Checklist" : "Sequential")
+                        .font(.caption)
+                }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(phaseColor(session.currentExercise.phase))
-                .foregroundStyle(.white)
+                .background(Color.secondary.opacity(0.15))
                 .clipShape(Capsule())
-
-            // Timer
-            Text(session.elapsedTimeFormatted)
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding()
     }
@@ -107,14 +177,20 @@ struct ActiveWorkoutView: View {
             }
             .frame(height: 4)
 
-            Text("Exercise \(session.currentExerciseIndex + 1) of \(session.totalExercises)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if session.isChecklistMode {
+                Text("\(session.completedExerciseCount) of \(session.totalExercises) done")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Exercise \(session.currentExerciseIndex + 1) of \(session.totalExercises)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal)
     }
 
-    // MARK: - Action Buttons
+    // MARK: - Action Buttons (sequential mode)
 
     private func actionButtons(_ session: WorkoutSession) -> some View {
         VStack(spacing: 12) {

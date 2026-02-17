@@ -143,6 +143,67 @@ class WorkoutManager {
         }
     }
 
+    // MARK: - Checklist Mode
+
+    func completeChecklistSet(exercise: Exercise, actualReps: Int, actualWeight: Double, failed: Bool, notes: String?) {
+        guard let session else { return }
+
+        let setsAlreadyDone = session.setsCompleted(for: exercise)
+        let setNumber = setsAlreadyDone + 1
+        let targetReps = exercise.repMax.numericValue ?? exercise.repMin
+        let weight = session.checklistWeight(for: exercise)
+
+        let completed = CompletedSet(
+            exerciseName: exercise.name,
+            exerciseOrder: exercise.order,
+            setNumber: setNumber,
+            targetWeight: weight,
+            actualWeight: actualWeight,
+            targetReps: targetReps,
+            actualReps: actualReps,
+            completed: !failed,
+            notes: notes
+        )
+
+        session.completedSets.append(completed)
+        session.showingSetCompletion = false
+        session.checklistExerciseIndex = nil
+
+        SoundManager.shared.playSetComplete()
+
+        // Auto-end if all exercises complete
+        if session.completedExerciseCount >= session.totalExercises {
+            endWorkout()
+        }
+    }
+
+    func skipChecklistExercise(_ exercise: Exercise) {
+        guard let session else { return }
+
+        let setsAlreadyDone = session.setsCompleted(for: exercise)
+        let targetReps = exercise.repMax.numericValue ?? exercise.repMin
+        let weight = session.checklistWeight(for: exercise)
+
+        for setNum in (setsAlreadyDone + 1)...exercise.sets {
+            let skipped = CompletedSet(
+                exerciseName: exercise.name,
+                exerciseOrder: exercise.order,
+                setNumber: setNum,
+                targetWeight: weight,
+                actualWeight: 0,
+                targetReps: targetReps,
+                actualReps: 0,
+                completed: false,
+                notes: "Skipped"
+            )
+            session.completedSets.append(skipped)
+        }
+
+        if session.completedExerciseCount >= session.totalExercises {
+            endWorkout()
+        }
+    }
+
     func skipSet() {
         guard let session else { return }
 

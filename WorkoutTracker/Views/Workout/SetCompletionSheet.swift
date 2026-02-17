@@ -11,7 +11,15 @@ struct SetCompletionSheet: View {
     var body: some View {
         guard let session = manager.session else { return AnyView(EmptyView()) }
 
-        let exercise = session.currentExercise
+        let exercise = session.isChecklistMode
+            ? (session.checklistExercise ?? session.currentExercise)
+            : session.currentExercise
+        let weight = session.isChecklistMode
+            ? session.checklistWeight(for: exercise)
+            : session.currentWeight
+        let setNumber = session.isChecklistMode
+            ? session.setsCompleted(for: exercise) + 1
+            : session.currentSetNumber
 
         return AnyView(
             NavigationStack {
@@ -27,7 +35,7 @@ struct SetCompletionSheet: View {
                         }
                     }
 
-                    if session.currentWeight > 0 {
+                    if weight > 0 {
                         Section("Weight Used") {
                             HStack {
                                 Text("Weight:")
@@ -52,20 +60,35 @@ struct SetCompletionSheet: View {
                         TextField("How did it feel?", text: $notes)
                     }
                 }
-                .navigationTitle("Set \(session.currentSetNumber)")
+                .navigationTitle(session.isChecklistMode
+                    ? "\(exercise.name) - Set \(setNumber)"
+                    : "Set \(setNumber)")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") {
+                            session.checklistExerciseIndex = nil
+                            dismiss()
+                        }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            manager.completeSet(
-                                actualReps: actualReps,
-                                actualWeight: actualWeight,
-                                failed: failed,
-                                notes: notes.isEmpty ? nil : notes
-                            )
+                            if session.isChecklistMode {
+                                manager.completeChecklistSet(
+                                    exercise: exercise,
+                                    actualReps: actualReps,
+                                    actualWeight: actualWeight,
+                                    failed: failed,
+                                    notes: notes.isEmpty ? nil : notes
+                                )
+                            } else {
+                                manager.completeSet(
+                                    actualReps: actualReps,
+                                    actualWeight: actualWeight,
+                                    failed: failed,
+                                    notes: notes.isEmpty ? nil : notes
+                                )
+                            }
                             dismiss()
                         }
                         .bold()
@@ -73,7 +96,7 @@ struct SetCompletionSheet: View {
                 }
                 .onAppear {
                     actualReps = exercise.repMax.numericValue ?? exercise.repMin
-                    actualWeight = session.currentWeight
+                    actualWeight = weight
                 }
             }
             .presentationDetents([.medium])
