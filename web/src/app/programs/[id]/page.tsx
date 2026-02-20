@@ -58,9 +58,19 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
     let updatedExercises: Exercise[];
     if (isNew) {
-      updatedExercises = [...workout.exercises, exercise];
+      // Shift any existing exercises at or after the chosen order down by 1
+      const hasConflict = workout.exercises.some((e) => e.order === exercise.order);
+      const shifted = hasConflict
+        ? workout.exercises.map((e) => e.order >= exercise.order ? { ...e, order: e.order + 1 } : e)
+        : workout.exercises;
+      updatedExercises = [...shifted, exercise];
     } else {
-      updatedExercises = workout.exercises.map((e) => e.id === exercise.id ? exercise : e);
+      // Shift other exercises that conflict with the new order
+      const hasConflict = workout.exercises.some((e) => e.id !== exercise.id && e.order === exercise.order);
+      const shifted = hasConflict
+        ? workout.exercises.map((e) => e.id !== exercise.id && e.order >= exercise.order ? { ...e, order: e.order + 1 } : e)
+        : workout.exercises;
+      updatedExercises = shifted.map((e) => e.id === exercise.id ? exercise : e);
     }
 
     // Sort by order
