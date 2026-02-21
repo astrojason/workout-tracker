@@ -23,11 +23,22 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (!program) return;
     setLoadingWorkouts(true);
-    loadWorkoutsForWeek(program.name, selectedWeek).then((wks) => {
-      setWorkouts(wks);
+    loadWorkoutsForWeek(program.name, selectedWeek).then(async (wks) => {
+      const fixed = await Promise.all(
+        wks.map(async (w) => {
+          const sorted = [...w.exercises].sort((a, b) => a.order - b.order);
+          const hasDuplicates = sorted.some((e, i) => i > 0 && sorted[i - 1].order === e.order);
+          if (!hasDuplicates) return w;
+          const normalized = sorted.map((e, i) => ({ ...e, order: i + 1 }));
+          const updated = { ...w, exercises: normalized };
+          await updateWorkout(updated);
+          return updated;
+        })
+      );
+      setWorkouts(fixed);
       setLoadingWorkouts(false);
     });
-  }, [program, selectedWeek, loadWorkoutsForWeek]);
+  }, [program, selectedWeek, loadWorkoutsForWeek, updateWorkout]);
 
   if (!user) {
     return (
