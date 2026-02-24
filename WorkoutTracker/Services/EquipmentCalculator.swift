@@ -5,6 +5,16 @@ struct PlateConfiguration {
     let barWeight: Double
     let achievedWeight: Double
     let perSide: [(plate: Double, count: Int)]
+    let isLandmine: Bool
+
+    init(targetWeight: Double, barWeight: Double, achievedWeight: Double,
+         perSide: [(plate: Double, count: Int)], isLandmine: Bool = false) {
+        self.targetWeight = targetWeight
+        self.barWeight = barWeight
+        self.achievedWeight = achievedWeight
+        self.perSide = perSide
+        self.isLandmine = isLandmine
+    }
 
     var displayString: String {
         if perSide.isEmpty {
@@ -19,10 +29,11 @@ struct PlateConfiguration {
             return "Bar only (\(barWeight.cleanWeight) lbs)"
         }
         let plateStr = displayString
+        let label = isLandmine ? "One side" : "Each side"
         if achievedWeight != targetWeight {
-            return "Each side: \(plateStr) (\(achievedWeight.cleanWeight) lbs total)"
+            return "\(label): \(plateStr) (\(achievedWeight.cleanWeight) lbs total)"
         }
-        return "Each side: \(plateStr) (\(achievedWeight.cleanWeight) lbs)"
+        return "\(label): \(plateStr) (\(achievedWeight.cleanWeight) lbs)"
     }
 
     var weightChanged: Bool {
@@ -177,6 +188,39 @@ struct EquipmentCalculator {
         return nil
     }
 
+    func calculateLandmine(targetWeight: Double, barWeight: Double) -> PlateConfiguration {
+        let oneSideNeeded = targetWeight - barWeight
+
+        if oneSideNeeded <= 0 {
+            return PlateConfiguration(targetWeight: targetWeight, barWeight: barWeight,
+                                      achievedWeight: barWeight, perSide: [], isLandmine: true)
+        }
+
+        if let exact = findPlates(target: oneSideNeeded) {
+            let achieved = barWeight + exact.totalPerSide
+            return PlateConfiguration(targetWeight: targetWeight, barWeight: barWeight,
+                                      achievedWeight: achieved, perSide: exact.plates, isLandmine: true)
+        }
+
+        var attempt = oneSideNeeded
+        let increment = 0.25
+        while attempt < oneSideNeeded + 50 {
+            attempt += increment
+            if let found = findPlates(target: attempt) {
+                let achieved = barWeight + found.totalPerSide
+                return PlateConfiguration(targetWeight: targetWeight, barWeight: barWeight,
+                                          achievedWeight: achieved, perSide: found.plates, isLandmine: true)
+            }
+        }
+
+        return PlateConfiguration(targetWeight: targetWeight, barWeight: barWeight,
+                                  achievedWeight: barWeight, perSide: [], isLandmine: true)
+    }
+
+    private func isLandmine(_ exercise: Exercise) -> Bool {
+        exercise.name.lowercased().contains("landmine")
+    }
+
     // MARK: - PowerBlock Calculator
 
     func nearestPowerBlock(target: Double) -> Double {
@@ -189,16 +233,20 @@ struct EquipmentCalculator {
     func display(for exercise: Exercise, weight: Double) -> EquipmentDisplay {
         switch exercise.equipmentType {
         case .barbell_45:
+            let landmine45 = isLandmine(exercise)
             if weight <= 0 || weight <= 45 {
-                return .barbell(PlateConfiguration(targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: []))
+                return .barbell(PlateConfiguration(targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [], isLandmine: landmine45))
             }
-            return .barbell(calculateBarbell(targetWeight: weight, barWeight: 45))
+            return .barbell(landmine45 ? calculateLandmine(targetWeight: weight, barWeight: 45)
+                                       : calculateBarbell(targetWeight: weight, barWeight: 45))
 
         case .barbell_35:
+            let landmine35 = isLandmine(exercise)
             if weight <= 0 || weight <= 35 {
-                return .barbell(PlateConfiguration(targetWeight: 35, barWeight: 35, achievedWeight: 35, perSide: []))
+                return .barbell(PlateConfiguration(targetWeight: 35, barWeight: 35, achievedWeight: 35, perSide: [], isLandmine: landmine35))
             }
-            return .barbell(calculateBarbell(targetWeight: weight, barWeight: 35))
+            return .barbell(landmine35 ? calculateLandmine(targetWeight: weight, barWeight: 35)
+                                       : calculateBarbell(targetWeight: weight, barWeight: 35))
 
         case .barbell_ez:
             if weight <= 0 || weight <= 15 {
@@ -236,16 +284,19 @@ struct EquipmentCalculator {
     /// Difference display between two exercises (for weight change alerts)
     func weightChangeDisplay(from previousWeight: Double, to currentWeight: Double, exercise: Exercise) -> String? {
         guard let barWeight = exercise.equipmentType.barWeight else { return nil }
-        let prevPerSide = (previousWeight - barWeight) / 2.0
-        let currPerSide = (currentWeight - barWeight) / 2.0
-        let diff = currPerSide - prevPerSide
+        let landmine = isLandmine(exercise)
+        let divisor = landmine ? 1.0 : 2.0
+        let prevSide = (previousWeight - barWeight) / divisor
+        let currSide = (currentWeight - barWeight) / divisor
+        let diff = currSide - prevSide
 
         if abs(diff) < 0.001 { return nil }
 
+        let sideLabel = landmine ? "one side" : "each side"
         if diff > 0 {
-            return "ADD \(diff.cleanWeight) lbs to each side"
+            return "ADD \(diff.cleanWeight) lbs to \(sideLabel)"
         } else {
-            return "REMOVE \(abs(diff).cleanWeight) lbs from each side"
+            return "REMOVE \(abs(diff).cleanWeight) lbs from \(sideLabel)"
         }
     }
 

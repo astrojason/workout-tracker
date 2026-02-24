@@ -119,6 +119,7 @@ export interface PlateConfiguration {
   barWeight: number;
   achievedWeight: number;
   perSide: { plate: number; count: number }[];
+  isLandmine?: boolean;
 }
 
 export type EquipmentDisplay =

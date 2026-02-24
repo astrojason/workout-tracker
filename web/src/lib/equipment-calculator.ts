@@ -47,6 +47,10 @@ function findPlates(
   return null;
 }
 
+function isLandmineExercise(exercise: Exercise): boolean {
+  return exercise.name.toLowerCase().includes("landmine");
+}
+
 export function calculateBarbell(targetWeight: number, bWeight: number): PlateConfiguration {
   const perSideNeeded = (targetWeight - bWeight) / 2;
 
@@ -84,6 +88,45 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
   return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [] };
 }
 
+export function calculateLandmine(targetWeight: number, bWeight: number): PlateConfiguration {
+  const oneSideNeeded = targetWeight - bWeight;
+
+  if (oneSideNeeded <= 0) {
+    return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [], isLandmine: true };
+  }
+
+  // Try exact match
+  const exact = findPlates(oneSideNeeded);
+  if (exact) {
+    return {
+      targetWeight,
+      barWeight: bWeight,
+      achievedWeight: bWeight + exact.totalPerSide,
+      perSide: exact.plates,
+      isLandmine: true,
+    };
+  }
+
+  // Round up: try incrementally higher weights
+  let attempt = oneSideNeeded;
+  const increment = 0.25;
+  while (attempt < oneSideNeeded + 50) {
+    attempt += increment;
+    const found = findPlates(attempt);
+    if (found) {
+      return {
+        targetWeight,
+        barWeight: bWeight,
+        achievedWeight: bWeight + found.totalPerSide,
+        perSide: found.plates,
+        isLandmine: true,
+      };
+    }
+  }
+
+  return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [], isLandmine: true };
+}
+
 // ── PowerBlock ──
 
 export function nearestPowerBlock(target: number): number {
@@ -105,7 +148,8 @@ export function plateFullDisplayString(config: PlateConfiguration): string {
     return `Bar only (${cleanWeight(config.barWeight)} lbs)`;
   }
   const plateStr = plateDisplayString(config);
-  return `Each side: ${plateStr} (${cleanWeight(config.achievedWeight)} lbs)`;
+  const label = config.isLandmine ? "One side" : "Each side";
+  return `${label}: ${plateStr} (${cleanWeight(config.achievedWeight)} lbs)`;
 }
 
 function parseWeightFromDetail(detail: string): number | null {
@@ -116,13 +160,17 @@ function parseWeightFromDetail(detail: string): number | null {
 
 export function getEquipmentDisplay(exercise: Exercise, weight: number): EquipmentDisplay {
   switch (exercise.equipmentType) {
-    case "barbell_45":
-      if (weight <= 45) return { type: "barbell", config: { targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [] } };
-      return { type: "barbell", config: calculateBarbell(weight, 45) };
+    case "barbell_45": {
+      const landmine = isLandmineExercise(exercise);
+      if (weight <= 45) return { type: "barbell", config: { targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [], isLandmine: landmine } };
+      return { type: "barbell", config: landmine ? calculateLandmine(weight, 45) : calculateBarbell(weight, 45) };
+    }
 
-    case "barbell_35":
-      if (weight <= 35) return { type: "barbell", config: { targetWeight: 35, barWeight: 35, achievedWeight: 35, perSide: [] } };
-      return { type: "barbell", config: calculateBarbell(weight, 35) };
+    case "barbell_35": {
+      const landmine = isLandmineExercise(exercise);
+      if (weight <= 35) return { type: "barbell", config: { targetWeight: 35, barWeight: 35, achievedWeight: 35, perSide: [], isLandmine: landmine } };
+      return { type: "barbell", config: landmine ? calculateLandmine(weight, 35) : calculateBarbell(weight, 35) };
+    }
 
     case "barbell_ez":
       if (weight <= 15) return { type: "barbell", config: { targetWeight: 15, barWeight: 15, achievedWeight: 15, perSide: [] } };

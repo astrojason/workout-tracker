@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateBarbell,
+  calculateLandmine,
   nearestPowerBlock,
   plateDisplayString,
   plateFullDisplayString,
@@ -159,6 +160,36 @@ describe("calculateBarbell", () => {
   });
 });
 
+describe("calculateLandmine", () => {
+  it("sets isLandmine flag to true", () => {
+    const result = calculateLandmine(85, 45);
+    expect(result.isLandmine).toBe(true);
+  });
+
+  it("puts all plate weight on one side (85 lbs = 45 bar + 40 one side)", () => {
+    const result = calculateLandmine(85, 45);
+    expect(result.achievedWeight).toBe(85);
+    const oneSideTotal = result.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+    expect(oneSideTotal).toBe(40);
+  });
+
+  it("returns bar only when target equals bar weight", () => {
+    const result = calculateLandmine(45, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+    expect(result.isLandmine).toBe(true);
+  });
+
+  it("calculates one side correctly vs barbell (same target weight needs more plates)", () => {
+    // Barbell 135 = 45 bar + 45 per side. Landmine 135 = 45 bar + 90 on one side.
+    const barbell = calculateBarbell(135, 45);
+    const landmine = calculateLandmine(135, 45);
+    const barbellTotal = barbell.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+    const landmineTotal = landmine.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+    expect(landmineTotal).toBe(barbellTotal * 2);
+  });
+});
+
 describe("nearestPowerBlock", () => {
   it("returns exact weight when already a valid increment", () => {
     expect(nearestPowerBlock(25)).toBe(25);
@@ -242,6 +273,15 @@ describe("plateFullDisplayString", () => {
       perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
     };
     expect(plateFullDisplayString(config)).toBe("Each side: 1x45 + 1x25 (185 lbs)");
+  });
+
+  it("shows 'One side:' prefix for landmine", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 85, barWeight: 45, achievedWeight: 85,
+      perSide: [{ plate: 35, count: 1 }, { plate: 5, count: 1 }],
+      isLandmine: true,
+    };
+    expect(plateFullDisplayString(config)).toBe("One side: 1x35 + 1x5 (85 lbs)");
   });
 });
 
@@ -384,6 +424,38 @@ describe("getEquipmentDisplay", () => {
     expect(result.type).toBe("kettlebell");
     if (result.type === "kettlebell") {
       expect(result.weight).toBe(35);
+    }
+  });
+
+  it("uses landmine calculation for exercises with 'landmine' in name", () => {
+    const ex = makeExercise({ name: "Landmine Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 85);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBe(true);
+      expect(result.config.achievedWeight).toBe(85);
+      const oneSideTotal = result.config.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+      expect(oneSideTotal).toBe(40);
+    }
+  });
+
+  it("uses standard barbell calculation for non-landmine exercises", () => {
+    const ex = makeExercise({ name: "Bench Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 85);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBeUndefined();
+      const perSideTotal = result.config.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+      expect(perSideTotal).toBe(20); // (85 - 45) / 2 = 20
+    }
+  });
+
+  it("is case-insensitive for landmine name detection", () => {
+    const ex = makeExercise({ name: "Single-Arm LANDMINE Row", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 85);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBe(true);
     }
   });
 });
