@@ -16,6 +16,7 @@ interface ActiveWorkoutProps {
   onUpdateWeight: (exerciseId: string, newWeight: number) => void;
   onUpdateSets: (exerciseId: string, newSets: number) => void;
   onDismiss: () => void;
+  onPause: () => void;
   onHardWeightDecision?: (action: "keep" | "reduce") => void;
   showHardPrompt?: boolean;
 }
@@ -119,7 +120,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onDismiss, onHardWeightDecision, showHardPrompt,
+  onUpdateWeight, onUpdateSets, onDismiss, onPause, onHardWeightDecision, showHardPrompt,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -157,9 +158,20 @@ export function ActiveWorkout({
     <div className="min-h-screen bg-gray-950 flex flex-col">
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800">
-        <div>
-          <div className="font-bold">{session.workout.programName}</div>
-          <div className="text-sm text-gray-400">{session.workout.dayOfWeek}</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onPause}
+            className="text-gray-400 hover:text-white transition p-1 -ml-1"
+            aria-label="Pause and go home"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <div className="font-bold">{session.workout.programName}</div>
+            <div className="text-sm text-gray-400">{session.workout.dayOfWeek}</div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className={`px-2 py-1 rounded-full text-xs font-bold ${phaseColors[exercise.phase] || "bg-gray-600"}`}>

@@ -99,6 +99,7 @@ export default function HomePage() {
         onUpdateWeight={workout.updateWeight}
         onUpdateSets={workout.updateSets}
         onDismiss={workout.dismissWorkout}
+        onPause={workout.pauseWorkout}
         showHardPrompt={workout.showHardPrompt}
         onHardWeightDecision={workout.handleHardWeightDecision}
       />
@@ -124,6 +125,32 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold">{dayName}</h1>
         <p className="text-gray-400">{dateStr}</p>
       </div>
+
+      {/* Resume Banner */}
+      {workout.pausedSession && (
+        <div className="mb-4 bg-indigo-950 border border-indigo-700 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-indigo-200">Workout paused</p>
+            <p className="text-sm text-indigo-400 truncate">
+              {workout.pausedSession.workout.programName} &middot; {workout.pausedSession.workout.dayOfWeek}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={workout.dismissWorkout}
+              className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-semibold transition"
+            >
+              Discard
+            </button>
+            <button
+              onClick={workout.resumeWorkout}
+              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition"
+            >
+              Resume
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Programs */}
       {programs.length === 0 ? (

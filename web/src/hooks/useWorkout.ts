@@ -10,6 +10,7 @@ import { useSound } from "./useSound";
 
 const STORAGE_KEY = "activeWorkout";
 const REST_END_KEY = "activeWorkoutRestEnd";
+const PAUSED_KEY = "workoutPaused";
 
 // Serialization helpers for localStorage (survives tab/browser close)
 function serializeSession(session: ActiveSession): string {
@@ -72,6 +73,7 @@ function clearPersistedSession() {
 
 export function useWorkout(userId: string | null) {
   const [session, setSession] = useState<ActiveSession | null>(null);
+  const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [showHardPrompt, setShowHardPrompt] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
@@ -86,6 +88,13 @@ export function useWorkout(userId: string | null) {
       if (saved) {
         const restored = deserializeSession(saved);
         if (restored) {
+          const isPaused = localStorage.getItem(PAUSED_KEY) === "1";
+          if (isPaused) {
+            // User intentionally paused — show resume banner, don't auto-resume
+            setPausedSession(restored);
+            return;
+          }
+
           setSession(restored);
 
           // Restore rest timer if active
@@ -411,8 +420,36 @@ export function useWorkout(userId: string | null) {
       timerRef.current = null;
     }
     clearPersistedSession();
+    setPausedSession(null);
     setSession(null);
   }, []);
+
+  const pauseWorkout = useCallback(() => {
+    if (!session) return;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    restEndRef.current = null;
+    // Save session without resting state so resume starts cleanly at current set
+    const paused = { ...session, isResting: false };
+    try {
+      localStorage.setItem(STORAGE_KEY, serializeSession(paused));
+      localStorage.removeItem(REST_END_KEY);
+      localStorage.setItem(PAUSED_KEY, "1");
+    } catch { /* localStorage unavailable */ }
+    setPausedSession(paused);
+    setSession(null);
+  }, [session]);
+
+  const resumeWorkout = useCallback(() => {
+    if (!pausedSession) return;
+    try {
+      localStorage.removeItem(PAUSED_KEY);
+    } catch { /* localStorage unavailable */ }
+    setSession(pausedSession);
+    setPausedSession(null);
+  }, [pausedSession]);
 
   const updateWeight = useCallback((exerciseId: string, newWeight: number) => {
     setSession((prev) => prev ? {
@@ -456,6 +493,7 @@ export function useWorkout(userId: string | null) {
 
   return {
     session,
+    pausedSession,
     currentExercise,
     currentWeight,
     setsCompletedForCurrent,
@@ -466,6 +504,8 @@ export function useWorkout(userId: string | null) {
     skipRest,
     endWorkout,
     dismissWorkout,
+    pauseWorkout,
+    resumeWorkout,
     updateWeight,
     updateSets,
     handleHardWeightDecision,
