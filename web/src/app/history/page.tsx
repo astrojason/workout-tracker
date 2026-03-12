@@ -64,9 +64,10 @@ export default function HistoryPage() {
               : new Date(session.date as unknown as string);
 
             return (
-              <div
+              <Link
                 key={session.id}
-                className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center justify-between"
+                href={`/session/${session.id}`}
+                className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center justify-between hover:bg-gray-800 transition"
               >
                 <div>
                   <div className="font-semibold">{session.programName}</div>
@@ -85,7 +86,7 @@ export default function HistoryPage() {
                 {session.completed && (
                   <span className="ml-3 text-green-400">&#x2713;</span>
                 )}
-              </div>
+              </Link>
             );
           })}
         </div>

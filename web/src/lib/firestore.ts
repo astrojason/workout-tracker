@@ -189,6 +189,14 @@ export async function getSessions(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc));
 }
 
+export async function getSession(
+  userId: string, sessionId: string
+): Promise<WorkoutSessionDoc | null> {
+  const snap = await getDoc(doc(sessionsCol(userId), sessionId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as WorkoutSessionDoc;
+}
+
 export async function getCompletedDays(
   userId: string, programName: string, week: number
 ): Promise<Set<string>> {
