@@ -2,11 +2,36 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { Workout, Exercise, ActiveSession, CompletedSet, PRResult } from "@/lib/types";
-import { resolveWeight, getProgressionIncrement, adjustForEquipment } from "@/lib/progression-service";
+import { resolveWeightWithMeta, getProgressionIncrement, adjustForEquipment } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
+
+export interface MissReductionPrompt {
+  exerciseId: string;
+  exerciseName: string;
+  fromWeight: number;
+  toWeight: number;
+}
+
+export interface EasyPromptData {
+  exerciseId: string;
+  exerciseName: string;
+  /** Weight used for set 1 of this exercise (the session base weight). */
+  fromWeight: number;
+  /** Proposed next-session weight (2x increment). */
+  toWeight: number;
+}
+
+// Returns the effective rest duration in seconds for an exercise.
+// restAfter === false → 0 (no rest timer); restAfter is a number → use it;
+// otherwise fall back to restSeconds.
+function effectiveRestSeconds(exercise: { restSeconds: number; restAfter?: false | number }): number {
+  if (exercise.restAfter === false) return 0;
+  if (typeof exercise.restAfter === "number") return exercise.restAfter;
+  return exercise.restSeconds;
+}
 
 const STORAGE_KEY = "activeWorkout";
 const REST_END_KEY = "activeWorkoutRestEnd";
@@ -75,6 +100,8 @@ export function useWorkout(userId: string | null) {
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [showHardPrompt, setShowHardPrompt] = useState(false);
+  const [missReductionQueue, setMissReductionQueue] = useState<MissReductionPrompt[]>([]);
+  const [easyPrompt, setEasyPrompt] = useState<EasyPromptData | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -187,12 +214,24 @@ export function useWorkout(userId: string | null) {
     if (!userId) return;
     initAudio();
 
-    // Resolve all progressive weights
+    // Resolve all progressive weights, collecting any auto-reductions to prompt about
     const resolvedWeights: Record<string, number> = {};
+    const reductions: MissReductionPrompt[] = [];
     for (const exercise of workout.exercises) {
-      resolvedWeights[exercise.id] = await resolveWeight(userId, exercise);
+      const meta = await resolveWeightWithMeta(userId, exercise);
+      resolvedWeights[exercise.id] = meta.weight;
+      if (meta.reason === "reduced_2x_miss" && meta.prevWeight !== null) {
+        reductions.push({
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          fromWeight: meta.prevWeight,
+          toWeight: meta.weight,
+        });
+      }
     }
 
+    setMissReductionQueue(reductions);
+    setEasyPrompt(null);
     setSession({
       workout,
       resolvedWeights,
@@ -212,6 +251,13 @@ export function useWorkout(userId: string | null) {
   const setsCompletedForCurrent = session
     ? session.completedSets.filter((s) => s.exerciseOrder === currentExercise?.order).length
     : 0;
+
+  // True when the current set is the final AMRAP set of an exercise flagged with lastSetAmrap
+  const isCurrentSetAmrap = Boolean(
+    currentExercise?.lastSetAmrap &&
+    session &&
+    session.currentSetNumber === currentExercise.sets
+  );
 
   function startRestTimerFromEnd(endDate: Date) {
     const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
@@ -293,9 +339,10 @@ export function useWorkout(userId: string | null) {
     // If rated hard, show prompt before proceeding (only if sets remain)
     if (rating === "hard" && setsRemaining > 0) {
       pendingHardRef.current = { exerciseId: currentExercise.id };
-      if (currentExercise.restSeconds > 0) {
+      const restSecs = effectiveRestSeconds(currentExercise);
+      if (restSecs > 0) {
         setSession(updatedSession);
-        startRestTimer(currentExercise.restSeconds);
+        startRestTimer(restSecs);
       } else {
         setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
       }
@@ -303,17 +350,37 @@ export function useWorkout(userId: string | null) {
       return;
     }
 
+    // After last set of exercise: prompt if all reps met and rated easy
+    if (setsRemaining === 0 && rating === "easy" && !failed && actualReps >= currentExercise.repMin) {
+      const exerciseSetsInSession = newSets.filter((s) => s.exerciseOrder === currentExercise.order);
+      const allRepsMet = exerciseSetsInSession.every(
+        (s) => s.completed && s.actualReps >= currentExercise.repMin
+      );
+      const increment = getProgressionIncrement(currentExercise);
+      if (allRepsMet && increment > 0) {
+        const baseWeight = exerciseSetsInSession[0]?.actualWeight ?? currentWeight;
+        const proposed = adjustForEquipment(baseWeight + increment * 2, currentExercise);
+        setEasyPrompt({
+          exerciseId: currentExercise.id,
+          exerciseName: currentExercise.name,
+          fromWeight: baseWeight,
+          toWeight: proposed,
+        });
+      }
+    }
+
+    const restSecs = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
-      if (currentExercise.restSeconds > 0) {
+      if (restSecs > 0) {
         setSession(updatedSession);
-        startRestTimer(currentExercise.restSeconds);
+        startRestTimer(restSecs);
       } else {
         setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
       }
     } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
-      if (currentExercise.restSeconds > 0) {
+      if (restSecs > 0) {
         setSession(updatedSession);
-        startRestTimer(currentExercise.restSeconds);
+        startRestTimer(restSecs);
       } else {
         setSession({ ...updatedSession, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
       }
@@ -468,6 +535,41 @@ export function useWorkout(userId: string | null) {
     });
   }, []);
 
+  /** User responds to the "felt easy, increase next session?" prompt. */
+  const handleEasyDecision = useCallback((action: "increase" | "standard") => {
+    setEasyPrompt(null);
+    if (action === "standard") {
+      // Downgrade the last easy-rated set for this exercise to "normal"
+      // so resolveWeight next session applies +1x instead of +2x
+      if (!easyPrompt) return;
+      setSession((prev) => {
+        if (!prev) return prev;
+        // Find the last set for this exercise rated "easy"
+        const sets = [...prev.completedSets];
+        for (let i = sets.length - 1; i >= 0; i--) {
+          if (sets[i].exerciseName === easyPrompt.exerciseName && sets[i].rating === "easy") {
+            sets[i] = { ...sets[i], rating: "normal" };
+            break;
+          }
+        }
+        return { ...prev, completedSets: sets };
+      });
+    }
+  }, [easyPrompt]);
+
+  /** User responds to the "missed 2x, weight reduced" prompt. */
+  const handleMissReductionDecision = useCallback((action: "accept" | "keep") => {
+    const prompt = missReductionQueue[0];
+    if (!prompt) return;
+    if (action === "keep") {
+      setSession((prev) => prev ? {
+        ...prev,
+        resolvedWeights: { ...prev.resolvedWeights, [prompt.exerciseId]: prompt.fromWeight },
+      } : prev);
+    }
+    setMissReductionQueue((prev) => prev.slice(1));
+  }, [missReductionQueue]);
+
   const handleHardWeightDecision = useCallback((action: "keep" | "reduce") => {
     setShowHardPrompt(false);
     if (!session || !pendingHardRef.current) return;
@@ -497,7 +599,10 @@ export function useWorkout(userId: string | null) {
     currentExercise,
     currentWeight,
     setsCompletedForCurrent,
+    isCurrentSetAmrap,
     showHardPrompt,
+    missReductionQueue,
+    easyPrompt,
     startWorkout,
     completeSet,
     skipSet,
@@ -509,5 +614,7 @@ export function useWorkout(userId: string | null) {
     updateWeight,
     updateSets,
     handleHardWeightDecision,
+    handleEasyDecision,
+    handleMissReductionDecision,
   };
 }

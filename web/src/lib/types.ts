@@ -14,17 +14,19 @@ export type EquipmentType =
   | "bodyweight"
   | "assisted_pullup";
 
+// Known keyword rules plus any free-form next-step string (band color, band count, etc.)
 export type ProgressionRule =
   | "add_5lb"
   | "add_2.5lb"
   | "add_10lb"
-  | "reduce_assistance"
-  | "maintain"
-  | "deload"
-  | "none"
   | "add_reps"
   | "add_time"
-  | "progress_gripper";
+  | "add_rounds"
+  | "maintain"
+  | "deload"
+  | "progress_gripper"
+  | "none"
+  | string; // free-form: band color (e.g. "Blue"), band count (e.g. "2 bands")
 
 // ── Structured types (Firestore-compatible) ──
 
@@ -53,6 +55,10 @@ export interface Exercise {
   progressionRule: ProgressionRule;
   isUnilateral: boolean;
   notes: string | null;
+  // XLSX-only fields
+  totalWeight?: number;          // pre-calculated total weight; seeds progressive starting weight if no history
+  lastSetAmrap?: boolean;        // when true, the final set is AMRAP regardless of repMax
+  restAfter?: false | number;    // false = no rest timer; number = rest seconds (overrides restSeconds)
 }
 
 export interface Workout {

@@ -300,8 +300,20 @@ describe("parseCSV - grouping logic", () => {
     expect(uniqueIds.size).toBe(3);
   });
 
-  it("defaults invalid progression_rule to 'none'", () => {
-    const csv = `${VALID_HEADER}\n${makeRow({ progression_rule: "unknown_rule" })}`;
+  it("passes through free-form progression_rule strings (band colors, band counts)", () => {
+    const csv = `${VALID_HEADER}\n${makeRow({ progression_rule: "Blue" })}`;
+    const result = parseCSV(csv);
+    expect(result.workouts[0].exercises[0].progressionRule).toBe("Blue");
+  });
+
+  it("passes through arbitrary non-empty progression_rule strings", () => {
+    const csv = `${VALID_HEADER}\n${makeRow({ progression_rule: "2 bands" })}`;
+    const result = parseCSV(csv);
+    expect(result.workouts[0].exercises[0].progressionRule).toBe("2 bands");
+  });
+
+  it("defaults empty progression_rule to 'none'", () => {
+    const csv = `${VALID_HEADER}\n${makeRow({ progression_rule: "" })}`;
     const result = parseCSV(csv);
     expect(result.workouts[0].exercises[0].progressionRule).toBe("none");
   });

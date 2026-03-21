@@ -262,14 +262,16 @@ export async function getExerciseHistory(
     const sets = (session.sets || []).filter(
       (s) => s.exerciseName === exerciseName && s.completed
     );
-    for (const s of sets) {
-      results.push({
-        date,
-        weight: s.actualWeight,
-        reps: s.actualReps,
-        volume: s.actualWeight * s.actualReps,
-      });
-    }
+    if (sets.length === 0) continue;
+    // Use the heaviest set per session — warm-up sets are always lighter
+    // so this naturally excludes them without needing phase data.
+    const best = sets.reduce((top, s) => s.actualWeight > top.actualWeight ? s : top, sets[0]);
+    results.push({
+      date,
+      weight: best.actualWeight,
+      reps: best.actualReps,
+      volume: best.actualWeight * best.actualReps,
+    });
   }
 
   return results.reverse();

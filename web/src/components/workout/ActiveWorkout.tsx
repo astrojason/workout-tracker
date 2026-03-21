@@ -6,6 +6,7 @@ import { getEquipmentDisplay } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
 import { SetCompletionModal } from "./SetCompletionModal";
+import type { MissReductionPrompt, EasyPromptData } from "@/hooks/useWorkout";
 
 interface ActiveWorkoutProps {
   session: ActiveSession;
@@ -19,6 +20,10 @@ interface ActiveWorkoutProps {
   onPause: () => void;
   onHardWeightDecision?: (action: "keep" | "reduce") => void;
   showHardPrompt?: boolean;
+  missReductionQueue?: MissReductionPrompt[];
+  onMissReductionDecision?: (action: "accept" | "keep") => void;
+  easyPrompt?: EasyPromptData | null;
+  onEasyDecision?: (action: "increase" | "standard") => void;
 }
 
 function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
@@ -121,6 +126,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
   onUpdateWeight, onUpdateSets, onDismiss, onPause, onHardWeightDecision, showHardPrompt,
+  missReductionQueue, onMissReductionDecision, easyPrompt, onEasyDecision,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -341,6 +347,72 @@ export function ActiveWorkout({
                 className="w-full py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-gray-400"
               >
                 Discard &amp; Go Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Miss-2x Reduction Prompt — shown one at a time at workout start */}
+      {missReductionQueue && missReductionQueue.length > 0 && onMissReductionDecision && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-sm mx-4 border border-gray-800">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-orange-400 text-xl">&#9888;</span>
+              <h3 className="text-lg font-bold">Weight Adjustment</h3>
+            </div>
+            <p className="text-gray-300 font-semibold mb-1">{missReductionQueue[0].exerciseName}</p>
+            <p className="text-gray-400 text-sm mb-6">
+              Missed target 2 sessions in a row. Weight dropped from{" "}
+              <span className="text-white font-semibold">{missReductionQueue[0].fromWeight}lbs</span> to{" "}
+              <span className="text-white font-semibold">{missReductionQueue[0].toWeight}lbs</span>.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onMissReductionDecision("keep")}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-sm"
+              >
+                Keep {missReductionQueue[0].fromWeight}lbs
+              </button>
+              <button
+                onClick={() => onMissReductionDecision("accept")}
+                className="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 font-bold transition text-sm"
+              >
+                Use {missReductionQueue[0].toWeight}lbs
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Easy Prompt — shown after last set of exercise done with easy rating */}
+      {easyPrompt && onEasyDecision && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-sm mx-4 border border-gray-800">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-green-400 text-xl">&#x2605;</span>
+              <h3 className="text-lg font-bold">Felt Easy!</h3>
+            </div>
+            <p className="text-gray-300 font-semibold mb-1">{easyPrompt.exerciseName}</p>
+            <p className="text-gray-400 text-sm mb-6">
+              Increase to{" "}
+              <span className="text-white font-semibold">{easyPrompt.toWeight}lbs</span> next session?
+              {" "}(2× jump from {easyPrompt.fromWeight}lbs)
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onEasyDecision("standard")}
+                className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-sm"
+              >
+                Standard +{easyPrompt.toWeight - easyPrompt.fromWeight > 0
+                  ? Math.round((easyPrompt.toWeight - easyPrompt.fromWeight) / 2)
+                  : ""}lbs
+              </button>
+              <button
+                onClick={() => onEasyDecision("increase")}
+                className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-sm"
+              >
+                Yes, {easyPrompt.toWeight}lbs
               </button>
             </div>
           </div>

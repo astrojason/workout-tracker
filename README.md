@@ -1,194 +1,165 @@
-# Workout Tracker - Implementation Package for Claude Code
+# Workout Tracker
 
-This package contains everything needed to build a native iOS workout tracking app with Apple Watch companion.
+Progressive overload strength training tracker with two independent platform implementations sharing the same CSV data format and business logic.
 
-## What's Included
+## Platforms
 
-### Documentation
-- **`workout_tracker_spec.md`** - Complete technical specification with all requirements, data models, UI/UX guidelines, and implementation roadmap
-
-### Data Files
-- **`reacher_build_workout.csv`** - 6-day strength training program (Weeks 1-4)
-- **`daily_mobility.csv`** - Daily mobility routine (separate from main program)
-- **`Gym_Equipment.md`** - Complete equipment inventory for weight calculations
-
-## Quick Start for Claude Code
-
-```bash
-# Review the spec
-cat workout_tracker_spec.md
-
-# Check the CSV format
-head -5 reacher_build_workout.csv
-
-# Start implementation
-# Create new Xcode project, then follow the "Getting Started" section in the spec
-```
-
-## Key Implementation Priorities
-
-1. **CSV Parser** - Validate and import workout programs
-2. **Equipment Calculator** - Smart barbell plate math (critical!)
-3. **Workout Flow** - Exercise → Rest Timer → Next Exercise
-4. **Progressive Overload** - Auto-calculate weight increases
-5. **Watch App** - Companion controls and notifications
-6. **History Tracking** - Record all sets for progression graphs
-
-## Critical Features
-
-### Must Have (MVP)
-- ✅ CSV import
-- ✅ Equipment-aware weight calculations
-- ✅ Rest timer with sound + watch haptic
-- ✅ Screen lock prevention during workout
-- ✅ Progressive overload tracking
-- ✅ Exercise history storage
-- ✅ PR detection
-- ✅ Strength progression graphs
-
-### Nice to Have (Post-MVP)
-- Exercise videos
-- Voice commands
-- Apple Health integration
-- Workout sharing
-
-## Equipment Constraints
-
-The app must respect Jason's actual equipment:
-
-### Barbells
-- 45lb, 35lb, 15lb (EZ bar)
-
-### Plates (in pairs)
-- 45, 35, 25 (×2), 10 (×2), 5, 2.5, 1, 0.75, 0.5
-
-### PowerBlock Elite EXP
-- Range: 5-50 lbs
-- Increment: 2.5 lbs
-- Display selector pin position
-
-### Example Weight Calculations
-```
-Target: 185 lbs (barbell exercise)
-→ Bar: 45 lbs
-→ Per side needed: (185-45)/2 = 70 lbs
-→ Configuration: 1×45 + 1×25
-→ Display: "Add to each side: 1×45 + 1×25"
-
-Target: 137 lbs (impossible exact)
-→ Per side needed: 46 lbs
-→ Round UP to: 47.5 lbs (1×45 + 1×2.5)
-→ Actual total: 140 lbs
-→ Display: "Add to each side: 1×45 + 1×2.5 (140 lbs total)"
-```
-
-## Progressive Overload Rules
-
-From CSV `progression_rule` column:
-
-- **`add_5lb`** - Add 5 lbs when all sets completed in rep range (compounds)
-- **`add_2.5lb`** - Add 2.5 lbs when all sets completed (isolation)
-- **`reduce_assistance`** - Reduce assisted pullup weight by 10 lbs
-- **`maintain`** - Keep same weight
-- **`none`** - No progression tracking
-
-## Workout Flow Example
-
-```
-User opens app on Tuesday
-→ App suggests: "Reacher Build - Tuesday (Pull Day)"
-→ User taps "Start Workout"
-
-Exercise 1: External Rotations (Orange Band)
-→ Display: "Set 1 of 2 | 12 reps | Orange Band (2-12 lbs)"
-→ User completes, taps "Complete"
-→ Rest timer: 60 seconds
-→ Sound + haptic at 0:00
-→ Auto-advance to Set 2
-
-Exercise 5: Assisted Pull-ups (240 lb assistance)
-→ Set 1-3: 3-5 reps at 240 lbs
-→ Set 4: "FAILURE" (max reps)
-→ If all sets completed in range: Next week reduces to 230 lbs
-
-Exercise 6: Barbell Row (Progressive)
-→ Last week: 135 lbs, completed all sets
-→ This week: 140 lbs (added 5 lbs)
-→ Display: "Add to bar: 1×45 + 1×2.5 per side (140 lbs total)"
-→ Between sets shows: "⚠️ No weight change needed"
-
-Workout Complete
-→ Save all exercise data
-→ Check for PRs
-→ Show completion screen
-→ Unlock screen (allow sleep)
-```
-
-## Data Flow
-
-```
-CSV File 
-  ↓
-CSVParser 
-  ↓
-Program object (stored in memory)
-  ↓
-WorkoutManager (selects today's workout)
-  ↓
-EquipmentCalculator (computes weights)
-  ↓
-WorkoutView (displays exercise)
-  ↓
-User completes set
-  ↓
-Core Data (save history)
-  ↓
-ProgressionCalculator (determine next week's weight)
-```
-
-## Testing with Sample Data
-
-Both CSV files are production-ready:
-- **Reacher Build**: 6 days × 4 weeks = 24 unique workouts
-- **Daily Mobility**: 18 exercises, performed independently
-
-Load these on first launch to demonstrate functionality.
-
-## Questions to Resolve During Build
-
-1. How should the app handle "week advancement"? 
-   - Auto-advance after 6 workouts?
-   - Manual "Start Week 2" button?
-   - **Suggestion**: Manual with progress indicator
-
-2. What if user can't complete all reps?
-   - Mark set as "incomplete" → no progression next week
-   - Record actual reps → weight stays same
-
-3. Multiple programs same day?
-   - Daily Mobility + Reacher Build on same day
-   - Track separately, different completion times
-
-4. Rest timer interruptions?
-   - Phone call, notification, etc.
-   - Pause timer, resume when returning to app
-
-## Success Criteria
-
-App is ready when:
-- [ ] Can import both CSVs
-- [ ] Correctly suggests workout based on day of week
-- [ ] Calculates barbell plates accurately (within equipment constraints)
-- [ ] Rest timer triggers sound and watch haptic
-- [ ] Screen stays on during workout
-- [ ] Records all sets to Core Data
-- [ ] Shows progression graphs for exercises
-- [ ] Detects and displays PRs
-- [ ] Watch app mirrors phone state
-- [ ] Can control workout from watch
+| Platform | Stack | Status |
+|----------|-------|--------|
+| **Web App** | Next.js, TypeScript, Firebase, Tailwind | Active — primary |
+| **iOS Native** | SwiftUI, Core Data, XcodeGen | Active |
 
 ---
 
-**Ready for Claude Code implementation!**
+## Web App
 
-All specs, data, and requirements are complete. Follow the implementation roadmap in `workout_tracker_spec.md` for step-by-step guidance.
+### Quick Start
+
+```bash
+cd web
+npm install
+# Copy and fill in Firebase config
+cp .env.local.example .env.local
+npm run dev        # http://localhost:3000
+npm test           # run vitest suite
+```
+
+### Architecture
+
+```
+Next.js App Router + Firebase Auth (Google) + Firestore
+```
+
+**Pages:**
+- `/` — Home: program cards, start workout, resume banner
+- `/history` — Session list + exercise PR board
+- `/settings` — Import CSV, manage programs, rest time, sound
+- `/programs/[id]` — Browse and edit exercises per week
+- `/session/[id]` — Set-by-set session breakdown
+- `/exercise/[name]` — Exercise progression history
+
+**Key hooks:**
+- `useWorkout` — full workout state machine (timer, sets, PRs, localStorage persistence, WakeLock, pause/resume)
+- `usePrograms` — programs, workouts cache, CSV import, week management
+- `useHistory` — session history and exercise stats
+
+**Key services:**
+- `lib/csv-parser.ts` — parses CSV into Program/Workout objects
+- `lib/progression-service.ts` — resolves weights from history with rating-based logic
+- `lib/equipment-calculator.ts` — barbell plate math, PowerBlock, landmine
+- `lib/pr-detector.ts` — weight PR, estimated 1RM (Epley), volume PR
+- `lib/firestore.ts` — all Firestore CRUD
+
+### Firestore Schema
+
+```
+/users/{userId}/
+  settings/prefs       — default rest time, sound, current weeks per program
+  programs/{id}        — program metadata
+  workouts/{id}        — exercises embedded (doc ID: {name}_{week}_{day})
+  sessions/{id}        — completed sets embedded
+  personalRecords/{id} — per-exercise PR values
+```
+
+### Workout Modes
+
+**Active Workout** — sequential exercise flow. Each set opens a completion modal (reps, weight, difficulty rating: easy/normal/hard, failed toggle, notes). Rest timer runs between sets and exercises. Supports pause/resume.
+
+**Checklist Workout** — all exercises visible at once, tap to toggle complete. Used for Daily workouts (e.g. Daily Mobility). Syncs to Firestore incrementally; resumes today's session if already started.
+
+### Progression Logic
+
+Weight for the next session is resolved from history using a rating-aware algorithm:
+
+- All sets completed → apply progression rule (add weight increment)
+- Any set rated "easy" → double the increment for next session (user can decline)
+- Any set rated "hard" → keep weight (user offered mid-workout reduce option)
+- Missed target 2 sessions in a row → auto-reduce by one increment (user can override)
+- No history → weight starts at 0 (user sets it on first use)
+
+---
+
+## iOS Native App
+
+### Quick Start
+
+```bash
+# Generate .xcodeproj from project.yml
+xcodegen generate
+open WorkoutTracker.xcodeproj
+# Build and run in Xcode
+```
+
+No iOS SDK on the development machine — build only through Xcode GUI.
+
+### Architecture
+
+`@Observable WorkoutManager` holds all state and is passed via `.environment()`. Core Data is configured programmatically (no `.xcdatamodeld` file).
+
+**Services:** CSVParser, EquipmentCalculator, ProgressionService, WorkoutManager, SoundManager, PRDetector
+
+**Views (19 Swift files):** Home (3), Workout (6), History (3), Settings (2) + shared
+
+### Key Differences from Web
+
+- Progression is simpler — no easy/hard rating, no 2× miss deduction
+- Screen lock via `UIApplication.shared.isIdleTimerDisabled`
+- Persistence in Core Data (local only)
+- No auth — single-user
+- Watch companion not yet implemented
+
+---
+
+## Data Formats
+
+### CSV Format (16 columns)
+
+```
+program_name,week,day_of_week,phase,exercise_order,exercise_name,
+equipment_type,equipment_detail,base_weight,sets,rep_min,rep_max,
+rest_seconds,progression_rule,unilateral,notes
+```
+
+| Column | Values |
+|--------|--------|
+| `equipment_type` | `barbell_45`, `barbell_35`, `barbell_ez`, `powerblock`, `band`, `kettlebell`, `bodyweight`, `assisted_pullup` |
+| `base_weight` | number in lbs, or `"progressive"` (resolve from history) |
+| `rep_max` | integer, or `"failure"` (AMRAP) |
+| `day_of_week` | `Monday`–`Sunday` or `"Daily"` (available every day, triggers checklist mode) |
+| `progression_rule` | Enum keyword: `add_5lb`, `add_2.5lb`, `add_10lb`, `add_reps`, `add_time`, `add_rounds`, `maintain`, `deload`, `progress_gripper`, `none` — **or** a specific next-step value: band color string (e.g. `"Blue"`) for band assist, band count string (e.g. `"2 bands"`) for pull-up assist |
+| `unilateral` | `TRUE` / `FALSE` |
+
+**Bundled programs:**
+- `reacher_build_cycle2.xlsx` — 6-day strength program, 4 weeks (current active program). Multi-sheet XLSX, one sheet per day. Supersedes `reacher_build_workout.csv`.
+- `daily_mobility.csv` — 18-exercise daily mobility routine
+
+### XLSX Format (extended columns)
+
+The XLSX format adds the following columns to the base CSV set:
+
+| New Column | Type | Purpose |
+|------------|------|---------|
+| `equipment_category` | string | Human-readable grouping (barbell, dumbbell, machine, band, bodyweight) — for display, not calculation |
+| `total_weight` | number | Pre-calculated total weight in lbs (bar + plates). Seeds progressive starting weight if provided. |
+| `last_set_amrap` | boolean | `TRUE` = final set is AMRAP regardless of `rep_max` value |
+| `rest_after` | integer, string, or `FALSE` | Rest after exercise completes. `FALSE` = flow directly to next exercise (no rest timer). Integer seconds, `"90s"`, `"2m"`, or `"2:00"` otherwise. Takes priority over `rest_seconds` if both present. Warmup phase exercises are always `FALSE`. |
+
+---
+
+## Equipment
+
+**Barbells:** 45 lb Olympic bar, 35 lb bar, 15 lb EZ curl bar
+
+**Plates (pairs):** 45(×1), 35(×1), 25(×2), 10(×2), 5(×1), 2.5(×1), 1(×1), 0.75(×1), 0.5(×1)
+
+**PowerBlock Elite EXP:** 5–50 lbs in 2.5 lb increments. Equipment detail `"2lb"` → treated as regular dumbbell.
+
+**Resistance Bands (Serious Steel):** Orange (2–12 lbs), Purple (5–35 lbs), Red (10–50 lbs), Blue (20–80 lbs), Green (50–120 lbs), Black (60–150 lbs)
+
+**Landmine:** Exercises with "landmine" in the name use single-side plate loading (not per-side × 2).
+
+---
+
+## Full Specification
+
+See [workout_tracker_spec.md](workout_tracker_spec.md) for complete data models, service APIs, workout flow details, Firestore schema, XLSX column reference, and deviations from the original design.

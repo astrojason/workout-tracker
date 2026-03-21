@@ -102,6 +102,10 @@ export default function HomePage() {
         onPause={workout.pauseWorkout}
         showHardPrompt={workout.showHardPrompt}
         onHardWeightDecision={workout.handleHardWeightDecision}
+        missReductionQueue={workout.missReductionQueue}
+        onMissReductionDecision={workout.handleMissReductionDecision}
+        easyPrompt={workout.easyPrompt}
+        onEasyDecision={workout.handleEasyDecision}
       />
     );
   }

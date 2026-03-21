@@ -4,7 +4,7 @@ import { calculateBarbell, nearestPowerBlock } from "./equipment-calculator";
 import { getLastSetsForExercise, getLastTwoSessionSets } from "./firestore";
 
 export function getProgressionIncrement(exercise: Exercise): number {
-  switch (exercise.progressionRule) {
+  switch (exercise.progressionRule as string) {
     case "add_5lb": return 5;
     case "add_2.5lb": return 2.5;
     case "add_10lb": return 10;
@@ -23,26 +23,43 @@ export function adjustForEquipment(target: number, exercise: Exercise): number {
   return target;
 }
 
-export async function resolveWeight(
+export type WeightReason =
+  | "fixed"
+  | "no_history"
+  | "reduced_2x_miss"
+  | "kept_same_miss"
+  | "easy_bump"
+  | "kept_same_hard"
+  | "normal_progression"
+  | "no_increment";
+
+export interface WeightResolution {
+  weight: number;
+  /** Weight used in the most recent session (null for fixed/no-history). */
+  prevWeight: number | null;
+  reason: WeightReason;
+}
+
+export async function resolveWeightWithMeta(
   userId: string,
   exercise: Exercise
-): Promise<number> {
+): Promise<WeightResolution> {
   if (exercise.baseWeight.type === "fixed") {
-    return exercise.baseWeight.value;
+    return { weight: exercise.baseWeight.value, prevWeight: null, reason: "fixed" };
   }
 
-  // Progressive: look up history
   const lastSets = await getLastSetsForExercise(userId, exercise.name);
 
   if (lastSets.length === 0) {
-    return 0; // No history - will prompt for initial weight
+    // Use totalWeight as starting point when provided, otherwise 0 (user sets weight)
+    const startWeight = exercise.totalWeight ?? 0;
+    return { weight: startWeight, prevWeight: null, reason: "no_history" };
   }
 
   const lastWeight = lastSets[0]?.actualWeight ?? 0;
   const allCompleted = checkAllSetsCompleted(lastSets, exercise);
 
   if (!allCompleted) {
-    // Check if failed 2 sessions in a row — reduce weight
     const lastTwoSessions = await getLastTwoSessionSets(userId, exercise.name);
     if (lastTwoSessions.length === 2) {
       const bothFailed = lastTwoSessions.every(
@@ -51,28 +68,40 @@ export async function resolveWeight(
       if (bothFailed) {
         const increment = getProgressionIncrement(exercise);
         if (increment > 0) {
-          return adjustForEquipment(Math.max(0, lastWeight - increment), exercise);
+          const reduced = adjustForEquipment(Math.max(0, lastWeight - increment), exercise);
+          return { weight: reduced, prevWeight: lastWeight, reason: "reduced_2x_miss" };
         }
       }
     }
-    return lastWeight; // Keep same weight
+    return { weight: lastWeight, prevWeight: lastWeight, reason: "kept_same_miss" };
   }
 
-  // Check if last set was rated "easy" — apply 2x progression
   const lastSet = lastSets[lastSets.length - 1];
   if (lastSet?.rating === "easy") {
     const increment = getProgressionIncrement(exercise);
     if (increment > 0) {
-      return adjustForEquipment(lastWeight + increment * 2, exercise);
+      const bumped = adjustForEquipment(lastWeight + increment * 2, exercise);
+      return { weight: bumped, prevWeight: lastWeight, reason: "easy_bump" };
     }
   }
 
-  // Check if any set was rated "hard" — keep same weight
   if (lastSets.some((s) => s.rating === "hard")) {
-    return lastWeight;
+    return { weight: lastWeight, prevWeight: lastWeight, reason: "kept_same_hard" };
   }
 
-  return applyProgression(lastWeight, exercise);
+  const progressed = applyProgression(lastWeight, exercise);
+  if (progressed !== lastWeight) {
+    return { weight: progressed, prevWeight: lastWeight, reason: "normal_progression" };
+  }
+  return { weight: lastWeight, prevWeight: lastWeight, reason: "no_increment" };
+}
+
+export async function resolveWeight(
+  userId: string,
+  exercise: Exercise
+): Promise<number> {
+  const { weight } = await resolveWeightWithMeta(userId, exercise);
+  return weight;
 }
 
 function checkAllSetsCompleted(sets: CompletedSet[], exercise: Exercise): boolean {
@@ -90,9 +119,7 @@ export function applyProgression(currentWeight: number, exercise: Exercise): num
     return adjustForEquipment(currentWeight + increment, exercise);
   }
 
-  const rule = exercise.progressionRule;
-  switch (rule) {
-    case "reduce_assistance": return Math.max(0, currentWeight - 10);
-    default: return currentWeight;
-  }
+  // Free-form rules (band color, band count, etc.) and all non-increment keywords
+  // return the current weight unchanged — the UI handles band progression display
+  return currentWeight;
 }

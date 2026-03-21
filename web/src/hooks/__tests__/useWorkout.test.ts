@@ -11,6 +11,7 @@ vi.mock("@/lib/firestore", () => ({
 
 vi.mock("@/lib/progression-service", () => ({
   resolveWeight: vi.fn().mockResolvedValue(135),
+  resolveWeightWithMeta: vi.fn().mockResolvedValue({ weight: 135, prevWeight: null, reason: "fixed" }),
   getProgressionIncrement: vi.fn().mockReturnValue(5),
   adjustForEquipment: vi.fn().mockImplementation((target: number) => target),
 }));
@@ -186,6 +187,78 @@ describe("useWorkout", () => {
     // No rest timer, should advance directly
     expect(result.current.session!.isResting).toBe(false);
     expect(result.current.session!.currentSetNumber).toBe(2);
+  });
+
+  it("does not start rest timer when restAfter is false, even if restSeconds > 0", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 120, restAfter: false });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+    });
+
+    act(() => {
+      result.current.completeSet(10, 135, false, "normal");
+    });
+
+    // restAfter=false overrides restSeconds — no rest timer
+    expect(result.current.session!.isResting).toBe(false);
+    expect(result.current.session!.currentSetNumber).toBe(2);
+  });
+
+  it("uses restAfter seconds for rest timer when set", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 120, restAfter: 60 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+    });
+
+    act(() => {
+      result.current.completeSet(10, 135, false, "normal");
+    });
+
+    // restAfter=60 overrides restSeconds=120 — timer starts
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(60);
+  });
+
+  it("isCurrentSetAmrap is true on the last set of an exercise with lastSetAmrap=true", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0, lastSetAmrap: true });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+    });
+
+    // Set 1 — not the last set
+    expect(result.current.isCurrentSetAmrap).toBe(false);
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+    // Set 2 — still not last
+    expect(result.current.isCurrentSetAmrap).toBe(false);
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+    // Set 3 — this is the last set, AMRAP
+    expect(result.current.isCurrentSetAmrap).toBe(true);
+  });
+
+  it("isCurrentSetAmrap is always false when lastSetAmrap is not set", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+    });
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+    // On the 3rd set, still false because lastSetAmrap is not set
+    expect(result.current.isCurrentSetAmrap).toBe(false);
   });
 
   it("skipSet adds a skipped set with completed=false", async () => {

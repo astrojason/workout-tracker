@@ -14,12 +14,16 @@ const VALID_EQUIPMENT = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock",
   "band", "kettlebell", "bodyweight", "assisted_pullup",
 ]);
-const VALID_PROGRESSION = new Set([
-  "add_5lb", "add_2.5lb", "add_10lb", "reduce_assistance",
-  "maintain", "deload", "none", "add_reps", "add_time", "progress_gripper",
+// Known keyword rules; free-form strings (band colors, band counts) are also valid
+const KEYWORD_PROGRESSIONS = new Set([
+  "add_5lb", "add_2.5lb", "add_10lb",
+  "add_reps", "add_time", "add_rounds",
+  "maintain", "deload", "progress_gripper", "none",
 ]);
 
-describe("CSV integration - reacher_build_workout.csv", () => {
+// reacher_build_workout.csv is superseded by reacher_build_cycle2.xlsx.
+// These tests remain for backward compatibility of the CSV parser itself.
+describe("CSV integration - reacher_build_workout.csv (legacy, superseded by XLSX)", () => {
   const csvPath = resolve(__dirname, "../../../../reacher_build_workout.csv");
   let csv: string;
 
@@ -29,7 +33,7 @@ describe("CSV integration - reacher_build_workout.csv", () => {
     csv = "";
   }
 
-  it("parses without errors", () => {
+  it("parses without errors when file exists", () => {
     if (!csv) return; // skip if file not found
     expect(() => parseCSV(csv)).not.toThrow();
   });
@@ -50,14 +54,15 @@ describe("CSV integration - reacher_build_workout.csv", () => {
     expect(days.size).toBeGreaterThanOrEqual(5);
   });
 
-  it("all exercises have valid phase, equipment, and progression", () => {
+  it("all exercises have valid phase and equipment", () => {
     if (!csv) return;
     const result = parseCSV(csv);
     for (const workout of result.workouts) {
       for (const exercise of workout.exercises) {
         expect(VALID_PHASES.has(exercise.phase)).toBe(true);
         expect(VALID_EQUIPMENT.has(exercise.equipmentType)).toBe(true);
-        expect(VALID_PROGRESSION.has(exercise.progressionRule)).toBe(true);
+        // progression_rule is now free-form; just verify it's a string
+        expect(typeof exercise.progressionRule).toBe("string");
       }
     }
   });

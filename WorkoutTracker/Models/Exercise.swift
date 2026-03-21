@@ -50,40 +50,57 @@ enum EquipmentType: String, Codable, CaseIterable {
     }
 }
 
-enum ProgressionRule: String, Codable, CaseIterable {
-    case add_5lb
-    case add_2_5lb = "add_2.5lb"
-    case add_10lb
-    case reduce_assistance
-    case maintain
-    case deload
-    case none
-    case add_reps
-    case add_time
-    case progress_gripper
+// ProgressionRule is stored as a raw String to support free-form values
+// (band color e.g. "Blue", band count e.g. "2 bands") alongside keyword rules.
+struct ProgressionRule: RawRepresentable, Codable, Hashable, CustomStringConvertible {
+    let rawValue: String
+
+    init(rawValue: String) { self.rawValue = rawValue }
+    init(_ value: String) { self.rawValue = value }
+
+    // Known keyword constants
+    static let add_5lb      = ProgressionRule("add_5lb")
+    static let add_2_5lb    = ProgressionRule("add_2.5lb")
+    static let add_10lb     = ProgressionRule("add_10lb")
+    static let add_reps     = ProgressionRule("add_reps")
+    static let add_time     = ProgressionRule("add_time")
+    static let add_rounds   = ProgressionRule("add_rounds")
+    static let maintain     = ProgressionRule("maintain")
+    static let deload       = ProgressionRule("deload")
+    static let progress_gripper = ProgressionRule("progress_gripper")
+    static let none         = ProgressionRule("none")
+
+    var description: String { rawValue }
 
     var weightIncrement: Double? {
         switch self {
-        case .add_5lb: return 5
+        case .add_5lb:   return 5
         case .add_2_5lb: return 2.5
-        case .add_10lb: return 10
-        default: return nil
+        case .add_10lb:  return 10
+        default:         return nil
         }
     }
 
     var displayName: String {
         switch self {
-        case .add_5lb: return "+5 lb"
-        case .add_2_5lb: return "+2.5 lb"
-        case .add_10lb: return "+10 lb"
-        case .reduce_assistance: return "Reduce assistance"
-        case .maintain: return "Maintain"
-        case .deload: return "Deload"
-        case .none: return "None"
-        case .add_reps: return "+Reps"
-        case .add_time: return "+Time"
-        case .progress_gripper: return "Progress gripper"
+        case .add_5lb:           return "+5 lb"
+        case .add_2_5lb:         return "+2.5 lb"
+        case .add_10lb:          return "+10 lb"
+        case .add_reps:          return "+Reps"
+        case .add_time:          return "+Time"
+        case .add_rounds:        return "+Rounds"
+        case .maintain:          return "Maintain"
+        case .deload:            return "Deload"
+        case .progress_gripper:  return "Progress gripper"
+        case .none:              return "None"
+        default:                 return rawValue // free-form (e.g. "Blue", "2 bands")
         }
+    }
+}
+
+extension ProgressionRule: Equatable {
+    static func == (lhs: ProgressionRule, rhs: ProgressionRule) -> Bool {
+        lhs.rawValue == rhs.rawValue
     }
 }
 
@@ -143,6 +160,19 @@ enum RepTarget: Codable, Equatable {
 
 // MARK: - Exercise
 
+// rest_after from XLSX: nil = use restSeconds; false = no rest timer; Int = override seconds
+enum RestAfterSpec: Codable, Equatable {
+    case noRest          // FALSE in XLSX
+    case seconds(Int)    // explicit duration
+
+    var effectiveSeconds: Int {
+        switch self {
+        case .noRest:       return 0
+        case .seconds(let s): return s
+        }
+    }
+}
+
 struct Exercise: Identifiable, Codable {
     let id: UUID
     let order: Int
@@ -158,6 +188,41 @@ struct Exercise: Identifiable, Codable {
     let progressionRule: ProgressionRule
     let isUnilateral: Bool
     let notes: String?
+    // XLSX-only fields
+    let totalWeight: Double?        // seeds progressive starting weight if no history
+    let lastSetAmrap: Bool          // final set is AMRAP regardless of repMax
+    let restAfter: RestAfterSpec?   // nil = use restSeconds; .noRest = skip timer
+
+    init(id: UUID = UUID(), order: Int, name: String, phase: Phase,
+         equipmentType: EquipmentType, equipmentDetail: String? = nil,
+         baseWeight: WeightSpec, sets: Int, repMin: Int, repMax: RepTarget,
+         restSeconds: Int, progressionRule: ProgressionRule,
+         isUnilateral: Bool, notes: String? = nil,
+         totalWeight: Double? = nil, lastSetAmrap: Bool = false,
+         restAfter: RestAfterSpec? = nil) {
+        self.id = id
+        self.order = order
+        self.name = name
+        self.phase = phase
+        self.equipmentType = equipmentType
+        self.equipmentDetail = equipmentDetail
+        self.baseWeight = baseWeight
+        self.sets = sets
+        self.repMin = repMin
+        self.repMax = repMax
+        self.restSeconds = restSeconds
+        self.progressionRule = progressionRule
+        self.isUnilateral = isUnilateral
+        self.notes = notes
+        self.totalWeight = totalWeight
+        self.lastSetAmrap = lastSetAmrap
+        self.restAfter = restAfter
+    }
+
+    /// Effective rest duration: restAfter overrides restSeconds when present
+    var effectiveRestSeconds: Int {
+        restAfter?.effectiveSeconds ?? restSeconds
+    }
 
     var repRangeDisplay: String {
         let maxStr = repMax.displayString
@@ -172,6 +237,11 @@ struct Exercise: Identifiable, Codable {
 
     var isTimeBased: Bool {
         repMin >= 30 && progressionRule == .add_time
+    }
+
+    /// True when the user is about to perform the last set and lastSetAmrap is active
+    func isAmrapSet(currentSetNumber: Int) -> Bool {
+        lastSetAmrap && currentSetNumber == sets
     }
 
     var timeDisplay: String? {

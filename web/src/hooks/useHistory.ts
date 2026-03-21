@@ -2,11 +2,17 @@
 
 import { useState, useEffect } from "react";
 import type { WorkoutSessionDoc } from "@/lib/types";
-import { getSessions, getAllExerciseNames, getExerciseHistory } from "@/lib/firestore";
+import { getSessions, getExerciseHistory } from "@/lib/firestore";
+
+export interface ExerciseStat {
+  name: string;
+  maxWeight: number;
+  maxWeightReps: number;
+}
 
 export function useHistory(userId: string | null) {
   const [sessions, setSessions] = useState<WorkoutSessionDoc[]>([]);
-  const [exerciseNames, setExerciseNames] = useState<string[]>([]);
+  const [exerciseStats, setExerciseStats] = useState<ExerciseStat[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,13 +21,31 @@ export function useHistory(userId: string | null) {
 
     async function load() {
       setLoading(true);
-      const [sess, names] = await Promise.all([
-        getSessions(userId!),
-        getAllExerciseNames(userId!),
-      ]);
+      const sess = await getSessions(userId!);
       if (cancelled) return;
+
+      // Compute per-exercise best set from sessions client-side.
+      // Filter out weight=0 exercises (warmups, mobility, bodyweight-only).
+      const statsMap = new Map<string, ExerciseStat>();
+      for (const session of sess) {
+        for (const set of session.sets || []) {
+          if (!set.completed) continue;
+          const existing = statsMap.get(set.exerciseName);
+          if (!existing || set.actualWeight > existing.maxWeight) {
+            statsMap.set(set.exerciseName, {
+              name: set.exerciseName,
+              maxWeight: set.actualWeight,
+              maxWeightReps: set.actualReps,
+            });
+          }
+        }
+      }
+      const stats = Array.from(statsMap.values())
+        .filter((s) => s.maxWeight > 0)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
       setSessions(sess);
-      setExerciseNames(names);
+      setExerciseStats(stats);
       setLoading(false);
     }
 
@@ -29,7 +53,7 @@ export function useHistory(userId: string | null) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  return { sessions, exerciseNames, loading };
+  return { sessions, exerciseStats, loading };
 }
 
 export function useExerciseHistory(userId: string | null, exerciseName: string) {

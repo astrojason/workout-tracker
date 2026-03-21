@@ -15,9 +15,11 @@ const VALID_EQUIPMENT: Set<string> = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock",
   "band", "kettlebell", "bodyweight", "assisted_pullup",
 ]);
-const VALID_PROGRESSION: Set<string> = new Set([
-  "add_5lb", "add_2.5lb", "add_10lb", "reduce_assistance",
-  "maintain", "deload", "none", "add_reps", "add_time", "progress_gripper",
+// Known keyword rules — any other non-empty string is treated as a free-form progression rule
+const KEYWORD_PROGRESSIONS: Set<string> = new Set([
+  "add_5lb", "add_2.5lb", "add_10lb",
+  "add_reps", "add_time", "add_rounds",
+  "maintain", "deload", "progress_gripper", "none",
 ]);
 
 function parseCSVLine(line: string): string[] {
@@ -100,9 +102,8 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
 
     const restSeconds = parseInt(cols[12]) || 0;
 
-    const progressionRule: ProgressionRule = VALID_PROGRESSION.has(cols[13])
-      ? (cols[13] as ProgressionRule)
-      : "none";
+    // Known keywords are accepted as-is; any other non-empty string is a free-form rule
+    const progressionRule: ProgressionRule = cols[13] || "none";
 
     const isUnilateral = cols[14].toUpperCase() === "TRUE";
     const notes = cols.length > 15 && cols[15] ? cols[15] : null;

@@ -353,12 +353,14 @@ describe("getEquipmentDisplay", () => {
     }
   });
 
-  it("returns band with correct info for known bands", () => {
+  it("returns band with correct info for all known bands", () => {
     const bands = [
       { name: "Orange", range: "2-12 lbs" },
       { name: "Purple", range: "5-35 lbs" },
       { name: "Red", range: "10-50 lbs" },
       { name: "Blue", range: "20-80 lbs" },
+      { name: "Green", range: "50-120 lbs" },
+      { name: "Black", range: "60-150 lbs" },
     ];
     for (const band of bands) {
       const ex = makeExercise({ equipmentType: "band", equipmentDetail: band.name });
@@ -372,11 +374,11 @@ describe("getEquipmentDisplay", () => {
   });
 
   it("returns band with unknown name when detail not in lookup", () => {
-    const ex = makeExercise({ equipmentType: "band", equipmentDetail: "Green" });
+    const ex = makeExercise({ equipmentType: "band", equipmentDetail: "Teal" });
     const result = getEquipmentDisplay(ex, 0);
     expect(result.type).toBe("band");
     if (result.type === "band") {
-      expect(result.name).toBe("Green");
+      expect(result.name).toBe("Teal");
       expect(result.range).toBe("");
     }
   });

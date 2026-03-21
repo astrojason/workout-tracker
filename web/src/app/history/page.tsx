@@ -1,14 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { formatDuration } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 
+const SESSIONS_PAGE_SIZE = 10;
+const EXERCISES_PAGE_SIZE = 10;
+
 export default function HistoryPage() {
   const { user } = useAuth();
-  const { sessions, exerciseNames, loading } = useHistory(user?.uid ?? null);
+  const { sessions, exerciseStats, loading } = useHistory(user?.uid ?? null);
+  const [showAllExercises, setShowAllExercises] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState(false);
 
   if (!user) {
     return (
@@ -18,28 +24,39 @@ export default function HistoryPage() {
     );
   }
 
+  const visibleExercises = showAllExercises ? exerciseStats : exerciseStats.slice(0, EXERCISES_PAGE_SIZE);
+  const visibleSessions = showAllSessions ? sessions : sessions.slice(0, SESSIONS_PAGE_SIZE);
+
   return (
     <div className="max-w-lg mx-auto p-4 pb-24">
       <h1 className="text-2xl font-bold mb-6">History</h1>
 
-      {/* Exercise Progress Link */}
-      {exerciseNames.length > 0 && (
+      {/* Exercise Progress */}
+      {exerciseStats.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Exercise Progress</h2>
           <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
-            {exerciseNames.slice(0, 10).map((name) => (
+            {visibleExercises.map((stat) => (
               <Link
-                key={name}
-                href={`/exercise/${encodeURIComponent(name)}`}
-                className="block px-4 py-3 hover:bg-gray-800 transition"
+                key={stat.name}
+                href={`/exercise/${encodeURIComponent(stat.name)}`}
+                className="flex items-center justify-between px-4 py-3 hover:bg-gray-800 transition"
               >
-                {name}
+                <span className="font-medium">{stat.name}</span>
+                <span className="text-sm text-gray-400 ml-4 shrink-0">
+                  {stat.maxWeight}lbs x {stat.maxWeightReps}
+                </span>
               </Link>
             ))}
-            {exerciseNames.length > 10 && (
-              <div className="px-4 py-3 text-gray-500 text-sm">
-                +{exerciseNames.length - 10} more exercises
-              </div>
+            {exerciseStats.length > EXERCISES_PAGE_SIZE && (
+              <button
+                onClick={() => setShowAllExercises((v) => !v)}
+                className="w-full px-4 py-3 text-indigo-400 text-sm text-left hover:bg-gray-800 transition"
+              >
+                {showAllExercises
+                  ? "Show less"
+                  : `+${exerciseStats.length - EXERCISES_PAGE_SIZE} more exercises`}
+              </button>
             )}
           </div>
         </div>
@@ -58,7 +75,7 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {sessions.map((session) => {
+          {visibleSessions.map((session) => {
             const date = session.date instanceof Timestamp
               ? session.date.toDate()
               : new Date(session.date as unknown as string);
@@ -89,6 +106,16 @@ export default function HistoryPage() {
               </Link>
             );
           })}
+          {sessions.length > SESSIONS_PAGE_SIZE && (
+            <button
+              onClick={() => setShowAllSessions((v) => !v)}
+              className="w-full py-3 text-indigo-400 text-sm hover:text-indigo-300 transition"
+            >
+              {showAllSessions
+                ? "Show less"
+                : `Show all ${sessions.length} workouts`}
+            </button>
+          )}
         </div>
       )}
 

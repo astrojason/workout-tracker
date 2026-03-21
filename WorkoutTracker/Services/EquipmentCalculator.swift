@@ -113,6 +113,8 @@ struct EquipmentCalculator {
         "Purple": (name: "Purple", range: "5-35 lbs"),
         "Red": (name: "Red", range: "10-50 lbs"),
         "Blue": (name: "Blue", range: "20-80 lbs"),
+        "Green": (name: "Green", range: "50-120 lbs"),
+        "Black": (name: "Black", range: "60-150 lbs"),
     ]
 
     // MARK: - Barbell Plate Calculator

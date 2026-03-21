@@ -25,8 +25,8 @@ struct ProgressionService {
         let lastSets = coreData.fetchLastSetsForExercise(name: exercise.name)
 
         guard !lastSets.isEmpty else {
-            // No history - return 0 to trigger first-time weight prompt
-            return 0
+            // No history — use totalWeight as starting point if provided, otherwise 0
+            return exercise.totalWeight ?? 0
         }
 
         let lastWeight = lastSets.first.flatMap { $0.value(forKey: "actualWeight") as? Double } ?? 0
@@ -61,14 +61,9 @@ struct ProgressionService {
     /// Apply the progression rule to get the new target weight
     func applyProgression(currentWeight: Double, exercise: Exercise) -> Double {
         guard let increment = exercise.progressionRule.weightIncrement else {
-            switch exercise.progressionRule {
-            case .reduce_assistance:
-                return max(0, currentWeight - 10)
-            case .maintain, .none, .deload, .add_reps, .add_time, .progress_gripper:
-                return currentWeight
-            default:
-                return currentWeight
-            }
+            // Free-form rules (band color, band count) and non-increment keywords
+            // return current weight unchanged — the UI handles band progression display
+            return currentWeight
         }
 
         let newWeight = currentWeight + increment

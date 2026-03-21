@@ -80,30 +80,26 @@ describe("applyProgression", () => {
     expect(applyProgression(200, exercise)).toBe(210);
   });
 
-  it("reduces 10lbs for reduce_assistance", () => {
-    const exercise = makeExercise({ progressionRule: "reduce_assistance" });
-    expect(applyProgression(50, exercise)).toBe(40);
-  });
-
-  it("clamps reduce_assistance to 0 when weight is less than 10", () => {
-    const exercise = makeExercise({ progressionRule: "reduce_assistance" });
-    expect(applyProgression(5, exercise)).toBe(0);
-  });
-
-  it("clamps reduce_assistance to 0 when weight is 0", () => {
-    const exercise = makeExercise({ progressionRule: "reduce_assistance" });
-    expect(applyProgression(0, exercise)).toBe(0);
-  });
-
   it.each([
-    "maintain" as const,
-    "none" as const,
-    "deload" as const,
-    "add_reps" as const,
-    "add_time" as const,
-    "progress_gripper" as const,
+    "maintain",
+    "none",
+    "deload",
+    "add_reps",
+    "add_time",
+    "add_rounds",
+    "progress_gripper",
   ])("returns same weight for %s rule", (rule) => {
     const exercise = makeExercise({ progressionRule: rule });
+    expect(applyProgression(100, exercise)).toBe(100);
+  });
+
+  it("returns same weight for free-form band color rule (e.g. 'Blue')", () => {
+    const exercise = makeExercise({ progressionRule: "Blue" });
+    expect(applyProgression(100, exercise)).toBe(100);
+  });
+
+  it("returns same weight for free-form band count rule (e.g. '2 bands')", () => {
+    const exercise = makeExercise({ progressionRule: "2 bands" });
     expect(applyProgression(100, exercise)).toBe(100);
   });
 
@@ -164,6 +160,13 @@ describe("resolveWeight", () => {
     mockGetLastSets.mockResolvedValue([]);
     const result = await resolveWeight("user-1", exercise);
     expect(result).toBe(0);
+  });
+
+  it("returns totalWeight as starting weight when no history and totalWeight is set", async () => {
+    const exercise = makeExercise({ baseWeight: { type: "progressive" }, totalWeight: 185 });
+    mockGetLastSets.mockResolvedValue([]);
+    const result = await resolveWeight("user-1", exercise);
+    expect(result).toBe(185);
   });
 
   it("returns same weight when last sets have a failed set", async () => {
