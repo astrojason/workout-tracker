@@ -9,6 +9,7 @@ import {
   deleteProgramDoc, deleteAllWorkoutsForProgram,
 } from "@/lib/firestore";
 import { parseCSV } from "@/lib/csv-parser";
+import { parseXLSX } from "@/lib/xlsx-parser";
 import { DAY_ORDER } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 
@@ -98,27 +99,31 @@ export function usePrograms(userId: string | null) {
     return completedDaysCache[`${programName}_${week}`] || new Set();
   }, [completedDaysCache, settings]);
 
-  const importCSV = useCallback(async (csvContent: string) => {
+  async function _saveAndReload(parsed: ReturnType<typeof parseCSV>) {
     if (!userId) return;
-
-    const { programs: parsed, workouts } = parseCSV(csvContent);
-
-    for (const prog of parsed) {
+    for (const prog of parsed.programs) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
-    for (const workout of workouts) {
+    for (const workout of parsed.workouts) {
       await saveWorkout(userId, workout);
     }
-
-    // Reload
     const progs = await getPrograms(userId);
     setPrograms(progs);
-
     for (const prog of progs) {
       const week = settings.currentWeeks[prog.name] || 1;
       const wks = await getWorkoutsForProgram(userId, prog.name, week);
       setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: wks }));
     }
+  }
+
+  const importCSV = useCallback(async (csvContent: string) => {
+    if (!userId) return;
+    await _saveAndReload(parseCSV(csvContent));
+  }, [userId, settings]);
+
+  const importXLSX = useCallback(async (buffer: ArrayBuffer) => {
+    if (!userId) return;
+    await _saveAndReload(parseXLSX(buffer));
   }, [userId, settings]);
 
   const deleteProgram = useCallback(async (programId: string, programName: string) => {
@@ -190,6 +195,7 @@ export function usePrograms(userId: string | null) {
     getAvailableDays,
     getCompletedDaysForProgram,
     importCSV,
+    importXLSX,
     deleteProgram,
     updateWorkout,
     loadWorkoutsForWeek,

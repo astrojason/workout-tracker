@@ -9,7 +9,7 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
     programs, settings, currentWeek, setCurrentWeek,
-    importCSV, deleteProgram, updateUserSettings,
+    importCSV, importXLSX, deleteProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,8 +26,13 @@ export default function SettingsPage() {
     setImportResult(null);
 
     try {
-      const text = await file.text();
-      await importCSV(text);
+      if (file.name.endsWith(".xlsx")) {
+        const buffer = await file.arrayBuffer();
+        await importXLSX(buffer);
+      } else {
+        const text = await file.text();
+        await importCSV(text);
+      }
       setImportResult(`Imported ${file.name} successfully!`);
     } catch (err) {
       setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -131,7 +136,7 @@ export default function SettingsPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx"
               onChange={handleFileImport}
               className="hidden"
             />
@@ -140,7 +145,7 @@ export default function SettingsPage() {
               disabled={importing}
               className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
             >
-              {importing ? "Importing..." : "+ Import CSV Program"}
+              {importing ? "Importing..." : "+ Import Program (CSV or XLSX)"}
             </button>
             {importResult && (
               <p className={`text-xs mt-2 ${importResult.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
