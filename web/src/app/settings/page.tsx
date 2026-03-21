@@ -8,37 +8,59 @@ import Link from "next/link";
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
-    programs, settings, currentWeek, setCurrentWeek,
-    importCSV, importXLSX, deleteProgram, updateUserSettings,
+    activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
+    importCSV, importXLSX, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Import flow state
+  type PendingImport = { file: File; buffer: ArrayBuffer | null; text: string | null; defaultName: string };
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [importName, setImportName] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
-  async function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
+    const isXlsx = file.name.endsWith(".xlsx");
+    const defaultName = file.name.replace(/\.(csv|xlsx)$/i, "").replace(/[-_]/g, " ");
+
+    if (isXlsx) {
+      const buffer = await file.arrayBuffer();
+      setPendingImport({ file, buffer, text: null, defaultName });
+    } else {
+      const text = await file.text();
+      setPendingImport({ file, buffer: null, text, defaultName });
+    }
+    setImportName(defaultName);
+    setImportResult(null);
+  }
+
+  async function handleConfirmImport() {
+    if (!pendingImport) return;
     setImporting(true);
     setImportResult(null);
-
     try {
-      if (file.name.endsWith(".xlsx")) {
-        const buffer = await file.arrayBuffer();
-        await importXLSX(buffer);
+      if (pendingImport.buffer !== null) {
+        await importXLSX(pendingImport.buffer, importName.trim() || pendingImport.defaultName);
       } else {
-        const text = await file.text();
-        await importCSV(text);
+        await importCSV(pendingImport.text!, importName.trim() || pendingImport.defaultName);
       }
-      setImportResult(`Imported ${file.name} successfully!`);
+      setImportResult(`Imported "${importName.trim() || pendingImport.defaultName}" successfully!`);
+      setPendingImport(null);
     } catch (err) {
       setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -49,6 +71,24 @@ export default function SettingsPage() {
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
+    }
+  }
+
+  async function handleArchive(programId: string) {
+    setArchivingId(programId);
+    try {
+      await archiveProgram(programId);
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
+  async function handleUnarchive(programId: string) {
+    setArchivingId(programId);
+    try {
+      await unarchiveProgram(programId);
+    } finally {
+      setArchivingId(null);
     }
   }
 
@@ -68,7 +108,7 @@ export default function SettingsPage() {
       <section className="mb-8">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Programs</h2>
         <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
-          {programs.map((program) => (
+          {activePrograms.map((program) => (
             <div key={program.id} className="px-4 py-3">
               <div className="flex justify-between items-center">
                 <div>
@@ -94,6 +134,16 @@ export default function SettingsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </Link>
+                  <button
+                    onClick={() => handleArchive(program.id)}
+                    disabled={archivingId === program.id}
+                    className="text-gray-600 hover:text-yellow-400 transition p-1"
+                    title="Archive program"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                  </button>
                   <button
                     onClick={() => setConfirmDeleteId(program.id)}
                     disabled={deletingId === program.id}
@@ -137,16 +187,44 @@ export default function SettingsPage() {
               ref={fileInputRef}
               type="file"
               accept=".csv,.xlsx"
-              onChange={handleFileImport}
+              onChange={handleFileSelect}
               className="hidden"
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
-            >
-              {importing ? "Importing..." : "+ Import Program (CSV or XLSX)"}
-            </button>
+            {pendingImport ? (
+              <div>
+                <p className="text-sm text-gray-300 mb-2">Name this program:</p>
+                <input
+                  type="text"
+                  value={importName}
+                  onChange={(e) => setImportName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:border-indigo-500"
+                  placeholder="Program name"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setPendingImport(null); setImportResult(null); }}
+                    className="px-3 py-1.5 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmImport}
+                    disabled={importing}
+                    className="px-3 py-1.5 text-xs bg-indigo-600 rounded-lg hover:bg-indigo-500 font-semibold transition"
+                  >
+                    {importing ? "Importing..." : "Import"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
+              >
+                + Import Program (CSV or XLSX)
+              </button>
+            )}
             {importResult && (
               <p className={`text-xs mt-2 ${importResult.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
                 {importResult}
@@ -154,6 +232,76 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        {/* Archived Programs */}
+        {archivedPrograms.length > 0 && (
+          <div className="mt-3">
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="text-xs text-gray-500 hover:text-gray-400 transition flex items-center gap-1"
+            >
+              <svg className={`w-3 h-3 transition-transform ${showArchived ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              {archivedPrograms.length} archived program{archivedPrograms.length !== 1 ? "s" : ""}
+            </button>
+            {showArchived && (
+              <div className="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+                {archivedPrograms.map((program) => (
+                  <div key={program.id} className="px-4 py-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-semibold text-gray-400">{program.name}</div>
+                        <div className="text-xs text-gray-600">{program.totalWeeks} weeks · archived</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUnarchive(program.id)}
+                          disabled={archivingId === program.id}
+                          className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded-lg transition font-semibold"
+                        >
+                          {archivingId === program.id ? "..." : "Reactivate"}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(program.id)}
+                          disabled={deletingId === program.id}
+                          className="text-gray-600 hover:text-red-400 transition p-1"
+                          title="Delete program"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {confirmDeleteId === program.id && (
+                      <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
+                        <p className="text-sm text-gray-300 mb-2">
+                          Delete {program.name}? This removes all workouts but keeps history.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleDelete(program.id, program.name)}
+                            disabled={deletingId === program.id}
+                            className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
+                          >
+                            {deletingId === program.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Rest Timer */}

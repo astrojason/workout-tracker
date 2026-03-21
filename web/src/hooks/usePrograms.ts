@@ -6,12 +6,12 @@ import {
   getPrograms, getSettings, updateSettings,
   getWorkoutsForProgram, getAllWorkoutsForProgram,
   getCompletedDays, saveProgram, saveWorkout,
-  deleteProgramDoc, deleteAllWorkoutsForProgram,
+  deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
 } from "@/lib/firestore";
+import { Timestamp } from "firebase/firestore";
 import { parseCSV } from "@/lib/csv-parser";
 import { parseXLSX } from "@/lib/xlsx-parser";
 import { DAY_ORDER } from "@/lib/types";
-import { Timestamp } from "firebase/firestore";
 
 export function usePrograms(userId: string | null) {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -39,14 +39,17 @@ export function usePrograms(userId: string | null) {
       setPrograms(progs);
       setSettingsState(sett);
 
-      // Load workouts for each program's current week
-      for (const prog of progs) {
+      // Load workouts for each active program's current week
+      for (const prog of progs.filter((p) => !p.archived)) {
         const week = sett.currentWeeks[prog.name] || 1;
         const workouts = await getWorkoutsForProgram(userId!, prog.name, week);
         if (cancelled) return;
         setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: workouts }));
 
-        const completed = await getCompletedDays(userId!, prog.name, week);
+        const since = prog.createdAt instanceof Timestamp
+          ? prog.createdAt.toDate()
+          : prog.createdAt instanceof Date ? prog.createdAt : undefined;
+        const completed = await getCompletedDays(userId!, prog.name, week, since);
         if (cancelled) return;
         setCompletedDaysCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: completed }));
       }
@@ -70,7 +73,11 @@ export function usePrograms(userId: string | null) {
     // Load workouts for the new week
     const workouts = await getWorkoutsForProgram(userId, programName, week);
     setWorkoutsCache((prev) => ({ ...prev, [`${programName}_${week}`]: workouts }));
-    const completed = await getCompletedDays(userId, programName, week);
+    const prog = programs.find((p) => p.name === programName);
+    const since = prog?.createdAt instanceof Timestamp
+      ? prog.createdAt.toDate()
+      : prog?.createdAt instanceof Date ? prog.createdAt : undefined;
+    const completed = await getCompletedDays(userId, programName, week, since);
     setCompletedDaysCache((prev) => ({ ...prev, [`${programName}_${week}`]: completed }));
   }, [userId, settings]);
 
@@ -99,32 +106,60 @@ export function usePrograms(userId: string | null) {
     return completedDaysCache[`${programName}_${week}`] || new Set();
   }, [completedDaysCache, settings]);
 
-  async function _saveAndReload(parsed: ReturnType<typeof parseCSV>) {
+  async function _saveAndReload(
+    parsed: ReturnType<typeof parseCSV>,
+    nameOverride?: string,
+  ) {
     if (!userId) return;
-    for (const prog of parsed.programs) {
+    const finalPrograms = nameOverride
+      ? parsed.programs.map((p) => ({ ...p, name: nameOverride }))
+      : parsed.programs;
+    const finalWorkouts = nameOverride
+      ? parsed.workouts.map((w) => ({ ...w, programName: nameOverride }))
+      : parsed.workouts;
+    for (const prog of finalPrograms) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
-    for (const workout of parsed.workouts) {
+    for (const workout of finalWorkouts) {
       await saveWorkout(userId, workout);
     }
     const progs = await getPrograms(userId);
     setPrograms(progs);
-    for (const prog of progs) {
+    for (const prog of progs.filter((p) => !p.archived)) {
       const week = settings.currentWeeks[prog.name] || 1;
       const wks = await getWorkoutsForProgram(userId, prog.name, week);
       setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: wks }));
     }
   }
 
-  const importCSV = useCallback(async (csvContent: string) => {
+  const importCSV = useCallback(async (csvContent: string, nameOverride?: string) => {
     if (!userId) return;
-    await _saveAndReload(parseCSV(csvContent));
+    await _saveAndReload(parseCSV(csvContent), nameOverride);
   }, [userId, settings]);
 
-  const importXLSX = useCallback(async (buffer: ArrayBuffer) => {
+  const importXLSX = useCallback(async (buffer: ArrayBuffer, nameOverride?: string) => {
     if (!userId) return;
-    await _saveAndReload(parseXLSX(buffer));
+    await _saveAndReload(parseXLSX(buffer), nameOverride);
   }, [userId, settings]);
+
+  const archiveProgram = useCallback(async (programId: string) => {
+    if (!userId) return;
+    await setProgramArchived(userId, programId, true);
+    setPrograms((prev) => prev.map((p) => p.id === programId ? { ...p, archived: true } : p));
+  }, [userId]);
+
+  const unarchiveProgram = useCallback(async (programId: string) => {
+    if (!userId) return;
+    await setProgramArchived(userId, programId, false);
+    setPrograms((prev) => prev.map((p) => p.id === programId ? { ...p, archived: false } : p));
+    // Load workouts for the newly active program
+    const prog = programs.find((p) => p.id === programId);
+    if (prog) {
+      const week = settings.currentWeeks[prog.name] || 1;
+      const wks = await getWorkoutsForProgram(userId, prog.name, week);
+      setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: wks }));
+    }
+  }, [userId, programs, settings]);
 
   const deleteProgram = useCallback(async (programId: string, programName: string) => {
     if (!userId) return;
@@ -177,15 +212,23 @@ export function usePrograms(userId: string | null) {
 
   const refreshCompletedDays = useCallback(async () => {
     if (!userId) return;
-    for (const prog of programs) {
+    for (const prog of programs.filter((p) => !p.archived)) {
       const week = settings.currentWeeks[prog.name] || 1;
-      const completed = await getCompletedDays(userId, prog.name, week);
+      const since = prog.createdAt instanceof Timestamp
+        ? prog.createdAt.toDate()
+        : prog.createdAt instanceof Date ? prog.createdAt : undefined;
+      const completed = await getCompletedDays(userId, prog.name, week, since);
       setCompletedDaysCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: completed }));
     }
   }, [userId, programs, settings]);
 
+  const activePrograms = programs.filter((p) => !p.archived);
+  const archivedPrograms = programs.filter((p) => p.archived);
+
   return {
     programs,
+    activePrograms,
+    archivedPrograms,
     settings,
     loading,
     currentWeek,
@@ -196,6 +239,8 @@ export function usePrograms(userId: string | null) {
     getCompletedDaysForProgram,
     importCSV,
     importXLSX,
+    archiveProgram,
+    unarchiveProgram,
     deleteProgram,
     updateWorkout,
     loadWorkoutsForWeek,

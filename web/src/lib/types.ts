@@ -75,6 +75,7 @@ export interface Program {
   name: string;
   totalWeeks: number;
   createdAt: Timestamp | Date;
+  archived?: boolean;
 }
 
 export interface UserSettings {

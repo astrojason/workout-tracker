@@ -14,7 +14,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const { programs, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, importCSV, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
+  const { activePrograms, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
 
@@ -157,14 +157,14 @@ export default function HomePage() {
       )}
 
       {/* Programs */}
-      {programs.length === 0 ? (
+      {activePrograms.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 mb-4">No programs loaded yet.</p>
-          <p className="text-gray-500 text-sm mb-4">Go to Settings to import a CSV program.</p>
+          <p className="text-gray-500 text-sm mb-4">Go to Settings to import a program.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {programs.map((program) => (
+          {activePrograms.map((program) => (
             <ProgramCard
               key={program.id}
               program={program}

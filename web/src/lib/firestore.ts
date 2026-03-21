@@ -60,8 +60,13 @@ export async function saveProgram(userId: string, program: Omit<Program, "id"> &
     name: program.name,
     totalWeeks: program.totalWeeks,
     createdAt: program.createdAt || Timestamp.now(),
+    archived: program.archived ?? false,
   });
   return id;
+}
+
+export async function setProgramArchived(userId: string, programId: string, archived: boolean) {
+  await updateDoc(doc(programsCol(userId), programId), { archived });
 }
 
 export async function deleteProgramDoc(userId: string, programId: string) {
@@ -198,7 +203,7 @@ export async function getSession(
 }
 
 export async function getCompletedDays(
-  userId: string, programName: string, week: number
+  userId: string, programName: string, week: number, since?: Date
 ): Promise<Set<string>> {
   const q = query(
     sessionsCol(userId),
@@ -210,7 +215,14 @@ export async function getCompletedDays(
   const days = new Set<string>();
   snap.docs.forEach((d) => {
     const data = d.data();
-    if (data.dayOfWeek) days.add(data.dayOfWeek);
+    if (!data.dayOfWeek) return;
+    if (since) {
+      const sessionDate = data.date instanceof Timestamp
+        ? data.date.toDate()
+        : new Date(data.date);
+      if (sessionDate < since) return;
+    }
+    days.add(data.dayOfWeek);
   });
   return days;
 }
