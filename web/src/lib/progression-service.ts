@@ -56,15 +56,28 @@ export async function resolveWeightWithMeta(
     return { weight: startWeight, prevWeight: null, reason: "no_history" };
   }
 
-  const lastWeight = lastSets[0]?.actualWeight ?? 0;
-  const allCompleted = checkAllSetsCompleted(lastSets, exercise);
+  // Use the heaviest completed set's weight as the working weight.
+  // When the same exercise name appears in multiple phases (e.g. Landmine Press
+  // in warmup AND main), getLastSetsForExercise returns all of them. Taking the
+  // max avoids treating a warmup weight as the working weight.
+  const completedSets = lastSets.filter((s) => s.completed && s.actualWeight > 0);
+  const lastWeight = completedSets.length > 0
+    ? Math.max(...completedSets.map((s) => s.actualWeight))
+    : (lastSets[0]?.actualWeight ?? 0);
+
+  // Only evaluate progression criteria against sets at the working weight.
+  const workingSets = lastSets.filter((s) => s.actualWeight === lastWeight);
+  const allCompleted = checkAllSetsCompleted(workingSets, exercise);
 
   if (!allCompleted) {
     const lastTwoSessions = await getLastTwoSessionSets(userId, exercise.name);
     if (lastTwoSessions.length === 2) {
-      const bothFailed = lastTwoSessions.every(
-        (sessionSets) => !checkAllSetsCompleted(sessionSets, exercise)
-      );
+      const bothFailed = lastTwoSessions.every((sessionSets) => {
+        const maxWt = sessionSets.filter((s) => s.completed && s.actualWeight > 0)
+          .reduce((m, s) => Math.max(m, s.actualWeight), 0);
+        const working = sessionSets.filter((s) => s.actualWeight === maxWt);
+        return !checkAllSetsCompleted(working, exercise);
+      });
       if (bothFailed) {
         const increment = getProgressionIncrement(exercise);
         if (increment > 0) {
@@ -76,7 +89,7 @@ export async function resolveWeightWithMeta(
     return { weight: lastWeight, prevWeight: lastWeight, reason: "kept_same_miss" };
   }
 
-  const lastSet = lastSets[lastSets.length - 1];
+  const lastSet = workingSets[workingSets.length - 1];
   if (lastSet?.rating === "easy") {
     const increment = getProgressionIncrement(exercise);
     if (increment > 0) {
@@ -85,7 +98,7 @@ export async function resolveWeightWithMeta(
     }
   }
 
-  if (lastSets.some((s) => s.rating === "hard")) {
+  if (workingSets.some((s) => s.rating === "hard")) {
     return { weight: lastWeight, prevWeight: lastWeight, reason: "kept_same_hard" };
   }
 

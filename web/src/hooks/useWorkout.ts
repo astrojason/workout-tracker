@@ -138,8 +138,7 @@ export function useWorkout(userId: string | null) {
               setSession((prev) => {
                 if (!prev) return prev;
                 const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-                const completed = prev.completedSets.filter((s) => s.exerciseOrder === exercise.order).length;
-                const setsRemaining = exercise.sets - completed;
+                const setsRemaining = exercise.sets - prev.currentSetNumber;
 
                 if (setsRemaining > 0) {
                   return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
@@ -248,9 +247,7 @@ export function useWorkout(userId: string | null) {
   const currentExercise = session?.workout.exercises[session.currentExerciseIndex] ?? null;
   const currentWeight = currentExercise ? (session?.resolvedWeights[currentExercise.id] ?? 0) : 0;
 
-  const setsCompletedForCurrent = session
-    ? session.completedSets.filter((s) => s.exerciseOrder === currentExercise?.order).length
-    : 0;
+  const setsCompletedForCurrent = session ? session.currentSetNumber - 1 : 0;
 
   // True when the current set is the final AMRAP set of an exercise flagged with lastSetAmrap
   const isCurrentSetAmrap = Boolean(
@@ -278,8 +275,7 @@ export function useWorkout(userId: string | null) {
         setSession((prev) => {
           if (!prev) return prev;
           const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-          const completed = prev.completedSets.filter((s) => s.exerciseOrder === exercise.order).length;
-          const setsRemaining = exercise.sets - completed;
+          const setsRemaining = exercise.sets - prev.currentSetNumber;
 
           if (setsRemaining > 0) {
             return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
@@ -321,7 +317,7 @@ export function useWorkout(userId: string | null) {
     playSetComplete();
 
     const newSets = [...session.completedSets, completedSet];
-    const setsCompletedNow = newSets.filter((s) => s.exerciseOrder === currentExercise.order).length;
+    const setsCompletedNow = session.currentSetNumber; // set N was just completed
     const setsRemaining = currentExercise.sets - setsCompletedNow;
 
     // Mid-workout weight adjustments based on rating
@@ -352,7 +348,7 @@ export function useWorkout(userId: string | null) {
 
     // After last set of exercise: prompt if all reps met and rated easy
     if (setsRemaining === 0 && rating === "easy" && !failed && actualReps >= currentExercise.repMin) {
-      const exerciseSetsInSession = newSets.filter((s) => s.exerciseOrder === currentExercise.order);
+      const exerciseSetsInSession = newSets.slice(newSets.length - currentExercise.sets);
       const allRepsMet = exerciseSetsInSession.every(
         (s) => s.completed && s.actualReps >= currentExercise.repMin
       );
@@ -409,7 +405,7 @@ export function useWorkout(userId: string | null) {
     };
 
     const newSets = [...session.completedSets, skipped];
-    const setsCompletedNow = newSets.filter((s) => s.exerciseOrder === currentExercise.order).length;
+    const setsCompletedNow = session.currentSetNumber; // set N was just skipped
     const setsRemaining = currentExercise.sets - setsCompletedNow;
 
     if (setsRemaining > 0) {
@@ -432,8 +428,7 @@ export function useWorkout(userId: string | null) {
     setSession((prev) => {
       if (!prev) return prev;
       const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-      const completed = prev.completedSets.filter((s) => s.exerciseOrder === exercise.order).length;
-      const setsRemaining = exercise.sets - completed;
+      const setsRemaining = exercise.sets - prev.currentSetNumber;
 
       if (setsRemaining > 0) {
         return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
