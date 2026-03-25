@@ -9,10 +9,11 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
     activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
-    importCSV, importXLSX, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
+    importCSV, importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const reimportFileInputRef = useRef<HTMLInputElement>(null);
 
   // Import flow state
   type PendingImport = { file: File; buffer: ArrayBuffer | null; text: string | null; defaultName: string };
@@ -24,6 +25,9 @@ export default function SettingsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [reimportingId, setReimportingId] = useState<string | null>(null);
+  // Tracks which program the re-import file picker was opened for
+  const reimportTargetRef = useRef<{ id: string; name: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -61,6 +65,25 @@ export default function SettingsPage() {
       setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleReimportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !reimportTargetRef.current) return;
+    if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
+    const { id, name } = reimportTargetRef.current;
+    reimportTargetRef.current = null;
+    setReimportingId(id);
+    try {
+      const isXlsx = file.name.endsWith(".xlsx");
+      const data = isXlsx ? await file.arrayBuffer() : await file.text();
+      await reimportProgram(id, name, data);
+      setImportResult(`Re-imported "${name}" successfully!`);
+    } catch (err) {
+      setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setReimportingId(null);
     }
   }
 
@@ -107,6 +130,13 @@ export default function SettingsPage() {
       {/* Programs */}
       <section className="mb-8">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Programs</h2>
+        <input
+          ref={reimportFileInputRef}
+          type="file"
+          accept=".csv,.xlsx"
+          onChange={handleReimportFileSelect}
+          className="hidden"
+        />
         <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
           {activePrograms.map((program) => (
             <div key={program.id} className="px-4 py-3">
@@ -125,6 +155,25 @@ export default function SettingsPage() {
                       <option key={w} value={w}>Week {w}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => {
+                      reimportTargetRef.current = { id: program.id, name: program.name };
+                      reimportFileInputRef.current?.click();
+                    }}
+                    disabled={reimportingId === program.id}
+                    className="text-gray-600 hover:text-blue-400 transition p-1"
+                    title="Re-import program file"
+                  >
+                    {reimportingId === program.id ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                    )}
+                  </button>
                   <Link
                     href={`/programs/${program.id}`}
                     className="text-gray-600 hover:text-indigo-400 transition p-1"

@@ -142,6 +142,42 @@ export function usePrograms(userId: string | null) {
     await _saveAndReload(parseXLSX(buffer), nameOverride);
   }, [userId, settings]);
 
+  // Re-import: replaces workout definitions for an existing program without
+  // touching createdAt (so completed-days scoping stays correct).
+  const reimportProgram = useCallback(async (
+    programId: string,
+    programName: string,
+    data: ArrayBuffer | string,
+  ) => {
+    if (!userId) return;
+    const existing = programs.find((p) => p.id === programId);
+    const parsed = typeof data === "string"
+      ? parseCSV(data)
+      : parseXLSX(data, programName);
+
+    const finalWorkouts = parsed.workouts.map((w) => ({ ...w, programName }));
+
+    // Update the program doc (totalWeeks may change) but preserve createdAt.
+    for (const prog of parsed.programs) {
+      await saveProgram(userId, {
+        ...prog,
+        name: programName,
+        id: programId,
+        createdAt: existing?.createdAt,
+        archived: existing?.archived ?? false,
+      });
+    }
+    for (const workout of finalWorkouts) {
+      await saveWorkout(userId, workout);
+    }
+
+    const progs = await getPrograms(userId);
+    setPrograms(progs);
+    const week = settings.currentWeeks[programName] || 1;
+    const wks = await getWorkoutsForProgram(userId, programName, week);
+    setWorkoutsCache((prev) => ({ ...prev, [`${programName}_${week}`]: wks }));
+  }, [userId, programs, settings]);
+
   const archiveProgram = useCallback(async (programId: string) => {
     if (!userId) return;
     await setProgramArchived(userId, programId, true);
@@ -239,6 +275,7 @@ export function usePrograms(userId: string | null) {
     getCompletedDaysForProgram,
     importCSV,
     importXLSX,
+    reimportProgram,
     archiveProgram,
     unarchiveProgram,
     deleteProgram,
