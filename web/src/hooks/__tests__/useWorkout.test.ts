@@ -189,7 +189,10 @@ describe("useWorkout", () => {
     expect(result.current.session!.currentSetNumber).toBe(2);
   });
 
-  it("does not start rest timer when restAfter is false, even if restSeconds > 0", async () => {
+  it("restAfter=false suppresses between-exercise rest but not between-set rest", async () => {
+    // Exercise with restSeconds=120 and restAfter=false: between-set rest should
+    // still fire (uses restSeconds); restAfter only suppresses the transition to
+    // the next exercise after the last set.
     const exercise = makeExercise({ sets: 3, restSeconds: 120, restAfter: false });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
@@ -202,12 +205,14 @@ describe("useWorkout", () => {
       result.current.completeSet(10, 135, false, "normal");
     });
 
-    // restAfter=false overrides restSeconds — no rest timer
-    expect(result.current.session!.isResting).toBe(false);
-    expect(result.current.session!.currentSetNumber).toBe(2);
+    // Between-set rest uses restSeconds=120 — timer should be running
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(120);
   });
 
-  it("uses restAfter seconds for rest timer when set", async () => {
+  it("restAfter as a number overrides between-exercise rest but not between-set rest", async () => {
+    // Between-set rest always uses restSeconds; restAfter=60 only changes
+    // how long the timer runs when transitioning to the next exercise.
     const exercise = makeExercise({ sets: 3, restSeconds: 120, restAfter: 60 });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
@@ -220,9 +225,9 @@ describe("useWorkout", () => {
       result.current.completeSet(10, 135, false, "normal");
     });
 
-    // restAfter=60 overrides restSeconds=120 — timer starts
+    // Between-set rest uses restSeconds=120 — timer should be running at 120s
     expect(result.current.session!.isResting).toBe(true);
-    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(60);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(120);
   });
 
   it("isCurrentSetAmrap is true on the last set of an exercise with lastSetAmrap=true", async () => {

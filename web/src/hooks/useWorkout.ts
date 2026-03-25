@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Workout, Exercise, ActiveSession, CompletedSet, PRResult } from "@/lib/types";
+import type { Workout, ActiveSession, CompletedSet, PRResult } from "@/lib/types";
 import { resolveWeightWithMeta, getProgressionIncrement, adjustForEquipment } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession } from "@/lib/firestore";
@@ -335,10 +335,11 @@ export function useWorkout(userId: string | null) {
     // If rated hard, show prompt before proceeding (only if sets remain)
     if (rating === "hard" && setsRemaining > 0) {
       pendingHardRef.current = { exerciseId: currentExercise.id };
-      const restSecs = effectiveRestSeconds(currentExercise);
-      if (restSecs > 0) {
+      // Between-set rest uses restSeconds; restAfter only governs the transition to the next exercise.
+      const betweenSetRest = currentExercise.restSeconds;
+      if (betweenSetRest > 0) {
         setSession(updatedSession);
-        startRestTimer(restSecs);
+        startRestTimer(betweenSetRest);
       } else {
         setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
       }
@@ -365,18 +366,21 @@ export function useWorkout(userId: string | null) {
       }
     }
 
-    const restSecs = effectiveRestSeconds(currentExercise);
+    // Between-set rest uses restSeconds directly; restAfter only applies to the
+    // transition between exercises (it may suppress or override that timer).
+    const betweenSetRest = currentExercise.restSeconds;
+    const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
-      if (restSecs > 0) {
+      if (betweenSetRest > 0) {
         setSession(updatedSession);
-        startRestTimer(restSecs);
+        startRestTimer(betweenSetRest);
       } else {
         setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
       }
     } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
-      if (restSecs > 0) {
+      if (betweenExerciseRest > 0) {
         setSession(updatedSession);
-        startRestTimer(restSecs);
+        startRestTimer(betweenExerciseRest);
       } else {
         setSession({ ...updatedSession, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
       }

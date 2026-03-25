@@ -138,11 +138,8 @@ export function ActiveWorkout({
   const equipDisplay = getEquipmentDisplay(exercise, weight);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
 
-  // Next exercise preview
-  const completedForCurrent = session.completedSets.filter(
-    (s) => s.exerciseOrder === exercise.order
-  ).length;
-  const setsRemainingForCurrent = exercise.sets - completedForCurrent;
+  // Next exercise preview — show when on the last set of the current exercise
+  const setsRemainingForCurrent = exercise.sets - (session.currentSetNumber - 1);
   const nextExercise = setsRemainingForCurrent <= 1 && session.currentExerciseIndex < session.workout.exercises.length - 1
     ? session.workout.exercises[session.currentExerciseIndex + 1]
     : null;
@@ -314,7 +311,7 @@ export function ActiveWorkout({
       {showSetsEditor && (
         <SetsEditor
           currentSets={exercise.sets}
-          completedSets={completedForCurrent}
+          completedSets={session.currentSetNumber - 1}
           onSave={(newSets) => {
             onUpdateSets(exercise.id, newSets);
             setShowSetsEditor(false);
