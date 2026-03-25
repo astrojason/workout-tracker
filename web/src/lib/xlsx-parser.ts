@@ -222,16 +222,14 @@ export function parseXLSX(
 
   const workouts: Workout[] = [];
   for (const [key, data] of workoutMap) {
-    // Sort: phase order first, then exercise_order within phase
+    // Sort: phase order (warmup → main → finisher), then exercise Order within phase.
     data.exercises.sort((a, b) => {
       const pDiff = phaseIndex(a.phase) - phaseIndex(b.phase);
       if (pDiff !== 0) return pDiff;
       return a.order - b.order;
     });
+
     // Re-assign order as a globally unique 1-N index within this workout.
-    // The XLSX Order column restarts at 1 per phase, so without this step
-    // multiple exercises would share the same order value and set-completion
-    // tracking (which keys on exerciseOrder) would count sets across phases.
     data.exercises.forEach((e, i) => { e.order = i + 1; });
 
     workouts.push({

@@ -162,6 +162,7 @@ describe("parseXLSX - phase sort order", () => {
     const result = parseXLSX(buf);
     expect(result.workouts[0].exercises.map((e) => e.name)).toEqual(["First", "Second", "Third"]);
   });
+
 });
 
 // ── rest_after column ─────────────────────────────────────────────────────────
