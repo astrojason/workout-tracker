@@ -163,7 +163,7 @@ export function usePrograms(userId: string | null) {
         ...prog,
         name: programName,
         id: programId,
-        createdAt: existing?.createdAt,
+        createdAt: existing?.createdAt ?? new Date(),
         archived: existing?.archived ?? false,
       });
     }
