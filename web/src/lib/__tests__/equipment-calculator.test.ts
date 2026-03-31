@@ -3,6 +3,7 @@ import {
   calculateBarbell,
   calculateLandmine,
   nearestPowerBlock,
+  getPowerBlockInstructions,
   plateDisplayString,
   plateFullDisplayString,
   getEquipmentDisplay,
@@ -226,6 +227,94 @@ describe("nearestPowerBlock", () => {
   });
 });
 
+describe("getPowerBlockInstructions", () => {
+  it("returns valid instructions for every weight from 5 to 50 in 2.5 lb steps", () => {
+    for (let w = 5; w <= 50; w += 2.5) {
+      const inst = getPowerBlockInstructions(w);
+      expect(inst.selector).toBeGreaterThan(0);
+      expect(["none", "one", "both"]).toContain(inst.rods);
+      expect(inst.label).toMatch(/Selector to \d+/);
+    }
+  });
+
+  it("returns correct entry for 25 lbs (selector=25, no rods)", () => {
+    const inst = getPowerBlockInstructions(25);
+    expect(inst.selector).toBe(25);
+    expect(inst.rods).toBe("none");
+    expect(inst.label).toBe("Selector to 25 · no rods");
+  });
+
+  it("returns correct entry for 27.5 lbs (selector=25, add 1 rod)", () => {
+    const inst = getPowerBlockInstructions(27.5);
+    expect(inst.selector).toBe(25);
+    expect(inst.rods).toBe("one");
+    expect(inst.label).toBe("Selector to 25 · add 1 rod");
+  });
+
+  it("returns correct entry for 30 lbs (selector=25, add both rods)", () => {
+    const inst = getPowerBlockInstructions(30);
+    expect(inst.selector).toBe(25);
+    expect(inst.rods).toBe("both");
+    expect(inst.label).toBe("Selector to 25 · add both rods");
+  });
+
+  it("returns correct entry for 5 lbs (selector=5, no rods)", () => {
+    const inst = getPowerBlockInstructions(5);
+    expect(inst.selector).toBe(5);
+    expect(inst.rods).toBe("none");
+    expect(inst.label).toBe("Selector to 5 · no rods");
+  });
+
+  it("returns correct entry for 50 lbs (selector=50, no rods)", () => {
+    const inst = getPowerBlockInstructions(50);
+    expect(inst.selector).toBe(50);
+    expect(inst.rods).toBe("none");
+    expect(inst.label).toBe("Selector to 50 · no rods");
+  });
+
+  it("returns correct entry for 20 lbs (selector=15, no rods)", () => {
+    // 20 lbs uses selector 15, not 20
+    const inst = getPowerBlockInstructions(20);
+    expect(inst.selector).toBe(15);
+    expect(inst.rods).toBe("none");
+  });
+
+  it("returns fallback label for out-of-range weight", () => {
+    const inst = getPowerBlockInstructions(0);
+    expect(inst.label).toBe("—");
+  });
+});
+
+describe("barbell minimum increment", () => {
+  it("0.5 lb minimum increment is achievable (46 lbs on 45lb bar)", () => {
+    const result = calculateBarbell(46, 45);
+    expect(result.achievedWeight).toBe(46);
+    expect(result.perSide).toContainEqual({ plate: 0.5, count: 1 });
+  });
+
+  it("45lb bar achieves correct achievedWeight and perSide for 135 lbs", () => {
+    const result = calculateBarbell(135, 45);
+    expect(result.barWeight).toBe(45);
+    expect(result.achievedWeight).toBe(135);
+    expect(result.perSide).toEqual([{ plate: 45, count: 1 }]);
+  });
+
+  it("35lb bar achieves correct achievedWeight and perSide for 105 lbs", () => {
+    const result = calculateBarbell(105, 35);
+    expect(result.barWeight).toBe(35);
+    expect(result.achievedWeight).toBe(105);
+    expect(result.perSide).toContainEqual({ plate: 35, count: 1 });
+  });
+
+  it("EZ curl bar (15 lbs) achieves correct achievedWeight and perSide for 55 lbs", () => {
+    const result = calculateBarbell(55, 15);
+    expect(result.barWeight).toBe(15);
+    expect(result.achievedWeight).toBe(55);
+    // perSide = 20 = 2x10
+    expect(result.perSide).toEqual([{ plate: 10, count: 2 }]);
+  });
+});
+
 describe("plateDisplayString", () => {
   it("returns 'Bar only' for empty plates", () => {
     const config: PlateConfiguration = {
@@ -326,6 +415,9 @@ describe("getEquipmentDisplay", () => {
     expect(result.type).toBe("powerblock");
     if (result.type === "powerblock") {
       expect(result.weight).toBe(25);
+      expect(result.instructions.selector).toBe(25);
+      expect(result.instructions.rods).toBe("none");
+      expect(result.instructions.label).toBe("Selector to 25 · no rods");
     }
   });
 
@@ -410,14 +502,27 @@ describe("getEquipmentDisplay", () => {
     }
   });
 
-  it("returns assisted with weight and detail", () => {
+  it("returns assisted with band count as weight", () => {
     const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "Purple Band" });
-    const result = getEquipmentDisplay(ex, 30);
+    const result = getEquipmentDisplay(ex, 2);
     expect(result.type).toBe("assisted");
     if (result.type === "assisted") {
-      expect(result.weight).toBe(30);
+      expect(result.weight).toBe(2);
       expect(result.detail).toBe("Purple Band");
     }
+  });
+
+  it("assisted pull-up with 2 bands returns display string '2 bands (~160 lbs assistance)'", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, 2);
+    expect(result.type).toBe("assisted");
+    expect(equipmentDisplayText(result)).toBe("2 bands (~160 lbs assistance)");
+  });
+
+  it("assisted pull-up with 1 band returns singular 'band'", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, 1);
+    expect(equipmentDisplayText(result)).toBe("1 band (~80 lbs assistance)");
   });
 
   it("returns kettlebell with weight", () => {
@@ -483,7 +588,11 @@ describe("equipmentDisplayText", () => {
   });
 
   it("displays powerblock weight", () => {
-    expect(equipmentDisplayText({ type: "powerblock", weight: 25 })).toBe("PowerBlock: 25 lbs");
+    expect(equipmentDisplayText({
+      type: "powerblock",
+      weight: 25,
+      instructions: { selector: 25, rods: "none", label: "Selector to 25 · no rods" },
+    })).toBe("PowerBlock: 25 lbs");
   });
 
   it("displays dumbbell weight", () => {
@@ -503,21 +612,21 @@ describe("equipmentDisplayText", () => {
     expect(equipmentDisplayText({ type: "bodyweight", detail: null })).toBe("Bodyweight");
   });
 
-  it("displays assisted with weight and detail", () => {
-    const text = equipmentDisplayText({ type: "assisted", weight: 30, detail: "Purple Band" });
-    expect(text).toBe("Purple Band (~30 lb assistance)");
+  it("displays assisted as band count with assistance calculation (2 bands)", () => {
+    const text = equipmentDisplayText({ type: "assisted", weight: 2, detail: "Purple Band" });
+    expect(text).toBe("2 bands (~160 lbs assistance)");
   });
 
-  it("displays assisted with weight but no detail", () => {
-    const text = equipmentDisplayText({ type: "assisted", weight: 30, detail: null });
-    expect(text).toBe("30 lb assistance");
+  it("displays assisted as singular band for 1 band", () => {
+    const text = equipmentDisplayText({ type: "assisted", weight: 1, detail: null });
+    expect(text).toBe("1 band (~80 lbs assistance)");
   });
 
   it("displays 'Assisted' when zero weight and no detail", () => {
     expect(equipmentDisplayText({ type: "assisted", weight: 0, detail: null })).toBe("Assisted");
   });
 
-  it("displays assisted with detail but zero weight", () => {
+  it("displays detail when zero weight and detail present", () => {
     expect(equipmentDisplayText({ type: "assisted", weight: 0, detail: "Band" })).toBe("Band");
   });
 
@@ -536,7 +645,11 @@ describe("equipmentShortText", () => {
   });
 
   it("shows weight for powerblock", () => {
-    expect(equipmentShortText({ type: "powerblock", weight: 25 })).toBe("25 lbs");
+    expect(equipmentShortText({
+      type: "powerblock",
+      weight: 25,
+      instructions: { selector: 25, rods: "none", label: "Selector to 25 · no rods" },
+    })).toBe("25 lbs");
   });
 
   it("shows weight for dumbbell", () => {
@@ -555,8 +668,12 @@ describe("equipmentShortText", () => {
     expect(equipmentShortText({ type: "bodyweight", detail: null })).toBe("BW");
   });
 
-  it("shows assist weight for assisted", () => {
-    expect(equipmentShortText({ type: "assisted", weight: 30, detail: null })).toBe("30 lb assist");
+  it("shows band count for assisted", () => {
+    expect(equipmentShortText({ type: "assisted", weight: 2, detail: null })).toBe("2 bands");
+  });
+
+  it("shows singular band for 1 band assisted", () => {
+    expect(equipmentShortText({ type: "assisted", weight: 1, detail: null })).toBe("1 band");
   });
 
   it("shows 'Assisted' for zero weight assisted", () => {

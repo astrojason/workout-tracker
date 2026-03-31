@@ -1,4 +1,4 @@
-import type { Exercise, PlateConfiguration, EquipmentDisplay } from "./types";
+import type { Exercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions } from "./types";
 import { barWeight, cleanWeight } from "./types";
 
 // Available plates per side (weight, max count per side)
@@ -136,6 +136,44 @@ export function nearestPowerBlock(target: number): number {
   return Math.round(clamped / 2.5) * 2.5;
 }
 
+// PowerBlock Elite EXP Stage 1 selector + rod configuration per weight
+const POWERBLOCK_TABLE: Record<number, { selector: number; rods: "none" | "one" | "both" }> = {
+  5:    { selector: 5,  rods: "none" },
+  7.5:  { selector: 5,  rods: "one" },
+  10:   { selector: 5,  rods: "both" },
+  12.5: { selector: 10, rods: "none" },
+  15:   { selector: 10, rods: "one" },
+  17.5: { selector: 10, rods: "both" },
+  20:   { selector: 15, rods: "none" },
+  22.5: { selector: 15, rods: "one" },
+  25:   { selector: 25, rods: "none" },
+  27.5: { selector: 25, rods: "one" },
+  30:   { selector: 25, rods: "both" },
+  32.5: { selector: 30, rods: "none" },
+  35:   { selector: 30, rods: "one" },
+  37.5: { selector: 30, rods: "both" },
+  40:   { selector: 40, rods: "none" },
+  42.5: { selector: 40, rods: "one" },
+  45:   { selector: 40, rods: "both" },
+  47.5: { selector: 45, rods: "one" },
+  50:   { selector: 50, rods: "none" },
+};
+
+const ROD_LABEL: Record<"none" | "one" | "both", string> = {
+  none: "no rods",
+  one: "add 1 rod",
+  both: "add both rods",
+};
+
+export function getPowerBlockInstructions(weight: number): PowerBlockInstructions {
+  const entry = POWERBLOCK_TABLE[weight];
+  if (!entry) {
+    return { selector: 5, rods: "none", label: "—" };
+  }
+  const { selector, rods } = entry;
+  return { selector, rods, label: `Selector to ${selector} · ${ROD_LABEL[rods]}` };
+}
+
 // ── Display helpers ──
 
 export function plateDisplayString(config: PlateConfiguration): string {
@@ -184,7 +222,11 @@ export function getEquipmentDisplay(exercise: Exercise, weight: number): Equipme
         if (dbWeight !== null && dbWeight < 5) return { type: "dumbbell", weight: dbWeight };
       }
       if (weight > 0 && weight < 5) return { type: "dumbbell", weight };
-      return { type: "powerblock", weight: weight > 0 ? nearestPowerBlock(weight) : 0 };
+      const resolvedWeight = weight > 0 ? nearestPowerBlock(weight) : 0;
+      const instructions = resolvedWeight > 0
+        ? getPowerBlockInstructions(resolvedWeight)
+        : { selector: 5, rods: "none" as const, label: "—" };
+      return { type: "powerblock", weight: resolvedWeight, instructions };
     }
 
     case "band": {
@@ -213,9 +255,8 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
     case "bodyweight": return display.detail || "Bodyweight";
     case "assisted": {
       if (display.weight > 0) {
-        return display.detail
-          ? `${display.detail} (~${cleanWeight(display.weight)} lb assistance)`
-          : `${cleanWeight(display.weight)} lb assistance`;
+        const bandLabel = display.weight === 1 ? "band" : "bands";
+        return `${display.weight} ${bandLabel} (~${display.weight * 80} lbs assistance)`;
       }
       return display.detail || "Assisted";
     }
@@ -231,6 +272,12 @@ export function equipmentShortText(display: EquipmentDisplay): string {
     case "kettlebell": return `${cleanWeight(display.weight)} lbs`;
     case "band": return `${display.name} Band`;
     case "bodyweight": return "BW";
-    case "assisted": return display.weight > 0 ? `${cleanWeight(display.weight)} lb assist` : "Assisted";
+    case "assisted": {
+      if (display.weight > 0) {
+        const bandLabel = display.weight === 1 ? "band" : "bands";
+        return `${display.weight} ${bandLabel}`;
+      }
+      return "Assisted";
+    }
   }
 }

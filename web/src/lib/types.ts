@@ -129,9 +129,15 @@ export interface PlateConfiguration {
   isLandmine?: boolean;
 }
 
+export interface PowerBlockInstructions {
+  selector: number;
+  rods: "none" | "one" | "both";
+  label: string; // e.g. "Selector to 25 · no rods"
+}
+
 export type EquipmentDisplay =
   | { type: "barbell"; config: PlateConfiguration }
-  | { type: "powerblock"; weight: number }
+  | { type: "powerblock"; weight: number; instructions: PowerBlockInstructions }
   | { type: "dumbbell"; weight: number }
   | { type: "band"; name: string; range: string }
   | { type: "bodyweight"; detail: string | null }

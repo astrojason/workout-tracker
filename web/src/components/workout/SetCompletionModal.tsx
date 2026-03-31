@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Exercise } from "@/lib/types";
 import { isTimeBased } from "@/lib/types";
+import { getPowerBlockInstructions, nearestPowerBlock } from "@/lib/equipment-calculator";
 
 interface SetCompletionModalProps {
   exercise: Exercise;
@@ -24,6 +25,8 @@ export function SetCompletionModal({
 
   const timeBased = isTimeBased(exercise);
   const increment = timeBased ? 5 : 1;
+  const isPowerBlock = exercise.equipmentType === "powerblock";
+  const isAssistedPullup = exercise.equipmentType === "assisted_pullup";
 
   const ratingOptions: { value: "easy" | "normal" | "hard"; label: string; color: string; activeColor: string }[] = [
     { value: "easy", label: "Easy", color: "text-gray-400", activeColor: "bg-green-600 text-white" },
@@ -66,14 +69,26 @@ export function SetCompletionModal({
         {/* Weight */}
         {targetWeight > 0 && (
           <div className="mb-5">
-            <label className="text-sm text-gray-400 block mb-2">Weight (lbs)</label>
+            <label className="text-sm text-gray-400 block mb-2">
+              {isAssistedPullup ? "Bands" : "Weight (lbs)"}
+            </label>
             <input
               type="number"
               value={weight}
               onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
-              step="2.5"
+              step={isPowerBlock ? "2.5" : isAssistedPullup ? "1" : "2.5"}
               className="w-full bg-gray-800 rounded-xl px-4 py-3 text-xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
             />
+            {isPowerBlock && weight >= 5 && (
+              <div className="text-indigo-400/70 text-xs mt-1.5 text-center">
+                {getPowerBlockInstructions(nearestPowerBlock(weight)).label}
+              </div>
+            )}
+            {isAssistedPullup && weight > 0 && (
+              <div className="text-indigo-400/70 text-xs mt-1.5 text-center">
+                ~{weight * 80} lbs assistance
+              </div>
+            )}
           </div>
         )}
 

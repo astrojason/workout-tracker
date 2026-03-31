@@ -53,8 +53,15 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
         onClick={onEditWeight}
       >
         <div className="flex items-center justify-between">
-          <div className="text-indigo-300 font-semibold">
-            {equipmentDisplayText(equipmentDisplay)}
+          <div>
+            <div className="text-indigo-300 font-semibold">
+              {equipmentDisplayText(equipmentDisplay)}
+            </div>
+            {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+              <div className="text-indigo-400/70 text-xs mt-0.5">
+                {equipmentDisplay.instructions.label}
+              </div>
+            )}
           </div>
           {onEditWeight && (
             <span className="text-indigo-400 text-xs">Edit</span>

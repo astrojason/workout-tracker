@@ -12,6 +12,7 @@ GoogleService-Info.plist
 
 # Data files (imported via web UI, not needed at runtime)
 *.csv
+*.xlsx
 Gym_Equipment.md
 
 # Web (also has web/.gitignore)
