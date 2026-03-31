@@ -9,6 +9,8 @@ import {
   getEquipmentDisplay,
   equipmentDisplayText,
   equipmentShortText,
+  FIXED_DUMBBELLS,
+  KETTLEBELL_WEIGHTS,
 } from "../equipment-calculator";
 import type { Exercise, PlateConfiguration } from "../types";
 
@@ -102,12 +104,20 @@ describe("calculateBarbell", () => {
     expect(result.perSide).toEqual([{ plate: 0.75, count: 1 }]);
   });
 
-  it("rounds up to achievable weight when exact match impossible", () => {
-    // 143 on 45lb bar: per side = 49, no exact plate combo
-    // Should round up to nearest achievable
+  it("returns exact weight when target is achievable (143 on 45lb bar)", () => {
+    // 143 = 45 bar + 49/side = 45+2.5+1+0.5 per side — exact match via greedy
     const result = calculateBarbell(143, 45);
-    expect(result.achievedWeight).toBeGreaterThanOrEqual(143);
+    expect(result.achievedWeight).toBe(143);
     expect(result.perSide.length).toBeGreaterThan(0);
+  });
+
+  it("rounds DOWN to nearest achievable weight when exact match not possible (greedy gap)", () => {
+    // 47.5 on 45lb bar: per side = 1.25
+    // Greedy picks 1lb, leaves 0.25 — no plate exists, so exact fails
+    // Nearest achievable DOWN = 47 lbs (per side = 1.0 = 1x1lb plate)
+    const result = calculateBarbell(47.5, 45);
+    expect(result.achievedWeight).toBe(47);
+    expect(result.perSide).toEqual([{ plate: 1, count: 1 }]);
   });
 
   it("works with 35lb bar", () => {
@@ -678,5 +688,99 @@ describe("equipmentShortText", () => {
 
   it("shows 'Assisted' for zero weight assisted", () => {
     expect(equipmentShortText({ type: "assisted", weight: 0, detail: null })).toBe("Assisted");
+  });
+});
+
+describe("barbell plate validation (ExerciseEditor spec)", () => {
+  it("weight below bar weight: achievedWeight equals bar weight (45lb bar, input 30)", () => {
+    const result = calculateBarbell(30, 45);
+    expect(result.achievedWeight).toBe(45);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("weight below bar weight: achievedWeight equals bar weight (35lb bar, input 20)", () => {
+    const result = calculateBarbell(20, 35);
+    expect(result.achievedWeight).toBe(35);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("weight below bar weight: achievedWeight equals bar weight (EZ bar 15lb, input 10)", () => {
+    const result = calculateBarbell(10, 15);
+    expect(result.achievedWeight).toBe(15);
+    expect(result.perSide).toEqual([]);
+  });
+
+  it("EZ bar (15 lb) + 10 lb/side = 35 lbs total, valid exact match", () => {
+    const result = calculateBarbell(35, 15);
+    expect(result.achievedWeight).toBe(35);
+    expect(result.barWeight).toBe(15);
+    expect(result.perSide).toEqual([{ plate: 10, count: 1 }]);
+  });
+
+  it("all three bar types subtract their own weight before plate calculation", () => {
+    // 45lb bar: 135 = 45 + 45/side
+    expect(calculateBarbell(135, 45).achievedWeight).toBe(135);
+    expect(calculateBarbell(135, 45).barWeight).toBe(45);
+    // 35lb bar: 105 = 35 + 35/side
+    expect(calculateBarbell(105, 35).achievedWeight).toBe(105);
+    expect(calculateBarbell(105, 35).barWeight).toBe(35);
+    // EZ bar: 55 = 15 + 20/side (2x10)
+    expect(calculateBarbell(55, 15).achievedWeight).toBe(55);
+    expect(calculateBarbell(55, 15).barWeight).toBe(15);
+  });
+});
+
+describe("PowerBlock spec tests", () => {
+  it("all 19 weights from 5 to 50 (step 2.5) return correct instructions", () => {
+    for (let w = 5; w <= 50; w += 2.5) {
+      const inst = getPowerBlockInstructions(w);
+      expect(inst.selector).toBeGreaterThan(0);
+      expect(["none", "one", "both"]).toContain(inst.rods);
+      expect(inst.label).toMatch(/Selector to \d+/);
+    }
+  });
+
+  it("input outside 5–50 is clamped by nearestPowerBlock", () => {
+    expect(nearestPowerBlock(0)).toBe(5);
+    expect(nearestPowerBlock(3)).toBe(5);
+    expect(nearestPowerBlock(55)).toBe(50);
+    expect(nearestPowerBlock(100)).toBe(50);
+  });
+});
+
+describe("Pull-up assist bands × 80 formula", () => {
+  const cases: [number, string][] = [
+    [1, "1 band (~80 lbs assistance)"],
+    [2, "2 bands (~160 lbs assistance)"],
+    [3, "3 bands (~240 lbs assistance)"],
+    [4, "4 bands (~320 lbs assistance)"],
+    [5, "5 bands (~400 lbs assistance)"],
+  ];
+
+  it.each(cases)("%i bands produces correct display string", (bands, expected) => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, bands);
+    expect(equipmentDisplayText(result)).toBe(expected);
+  });
+});
+
+describe("FIXED_DUMBBELLS and KETTLEBELL_WEIGHTS inventories", () => {
+  it("FIXED_DUMBBELLS is a non-empty array of numbers", () => {
+    expect(Array.isArray(FIXED_DUMBBELLS)).toBe(true);
+    expect(FIXED_DUMBBELLS.length).toBeGreaterThan(0);
+    FIXED_DUMBBELLS.forEach((w) => expect(typeof w).toBe("number"));
+  });
+
+  it("KETTLEBELL_WEIGHTS is a non-empty array of numbers", () => {
+    expect(Array.isArray(KETTLEBELL_WEIGHTS)).toBe(true);
+    expect(KETTLEBELL_WEIGHTS.length).toBeGreaterThan(0);
+    KETTLEBELL_WEIGHTS.forEach((w) => expect(typeof w).toBe("number"));
+  });
+
+  it("getEquipmentDisplay returns dumbbell type for dumbbell equipment", () => {
+    const ex = makeExercise({ equipmentType: "dumbbell" });
+    const result = getEquipmentDisplay(ex, 2);
+    expect(result.type).toBe("dumbbell");
+    if (result.type === "dumbbell") expect(result.weight).toBe(2);
   });
 });

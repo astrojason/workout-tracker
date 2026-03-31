@@ -9,6 +9,7 @@ export type EquipmentType =
   | "barbell_35"
   | "barbell_ez"
   | "powerblock"
+  | "dumbbell"
   | "band"
   | "kettlebell"
   | "bodyweight"

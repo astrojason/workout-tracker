@@ -1,6 +1,9 @@
 import type { Exercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions } from "./types";
 import { barWeight, cleanWeight } from "./types";
 
+export const FIXED_DUMBBELLS: number[] = [2];
+export const KETTLEBELL_WEIGHTS: number[] = [15, 25, 45];
+
 // Available plates per side (weight, max count per side)
 const DEFAULT_PLATES: { weight: number; maxPerSide: number }[] = [
   { weight: 45, maxPerSide: 1 },
@@ -71,12 +74,12 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
     };
   }
 
-  // Round up: try incrementally higher weights
-  let attempt = perSideNeeded;
-  const increment = 0.25;
-  while (attempt < perSideNeeded + 50) {
-    attempt += increment;
-    const found = findPlates(attempt);
+  // Round down: find nearest achievable weight below target
+  const step = 0.25;
+  let tryPerSide = Math.floor((perSideNeeded - 0.001) / step) * step;
+  while (tryPerSide > 0) {
+    const normalized = Math.round(tryPerSide * 1000) / 1000;
+    const found = findPlates(normalized);
     if (found) {
       return {
         targetWeight,
@@ -85,6 +88,7 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
         perSide: found.plates,
       };
     }
+    tryPerSide -= step;
   }
 
   return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [] };
@@ -109,12 +113,12 @@ export function calculateLandmine(targetWeight: number, bWeight: number): PlateC
     };
   }
 
-  // Round up: try incrementally higher weights
-  let attempt = oneSideNeeded;
-  const increment = 0.25;
-  while (attempt < oneSideNeeded + 50) {
-    attempt += increment;
-    const found = findPlates(attempt);
+  // Round down: find nearest achievable weight below target
+  const step = 0.25;
+  let tryOneSide = Math.floor((oneSideNeeded - 0.001) / step) * step;
+  while (tryOneSide > 0) {
+    const normalized = Math.round(tryOneSide * 1000) / 1000;
+    const found = findPlates(normalized);
     if (found) {
       return {
         targetWeight,
@@ -124,6 +128,7 @@ export function calculateLandmine(targetWeight: number, bWeight: number): PlateC
         isLandmine: true,
       };
     }
+    tryOneSide -= step;
   }
 
   return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [], isLandmine: true };
@@ -228,6 +233,9 @@ export function getEquipmentDisplay(exercise: Exercise, weight: number): Equipme
         : { selector: 5, rods: "none" as const, label: "—" };
       return { type: "powerblock", weight: resolvedWeight, instructions };
     }
+
+    case "dumbbell":
+      return { type: "dumbbell", weight };
 
     case "band": {
       const bandName = exercise.equipmentDetail || "Unknown";

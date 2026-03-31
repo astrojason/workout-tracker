@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget } from "@/lib/types";
-import { isTimeBased as detectTimeBased } from "@/lib/types";
+import { isTimeBased as detectTimeBased, barWeight as getBarWeight } from "@/lib/types";
+import {
+  calculateBarbell,
+  getPowerBlockInstructions,
+  nearestPowerBlock,
+  plateDisplayString,
+  FIXED_DUMBBELLS,
+  KETTLEBELL_WEIGHTS,
+} from "@/lib/equipment-calculator";
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: "warmup", label: "Warmup" },
@@ -10,17 +18,6 @@ const PHASES: { value: Phase; label: string }[] = [
   { value: "finisher", label: "Finisher" },
   { value: "cooldown", label: "Cooldown" },
   { value: "mobility", label: "Mobility" },
-];
-
-const EQUIPMENT_TYPES: { value: EquipmentType; label: string }[] = [
-  { value: "barbell_45", label: "Barbell (45lb)" },
-  { value: "barbell_35", label: "Barbell (35lb)" },
-  { value: "barbell_ez", label: "EZ Bar (15lb)" },
-  { value: "powerblock", label: "PowerBlock" },
-  { value: "band", label: "Band" },
-  { value: "kettlebell", label: "Kettlebell" },
-  { value: "bodyweight", label: "Bodyweight" },
-  { value: "assisted_pullup", label: "Assisted Pullup" },
 ];
 
 const PROGRESSION_RULES: { value: ProgressionRule; label: string }[] = [
@@ -36,6 +33,28 @@ const PROGRESSION_RULES: { value: ProgressionRule; label: string }[] = [
   { value: "progress_gripper", label: "Progress Gripper" },
 ];
 
+const BAND_OPTIONS = [
+  { value: "Orange", label: "Orange (2–12 lbs)" },
+  { value: "Purple", label: "Purple (5–35 lbs)" },
+  { value: "Red", label: "Red (10–50 lbs)" },
+  { value: "Blue", label: "Blue (20–80 lbs)" },
+  { value: "Green", label: "Green (50–120 lbs)" },
+  { value: "Black", label: "Black (60–150 lbs)" },
+];
+
+function defaultWeightForType(t: EquipmentType): string {
+  switch (t) {
+    case "barbell_45": return "45";
+    case "barbell_35": return "35";
+    case "barbell_ez": return "15";
+    case "powerblock": return "25";
+    case "dumbbell": return String(FIXED_DUMBBELLS[0]);
+    case "kettlebell": return String(KETTLEBELL_WEIGHTS[0]);
+    case "assisted_pullup": return "1";
+    default: return "0";
+  }
+}
+
 interface ExerciseEditorProps {
   exercise: Exercise | null;
   maxOrder: number;
@@ -49,10 +68,29 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   const [name, setName] = useState(exercise?.name ?? "");
   const [phase, setPhase] = useState<Phase>(exercise?.phase ?? "main");
   const [order, setOrder] = useState(exercise?.order ?? maxOrder + 1);
-  const [equipmentType, setEquipmentType] = useState<EquipmentType>(exercise?.equipmentType ?? "barbell_45");
-  const [equipmentDetail, setEquipmentDetail] = useState(exercise?.equipmentDetail ?? "");
-  const [weightType, setWeightType] = useState<"fixed" | "progressive">(exercise?.baseWeight.type ?? "fixed");
-  const [weightValue, setWeightValue] = useState(exercise?.baseWeight.type === "fixed" ? String(exercise.baseWeight.value) : "0");
+
+  const initEquipType = exercise?.equipmentType ?? "barbell_45";
+  const [equipmentType, setEquipmentType] = useState<EquipmentType>(initEquipType);
+
+  // equipmentDetail is only used for band color
+  const [equipmentDetail, setEquipmentDetail] = useState(
+    exercise?.equipmentType === "band" ? (exercise.equipmentDetail ?? "Orange") : "Orange"
+  );
+
+  const [weightType, setWeightType] = useState<"fixed" | "progressive">(
+    exercise?.baseWeight.type ?? "fixed"
+  );
+  const [weightValue, setWeightValue] = useState(
+    exercise?.baseWeight.type === "fixed"
+      ? String(exercise.baseWeight.value)
+      : isNew
+        ? defaultWeightForType(initEquipType)
+        : "0"
+  );
+
+  const [barbellError, setBarbellError] = useState<string | null>(null);
+  const [weightWarning, setWeightWarning] = useState<string | null>(null);
+
   const [sets, setSets] = useState(exercise?.sets ?? 3);
   const [repMin, setRepMin] = useState(exercise?.repMin ?? 8);
   const [repMaxType, setRepMaxType] = useState<"count" | "failure">(exercise?.repMax.type ?? "count");
@@ -64,12 +102,106 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
+  const isBarbellType = equipmentType === "barbell_45" || equipmentType === "barbell_35" || equipmentType === "barbell_ez";
+  const barWeightLbs = getBarWeight(equipmentType);
+
+  function handleEquipmentChange(newType: EquipmentType) {
+    setEquipmentType(newType);
+    setBarbellError(null);
+    setWeightWarning(null);
+    setWeightValue(defaultWeightForType(newType));
+  }
+
+  function handleBarbellBlur() {
+    if (!barWeightLbs) return;
+    const target = parseFloat(weightValue);
+    if (isNaN(target)) return;
+
+    if (target < barWeightLbs) {
+      setBarbellError(`Minimum weight for this bar is ${barWeightLbs} lbs.`);
+      setWeightWarning(null);
+      return;
+    }
+
+    setBarbellError(null);
+    const config = calculateBarbell(target, barWeightLbs);
+
+    if (config.achievedWeight !== target) {
+      setWeightValue(String(config.achievedWeight));
+      const plateStr = config.perSide.length > 0
+        ? `${barWeightLbs} lb bar + ${plateDisplayString(config)}/side`
+        : `${barWeightLbs} lb bar only`;
+      setWeightWarning(
+        `${target} lbs isn't possible with available plates. Adjusted to ${config.achievedWeight} lbs.\n${plateStr}`
+      );
+    } else {
+      setWeightWarning(null);
+    }
+  }
+
+  function handlePowerBlockBlur() {
+    const val = parseFloat(weightValue);
+    if (isNaN(val)) {
+      setWeightValue("5");
+      setWeightWarning(null);
+      return;
+    }
+    const clamped = nearestPowerBlock(val);
+    if (clamped !== val) {
+      setWeightWarning(`Clamped to ${clamped} lbs (PowerBlock range: 5–50 lbs).`);
+    } else {
+      setWeightWarning(null);
+    }
+    setWeightValue(String(clamped));
+  }
+
+  function handlePullupChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = parseInt(e.target.value);
+    setWeightValue(isNaN(val) || val < 1 ? "1" : String(val));
+  }
+
+  // ── Inline hints (computed from current state) ──
+
+  let barbellHint: string | null = null;
+  if (isBarbellType && weightType === "fixed" && !barbellError && barWeightLbs) {
+    const target = parseFloat(weightValue);
+    if (!isNaN(target) && target >= barWeightLbs) {
+      const config = calculateBarbell(target, barWeightLbs);
+      if (config.perSide.length === 0) {
+        barbellHint = `${barWeightLbs} lb bar only`;
+      } else {
+        barbellHint = `${barWeightLbs} lb bar + ${plateDisplayString(config)}/side → ${config.achievedWeight} lbs`;
+      }
+    }
+  }
+
+  let powerBlockHint: string | null = null;
+  if (equipmentType === "powerblock") {
+    const val = parseFloat(weightValue);
+    if (!isNaN(val)) {
+      const snapped = nearestPowerBlock(val);
+      const inst = getPowerBlockInstructions(snapped);
+      powerBlockHint = `${snapped} lbs — ${inst.label}`;
+    }
+  }
+
+  let pullupHint: string | null = null;
+  if (equipmentType === "assisted_pullup") {
+    const bands = parseInt(weightValue);
+    if (!isNaN(bands) && bands >= 1) {
+      pullupHint = `${bands} ${bands === 1 ? "band" : "bands"} (~${bands * 80} lbs assistance)`;
+    }
+  }
+
   function handleSave() {
     if (!name.trim()) return;
+    if (isBarbellType && barbellError) return;
 
-    const baseWeight: WeightSpec = weightType === "progressive"
-      ? { type: "progressive" }
-      : { type: "fixed", value: parseFloat(weightValue) || 0 };
+    const baseWeight: WeightSpec = (() => {
+      if (isBarbellType && weightType === "progressive") return { type: "progressive" };
+      if (equipmentType === "band" || equipmentType === "bodyweight") return { type: "fixed", value: 0 };
+      return { type: "fixed", value: parseFloat(weightValue) || 0 };
+    })();
 
     const repMax: RepTarget = finalSetAmrap
       ? { type: "failure" }
@@ -81,7 +213,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
       name: name.trim(),
       phase,
       equipmentType,
-      equipmentDetail: equipmentDetail.trim() || null,
+      equipmentDetail: equipmentType === "band" ? (equipmentDetail || "Orange") : null,
       baseWeight,
       sets,
       repMin,
@@ -95,10 +227,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
     onSave(result);
   }
 
-  const detailHint = equipmentType === "band" ? "e.g. Orange, Purple, Red, Blue"
-    : equipmentType === "bodyweight" ? "e.g. table, rack, lacrosse_ball"
-    : equipmentType === "powerblock" ? "e.g. 2lb (for regular dumbbell)"
-    : "Optional";
+  const hasBlockingError = isBarbellType && !!barbellError;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
@@ -128,45 +257,146 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
           </Field>
         </div>
 
-        {/* Equipment */}
-        <Field label="Equipment Type">
-          <select value={equipmentType} onChange={(e) => setEquipmentType(e.target.value as EquipmentType)} className="input-field">
-            {EQUIPMENT_TYPES.map((eq) => <option key={eq.value} value={eq.value}>{eq.label}</option>)}
-          </select>
-        </Field>
-
-        <Field label={`Equipment Detail (${detailHint})`}>
-          <input
-            type="text"
-            value={equipmentDetail}
-            onChange={(e) => setEquipmentDetail(e.target.value)}
-            placeholder={detailHint}
-            className="input-field"
-          />
-        </Field>
-
-        {/* Base Weight */}
-        <Field label="Base Weight">
-          <div className="flex gap-2 items-center">
-            <select value={weightType} onChange={(e) => setWeightType(e.target.value as "fixed" | "progressive")} className="input-field flex-1">
-              <option value="fixed">Fixed</option>
-              <option value="progressive">Progressive</option>
+        {/* Equipment + Weight */}
+        <Field label="Equipment + Weight">
+          <div className="space-y-2">
+            {/* Equipment selector */}
+            <select
+              value={equipmentType}
+              onChange={(e) => handleEquipmentChange(e.target.value as EquipmentType)}
+              className="input-field"
+            >
+              <option value="barbell_ez">EZ Bar (15 lbs)</option>
+              <option value="barbell_35">35 lb Bar</option>
+              <option value="barbell_45">Olympic Bar (45 lbs)</option>
+              <option value="powerblock">PowerBlock (5–50 lbs)</option>
+              <option value="dumbbell">Dumbbell</option>
+              <option value="band">Serious Steel Band</option>
+              <option value="assisted_pullup">Pull-Up Assist (Bands)</option>
+              <option value="kettlebell">Kettlebell</option>
+              <option value="bodyweight">Bodyweight</option>
             </select>
-            {weightType === "fixed" && (
-              <input
-                type="number"
+
+            {/* Barbell weight */}
+            {isBarbellType && (
+              <div>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={weightType}
+                    onChange={(e) => {
+                      setWeightType(e.target.value as "fixed" | "progressive");
+                      setBarbellError(null);
+                      setWeightWarning(null);
+                    }}
+                    className="input-field flex-1"
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="progressive">Progressive</option>
+                  </select>
+                  {weightType === "fixed" && (
+                    <input
+                      type="number"
+                      value={weightValue}
+                      onChange={(e) => {
+                        setWeightValue(e.target.value);
+                        setBarbellError(null);
+                        setWeightWarning(null);
+                      }}
+                      onBlur={handleBarbellBlur}
+                      step="2.5"
+                      min={0}
+                      className={`input-field w-24 ${barbellError ? "border-red-500" : ""}`}
+                      placeholder="lbs"
+                    />
+                  )}
+                </div>
+                {barbellError && (
+                  <p className="text-red-400 text-xs mt-1">⚠ {barbellError}</p>
+                )}
+                {weightWarning && !barbellError && weightWarning.split("\n").map((line, i) => (
+                  <p key={i} className="text-yellow-400 text-xs mt-1">{i === 0 ? `⚠ ${line}` : line}</p>
+                ))}
+                {!barbellError && !weightWarning && barbellHint && (
+                  <p className="text-gray-500 text-xs mt-1">{barbellHint}</p>
+                )}
+              </div>
+            )}
+
+            {/* PowerBlock weight */}
+            {equipmentType === "powerblock" && (
+              <div>
+                <input
+                  type="number"
+                  value={weightValue}
+                  onChange={(e) => { setWeightValue(e.target.value); setWeightWarning(null); }}
+                  onBlur={handlePowerBlockBlur}
+                  step="2.5"
+                  min={5}
+                  max={50}
+                  className="input-field"
+                  placeholder="lbs"
+                />
+                {weightWarning && <p className="text-yellow-400 text-xs mt-1">⚠ {weightWarning}</p>}
+                {powerBlockHint && <p className="text-gray-500 text-xs mt-1">{powerBlockHint}</p>}
+              </div>
+            )}
+
+            {/* Dumbbell select */}
+            {equipmentType === "dumbbell" && (
+              <select
                 value={weightValue}
                 onChange={(e) => setWeightValue(e.target.value)}
-                onBlur={(e) => {
-                  const parsed = parseFloat(e.target.value);
-                  setWeightValue(isNaN(parsed) ? "0" : String(parsed));
-                }}
-                step="2.5"
-                min={0}
-                className="input-field w-24"
-                placeholder="lbs"
-              />
+                className="input-field"
+              >
+                {FIXED_DUMBBELLS.map((w) => (
+                  <option key={w} value={String(w)}>{w} lbs</option>
+                ))}
+              </select>
             )}
+
+            {/* Band select */}
+            {equipmentType === "band" && (
+              <select
+                value={equipmentDetail}
+                onChange={(e) => setEquipmentDetail(e.target.value)}
+                className="input-field"
+              >
+                {BAND_OPTIONS.map((b) => (
+                  <option key={b.value} value={b.value}>{b.label}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Pull-Up Assist */}
+            {equipmentType === "assisted_pullup" && (
+              <div>
+                <input
+                  type="number"
+                  value={weightValue}
+                  onChange={handlePullupChange}
+                  step="1"
+                  min={1}
+                  className="input-field"
+                  placeholder="number of bands"
+                />
+                {pullupHint && <p className="text-gray-500 text-xs mt-1">{pullupHint}</p>}
+              </div>
+            )}
+
+            {/* Kettlebell select */}
+            {equipmentType === "kettlebell" && (
+              <select
+                value={weightValue}
+                onChange={(e) => setWeightValue(e.target.value)}
+                className="input-field"
+              >
+                {KETTLEBELL_WEIGHTS.map((w) => (
+                  <option key={w} value={String(w)}>{w} lbs</option>
+                ))}
+              </select>
+            )}
+
+            {/* Bodyweight: no weight input */}
           </div>
         </Field>
 
@@ -267,7 +497,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
           </button>
           <button
             onClick={handleSave}
-            disabled={!name.trim()}
+            disabled={!name.trim() || hasBlockingError}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isNew ? "Add" : "Save"}
