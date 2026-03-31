@@ -24,7 +24,6 @@ export function adjustForEquipment(target: number, exercise: Exercise): number {
 }
 
 export type WeightReason =
-  | "fixed"
   | "no_history"
   | "reduced_2x_miss"
   | "kept_same_miss"
@@ -44,16 +43,14 @@ export async function resolveWeightWithMeta(
   userId: string,
   exercise: Exercise
 ): Promise<WeightResolution> {
-  if (exercise.baseWeight.type === "fixed") {
-    return { weight: exercise.baseWeight.value, prevWeight: null, reason: "fixed" };
-  }
+  const seedWeight = exercise.baseWeight.type === "fixed"
+    ? exercise.baseWeight.value
+    : (exercise.totalWeight ?? 0);
 
   const lastSets = await getLastSetsForExercise(userId, exercise.name);
 
   if (lastSets.length === 0) {
-    // Use totalWeight as starting point when provided, otherwise 0 (user sets weight)
-    const startWeight = exercise.totalWeight ?? 0;
-    return { weight: startWeight, prevWeight: null, reason: "no_history" };
+    return { weight: seedWeight, prevWeight: null, reason: "no_history" };
   }
 
   // Use the heaviest completed set's weight as the working weight.
@@ -90,18 +87,20 @@ export async function resolveWeightWithMeta(
   }
 
   const lastSet = workingSets[workingSets.length - 1];
-  if (lastSet?.rating === "easy") {
+  const lastRating = lastSet?.rating;
+
+  if (lastRating === "easy") {
     const increment = getProgressionIncrement(exercise);
     if (increment > 0) {
-      const bumped = adjustForEquipment(lastWeight + increment * 2, exercise);
-      return { weight: bumped, prevWeight: lastWeight, reason: "easy_bump" };
+      return { weight: adjustForEquipment(lastWeight + increment * 2, exercise), prevWeight: lastWeight, reason: "easy_bump" };
     }
   }
 
-  if (workingSets.some((s) => s.rating === "hard")) {
+  if (lastRating === "hard") {
     return { weight: lastWeight, prevWeight: lastWeight, reason: "kept_same_hard" };
   }
 
+  // normal (or no rating) → 1x increment
   const progressed = applyProgression(lastWeight, exercise);
   if (progressed !== lastWeight) {
     return { weight: progressed, prevWeight: lastWeight, reason: "normal_progression" };

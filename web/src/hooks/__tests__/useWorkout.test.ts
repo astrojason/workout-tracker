@@ -11,7 +11,7 @@ vi.mock("@/lib/firestore", () => ({
 
 vi.mock("@/lib/progression-service", () => ({
   resolveWeight: vi.fn().mockResolvedValue(135),
-  resolveWeightWithMeta: vi.fn().mockResolvedValue({ weight: 135, prevWeight: null, reason: "fixed" }),
+  resolveWeightWithMeta: vi.fn().mockResolvedValue({ weight: 135, prevWeight: null, reason: "no_history" }),
   getProgressionIncrement: vi.fn().mockReturnValue(5),
   adjustForEquipment: vi.fn().mockImplementation((target: number) => target),
 }));

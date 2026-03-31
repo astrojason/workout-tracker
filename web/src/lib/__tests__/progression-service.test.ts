@@ -148,14 +148,14 @@ describe("applyProgression", () => {
 });
 
 describe("resolveWeight", () => {
-  it("returns fixed weight value directly without querying Firestore", async () => {
+  it("returns baseWeight value as seed when no history (fixed)", async () => {
     const exercise = makeExercise({ baseWeight: { type: "fixed", value: 185 } });
+    mockGetLastSets.mockResolvedValue([]);
     const result = await resolveWeight("user-1", exercise);
     expect(result).toBe(185);
-    expect(mockGetLastSets).not.toHaveBeenCalled();
   });
 
-  it("returns 0 for progressive weight with no history", async () => {
+  it("returns 0 for progressive weight with no history and no totalWeight", async () => {
     const exercise = makeExercise({ baseWeight: { type: "progressive" } });
     mockGetLastSets.mockResolvedValue([]);
     const result = await resolveWeight("user-1", exercise);

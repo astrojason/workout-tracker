@@ -52,7 +52,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   const [equipmentType, setEquipmentType] = useState<EquipmentType>(exercise?.equipmentType ?? "barbell_45");
   const [equipmentDetail, setEquipmentDetail] = useState(exercise?.equipmentDetail ?? "");
   const [weightType, setWeightType] = useState<"fixed" | "progressive">(exercise?.baseWeight.type ?? "fixed");
-  const [weightValue, setWeightValue] = useState(exercise?.baseWeight.type === "fixed" ? exercise.baseWeight.value : 0);
+  const [weightValue, setWeightValue] = useState(exercise?.baseWeight.type === "fixed" ? String(exercise.baseWeight.value) : "0");
   const [sets, setSets] = useState(exercise?.sets ?? 3);
   const [repMin, setRepMin] = useState(exercise?.repMin ?? 8);
   const [repMaxType, setRepMaxType] = useState<"count" | "failure">(exercise?.repMax.type ?? "count");
@@ -69,7 +69,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
 
     const baseWeight: WeightSpec = weightType === "progressive"
       ? { type: "progressive" }
-      : { type: "fixed", value: weightValue };
+      : { type: "fixed", value: parseFloat(weightValue) || 0 };
 
     const repMax: RepTarget = finalSetAmrap
       ? { type: "failure" }
@@ -156,7 +156,11 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
               <input
                 type="number"
                 value={weightValue}
-                onChange={(e) => setWeightValue(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setWeightValue(e.target.value)}
+                onBlur={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  setWeightValue(isNaN(parsed) ? "0" : String(parsed));
+                }}
                 step="2.5"
                 min={0}
                 className="input-field w-24"
