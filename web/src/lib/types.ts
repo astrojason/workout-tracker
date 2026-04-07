@@ -218,8 +218,10 @@ export function formatTimeValue(seconds: number): string {
   return `${seconds}s`;
 }
 
-export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: Exercise): string {
+export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: Exercise, setNumber?: number): string {
   if (repMax.type === "failure") return "AMRAP";
+  // lastSetAmrap: only the final set is AMRAP; earlier sets show normal rep range
+  if (exercise?.lastSetAmrap && setNumber !== undefined && setNumber === exercise.sets) return "AMRAP";
   if (exercise && isTimeBased(exercise)) {
     if (repMax.type === "count" && repMin === repMax.value) return formatTimeValue(repMin);
     if (repMax.type === "count") return `${formatTimeValue(repMin)}-${formatTimeValue(repMax.value)}`;

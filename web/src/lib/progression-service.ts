@@ -1,6 +1,6 @@
 import type { Exercise, CompletedSet } from "./types";
 import { barWeight } from "./types";
-import { calculateBarbell, nearestPowerBlock } from "./equipment-calculator";
+import { calculateBarbell, calculateLandmine, nearestPowerBlock } from "./equipment-calculator";
 import { getLastSetsForExercise, getLastTwoSessionSets } from "./firestore";
 
 export function getProgressionIncrement(exercise: Exercise): number {
@@ -15,7 +15,10 @@ export function getProgressionIncrement(exercise: Exercise): number {
 export function adjustForEquipment(target: number, exercise: Exercise): number {
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {
-    return calculateBarbell(target, bw).achievedWeight;
+    const isLandmine = exercise.name.toLowerCase().includes("landmine");
+    return isLandmine
+      ? calculateLandmine(target, bw).achievedWeight
+      : calculateBarbell(target, bw).achievedWeight;
   }
   if (exercise.equipmentType === "powerblock") {
     return nearestPowerBlock(target);

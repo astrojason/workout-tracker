@@ -37,7 +37,7 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
         </div>
         <div className="bg-gray-800 rounded-xl p-3 text-center">
           <div className="text-xs text-gray-400">{isTimeBased(exercise) ? "Duration" : "Reps"}</div>
-          <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax, exercise)}</div>
+          <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax, exercise, setNumber)}</div>
         </div>
         {exercise.restSeconds > 0 && (
           <div className="bg-gray-800 rounded-xl p-3 text-center">
