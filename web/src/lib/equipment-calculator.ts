@@ -251,6 +251,9 @@ export function getEquipmentDisplay(exercise: Exercise, weight: number): Equipme
 
     case "kettlebell":
       return { type: "kettlebell", weight };
+
+    case "gripper":
+      return { type: "gripper", weight };
   }
 }
 
@@ -269,6 +272,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
       return display.detail || "Assisted";
     }
     case "kettlebell": return `Kettlebell: ${cleanWeight(display.weight)} lbs`;
+    case "gripper": return display.weight > 0 ? `Gripper: ${cleanWeight(display.weight)} lbs` : "Gripper";
   }
 }
 
@@ -277,7 +281,8 @@ export function equipmentShortText(display: EquipmentDisplay): string {
     case "barbell": return `${cleanWeight(display.config.achievedWeight)} lbs`;
     case "powerblock":
     case "dumbbell":
-    case "kettlebell": return `${cleanWeight(display.weight)} lbs`;
+    case "kettlebell":
+    case "gripper": return `${cleanWeight(display.weight)} lbs`;
     case "band": return `${display.name} Band`;
     case "bodyweight": return "BW";
     case "assisted": {

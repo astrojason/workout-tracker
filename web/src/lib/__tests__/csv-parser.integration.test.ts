@@ -12,7 +12,7 @@ beforeEach(() => {
 const VALID_PHASES = new Set(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock",
-  "band", "kettlebell", "bodyweight", "assisted_pullup",
+  "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper",
 ]);
 // Known keyword rules; free-form strings (band colors, band counts) are also valid
 const KEYWORD_PROGRESSIONS = new Set([

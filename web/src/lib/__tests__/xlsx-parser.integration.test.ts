@@ -14,7 +14,7 @@ beforeEach(() => {
 const VALID_PHASES = new Set(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock",
-  "band", "kettlebell", "bodyweight", "assisted_pullup",
+  "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper",
 ]);
 
 describe("XLSX integration - reacher_build_cycle2.xlsx", () => {

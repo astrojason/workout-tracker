@@ -13,7 +13,7 @@ const EXPECTED_HEADERS = [
 const VALID_PHASES = new Set<Phase>(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT: Set<string> = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock",
-  "band", "kettlebell", "bodyweight", "assisted_pullup",
+  "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper",
 ]);
 // Known keyword rules — any other non-empty string is treated as a free-form progression rule
 const KEYWORD_PROGRESSIONS: Set<string> = new Set([

@@ -50,6 +50,7 @@ function defaultWeightForType(t: EquipmentType): string {
     case "dumbbell": return "10";
     case "kettlebell": return String(KETTLEBELL_WEIGHTS[0]);
     case "assisted_pullup": return "1";
+    case "gripper": return "10";
     default: return "0";
   }
 }
@@ -270,6 +271,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
               <option value="assisted_pullup">Pull-Up Assist (Bands)</option>
               <option value="kettlebell">Kettlebell</option>
               <option value="bodyweight">Bodyweight</option>
+              <option value="gripper">Gripper</option>
             </select>
 
             {/* Barbell weight */}
@@ -375,6 +377,19 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
                   <option key={w} value={String(w)}>{w} lbs</option>
                 ))}
               </select>
+            )}
+
+            {/* Gripper weight */}
+            {equipmentType === "gripper" && (
+              <input
+                type="number"
+                value={weightValue}
+                onChange={(e) => setWeightValue(e.target.value)}
+                step="5"
+                min={0}
+                className="input-field"
+                placeholder="lbs"
+              />
             )}
 
             {/* Bodyweight: no weight input */}
