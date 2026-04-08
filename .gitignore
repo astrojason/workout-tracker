@@ -29,3 +29,5 @@ web/.env*.local
 .idea/
 *.swp
 *~
+
+*.xlsx

@@ -150,7 +150,7 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
     phase: phaseStr,
     equipmentType,
     equipmentDetail,
-    baseWeight: { type: "progressive" }, // all XLSX exercises resolve from history
+    baseWeight: { type: "fixed", value: totalWeight ?? 0 },
     sets,
     repMin,
     repMax,

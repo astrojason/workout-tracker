@@ -100,12 +100,6 @@ export default function HomePage() {
         onUpdateSets={workout.updateSets}
         onDismiss={workout.dismissWorkout}
         onPause={workout.pauseWorkout}
-        showHardPrompt={workout.showHardPrompt}
-        onHardWeightDecision={workout.handleHardWeightDecision}
-        missReductionQueue={workout.missReductionQueue}
-        onMissReductionDecision={workout.handleMissReductionDecision}
-        easyPrompt={workout.easyPrompt}
-        onEasyDecision={workout.handleEasyDecision}
       />
     );
   }

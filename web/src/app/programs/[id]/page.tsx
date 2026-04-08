@@ -174,10 +174,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
               .sort((a, b) => a.order - b.order)
               .map((exercise) => {
                 const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
-                const weightDisplay = exercise.baseWeight.type === "progressive"
-                  ? "Progressive"
-                  : exercise.baseWeight.value > 0
-                    ? `${cleanWeight(exercise.baseWeight.value)} lbs`
+                const resolvedWeight = exercise.baseWeight.type === "progressive"
+                  ? (exercise.totalWeight ?? 0)
+                  : exercise.baseWeight.value;
+                const weightDisplay = resolvedWeight > 0
+                    ? `${cleanWeight(resolvedWeight)} lbs`
                     : exercise.equipmentType === "bodyweight"
                       ? "BW"
                       : exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
