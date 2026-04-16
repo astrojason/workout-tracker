@@ -9,7 +9,6 @@ import {
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
-import { parseCSV } from "@/lib/csv-parser";
 import { parseXLSX } from "@/lib/xlsx-parser";
 import { DAY_ORDER } from "@/lib/types";
 
@@ -107,7 +106,7 @@ export function usePrograms(userId: string | null) {
   }, [completedDaysCache, settings]);
 
   async function _saveAndReload(
-    parsed: ReturnType<typeof parseCSV>,
+    parsed: ReturnType<typeof parseXLSX>,
     nameOverride?: string,
   ) {
     if (!userId) return;
@@ -132,11 +131,6 @@ export function usePrograms(userId: string | null) {
     }
   }
 
-  const importCSV = useCallback(async (csvContent: string, nameOverride?: string) => {
-    if (!userId) return;
-    await _saveAndReload(parseCSV(csvContent), nameOverride);
-  }, [userId, settings]);
-
   const importXLSX = useCallback(async (buffer: ArrayBuffer, nameOverride?: string) => {
     if (!userId) return;
     await _saveAndReload(parseXLSX(buffer), nameOverride);
@@ -147,13 +141,11 @@ export function usePrograms(userId: string | null) {
   const reimportProgram = useCallback(async (
     programId: string,
     programName: string,
-    data: ArrayBuffer | string,
+    data: ArrayBuffer,
   ) => {
     if (!userId) return;
     const existing = programs.find((p) => p.id === programId);
-    const parsed = typeof data === "string"
-      ? parseCSV(data)
-      : parseXLSX(data, programName);
+    const parsed = parseXLSX(data, programName);
 
     const finalWorkouts = parsed.workouts.map((w) => ({ ...w, programName }));
 
@@ -273,7 +265,6 @@ export function usePrograms(userId: string | null) {
     getWorkoutsForDay,
     getAvailableDays,
     getCompletedDaysForProgram,
-    importCSV,
     importXLSX,
     reimportProgram,
     archiveProgram,

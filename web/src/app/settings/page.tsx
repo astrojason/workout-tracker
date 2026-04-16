@@ -9,14 +9,14 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const {
     activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
-    importCSV, importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
+    importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
 
   // Import flow state
-  type PendingImport = { file: File; buffer: ArrayBuffer | null; text: string | null; defaultName: string };
+  type PendingImport = { file: File; buffer: ArrayBuffer; defaultName: string };
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [importName, setImportName] = useState("");
   const [importing, setImporting] = useState(false);
@@ -35,16 +35,9 @@ export default function SettingsPage() {
     if (!file) return;
     if (fileInputRef.current) fileInputRef.current.value = "";
 
-    const isXlsx = file.name.endsWith(".xlsx");
-    const defaultName = file.name.replace(/\.(csv|xlsx)$/i, "").replace(/[-_]/g, " ");
-
-    if (isXlsx) {
-      const buffer = await file.arrayBuffer();
-      setPendingImport({ file, buffer, text: null, defaultName });
-    } else {
-      const text = await file.text();
-      setPendingImport({ file, buffer: null, text, defaultName });
-    }
+    const defaultName = file.name.replace(/\.xlsx$/i, "").replace(/[-_]/g, " ");
+    const buffer = await file.arrayBuffer();
+    setPendingImport({ file, buffer, defaultName });
     setImportName(defaultName);
     setImportResult(null);
   }
@@ -54,11 +47,7 @@ export default function SettingsPage() {
     setImporting(true);
     setImportResult(null);
     try {
-      if (pendingImport.buffer !== null) {
-        await importXLSX(pendingImport.buffer, importName.trim() || pendingImport.defaultName);
-      } else {
-        await importCSV(pendingImport.text!, importName.trim() || pendingImport.defaultName);
-      }
+      await importXLSX(pendingImport.buffer, importName.trim() || pendingImport.defaultName);
       setImportResult(`Imported "${importName.trim() || pendingImport.defaultName}" successfully!`);
       setPendingImport(null);
     } catch (err) {
@@ -76,8 +65,7 @@ export default function SettingsPage() {
     reimportTargetRef.current = null;
     setReimportingId(id);
     try {
-      const isXlsx = file.name.endsWith(".xlsx");
-      const data = isXlsx ? await file.arrayBuffer() : await file.text();
+      const data = await file.arrayBuffer();
       await reimportProgram(id, name, data);
       setImportResult(`Re-imported "${name}" successfully!`);
     } catch (err) {
@@ -133,7 +121,7 @@ export default function SettingsPage() {
         <input
           ref={reimportFileInputRef}
           type="file"
-          accept=".csv,.xlsx"
+          accept=".xlsx"
           onChange={handleReimportFileSelect}
           className="hidden"
         />
@@ -235,7 +223,7 @@ export default function SettingsPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.xlsx"
+              accept=".xlsx"
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -271,7 +259,7 @@ export default function SettingsPage() {
                 onClick={() => fileInputRef.current?.click()}
                 className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
               >
-                + Import Program (CSV or XLSX)
+                + Import Program (XLSX)
               </button>
             )}
             {importResult && (
