@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget } from "@/lib/types";
-import { isTimeBased as detectTimeBased, barWeight as getBarWeight } from "@/lib/types";
+import { barWeight as getBarWeight } from "@/lib/types";
 import {
   calculateBarbell,
   getPowerBlockInstructions,
@@ -94,7 +94,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
   const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
   const [progressionRule, setProgressionRule] = useState<ProgressionRule>(exercise?.progressionRule ?? "none");
-  const [timeBased, setTimeBased] = useState(exercise ? detectTimeBased(exercise) : false);
+  const [timeBased, setTimeBased] = useState(exercise?.isTimeBased ?? false);
   const [isUnilateral, setIsUnilateral] = useState(exercise?.isUnilateral ?? false);
   const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
@@ -217,6 +217,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
       restSeconds,
       progressionRule,
       isUnilateral,
+      isTimeBased: timeBased,
       notes: notes.trim() || null,
     };
 

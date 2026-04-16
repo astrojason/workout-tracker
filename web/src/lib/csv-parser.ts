@@ -126,6 +126,7 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
         restSeconds,
         progressionRule,
         isUnilateral,
+        isTimeBased: progressionRule === "add_time" || repMin >= 30,
         notes,
       },
     });

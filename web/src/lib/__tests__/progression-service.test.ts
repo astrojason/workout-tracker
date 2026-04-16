@@ -28,6 +28,7 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     restSeconds: 120,
     progressionRule: "add_5lb",
     isUnilateral: false,
+    isTimeBased: false,
     notes: null,
     ...overrides,
   };

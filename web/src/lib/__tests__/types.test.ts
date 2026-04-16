@@ -61,7 +61,7 @@ describe("repTargetDisplay", () => {
       equipmentType: "bodyweight", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 120,
       repMax: { type: "count", value: 120 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, notes: null,
+      progressionRule: "none", isUnilateral: false, isTimeBased: true, notes: null,
     };
     expect(repTargetDisplay(120, { type: "count", value: 120 }, mobilityExercise)).toBe("2 min");
   });
@@ -72,7 +72,7 @@ describe("repTargetDisplay", () => {
       equipmentType: "bodyweight", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 120,
       repMax: { type: "count", value: 180 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, notes: null,
+      progressionRule: "none", isUnilateral: false, isTimeBased: true, notes: null,
     };
     expect(repTargetDisplay(120, { type: "count", value: 180 }, exercise)).toBe("2 min-3 min");
   });
@@ -83,7 +83,7 @@ describe("repTargetDisplay", () => {
       equipmentType: "bodyweight", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 30,
       repMax: { type: "count", value: 30 }, restSeconds: 0,
-      progressionRule: "add_time", isUnilateral: false, notes: null,
+      progressionRule: "add_time", isUnilateral: false, isTimeBased: true, notes: null,
     };
     expect(repTargetDisplay(30, { type: "count", value: 30 }, exercise)).toBe("30s");
   });
@@ -94,7 +94,7 @@ describe("repTargetDisplay", () => {
       equipmentType: "barbell_45", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 135 }, sets: 3, repMin: 8,
       repMax: { type: "count", value: 12 }, restSeconds: 120,
-      progressionRule: "add_5lb", isUnilateral: false, notes: null,
+      progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
     };
     expect(repTargetDisplay(8, { type: "count", value: 12 }, exercise)).toBe("8-12 reps");
   });
@@ -105,46 +105,24 @@ describe("repTargetDisplay", () => {
 });
 
 describe("isTimeBased", () => {
-  it("returns true for add_time progression rule", () => {
+  it("returns true when isTimeBased field is true", () => {
     const exercise: Exercise = {
       id: "test", order: 1, name: "Plank", phase: "main",
       equipmentType: "bodyweight", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 0 }, sets: 3, repMin: 30,
       repMax: { type: "count", value: 30 }, restSeconds: 60,
-      progressionRule: "add_time", isUnilateral: false, notes: null,
+      progressionRule: "add_time", isUnilateral: false, isTimeBased: true, notes: null,
     };
     expect(isTimeBased(exercise)).toBe(true);
   });
 
-  it("returns true for mobility phase with reps >= 30", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Stretch", phase: "mobility",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 60,
-      repMax: { type: "count", value: 60 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, notes: null,
-    };
-    expect(isTimeBased(exercise)).toBe(true);
-  });
-
-  it("returns false for mobility phase with low reps", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Cat Cow", phase: "mobility",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 10,
-      repMax: { type: "count", value: 10 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, notes: null,
-    };
-    expect(isTimeBased(exercise)).toBe(false);
-  });
-
-  it("returns false for main phase exercises", () => {
+  it("returns false when isTimeBased field is false", () => {
     const exercise: Exercise = {
       id: "test", order: 1, name: "Squat", phase: "main",
       equipmentType: "barbell_45", equipmentDetail: null,
       baseWeight: { type: "fixed", value: 135 }, sets: 3, repMin: 8,
       repMax: { type: "count", value: 12 }, restSeconds: 120,
-      progressionRule: "add_5lb", isUnilateral: false, notes: null,
+      progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
     };
     expect(isTimeBased(exercise)).toBe(false);
   });

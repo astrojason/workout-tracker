@@ -56,6 +56,7 @@ export interface Exercise {
   restSeconds: number;
   progressionRule: ProgressionRule;
   isUnilateral: boolean;
+  isTimeBased: boolean;
   notes: string | null;
   // XLSX-only fields
   totalWeight?: number;          // pre-calculated total weight; seeds progressive starting weight if no history
@@ -205,9 +206,7 @@ export function isChecklistWorkout(workout: Workout): boolean {
 }
 
 export function isTimeBased(exercise: Exercise): boolean {
-  if (exercise.progressionRule === "add_time") return true;
-  if (exercise.phase === "mobility" && exercise.repMin >= 30) return true;
-  return false;
+  return exercise.isTimeBased;
 }
 
 export function formatTimeValue(seconds: number): string {

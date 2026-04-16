@@ -141,6 +141,7 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
 
   const progressionRule: ProgressionRule = parseString(row["Progression"]) || "none";
   const isUnilateral = parseBool(row["Unilateral"]);
+  const isTimeBased = parseBool(row["Is Timed"]) || progressionRule === "add_time" || repMin >= 30;
   const notes = parseString(row["Notes"]) || null;
 
   const exercise: Exercise = {
@@ -157,6 +158,7 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
     restSeconds,
     progressionRule,
     isUnilateral,
+    isTimeBased,
     notes,
     ...(totalWeight !== undefined ? { totalWeight } : {}),
     ...(lastSetAmrap ? { lastSetAmrap: true } : {}),
