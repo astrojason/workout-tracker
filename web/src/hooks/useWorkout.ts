@@ -249,7 +249,11 @@ export function useWorkout(userId: string | null) {
   const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => {
     if (!session || !currentExercise) return;
 
-    const targetReps = currentExercise.repMax.type === "count" ? currentExercise.repMax.value : currentExercise.repMin;
+    const targetReps =
+      currentExercise.repMax.type === "count" &&
+      !(currentExercise.lastSetAmrap && session.currentSetNumber === currentExercise.sets)
+        ? currentExercise.repMax.value
+        : currentExercise.repMin;
 
     const completedSet: CompletedSet = {
       id: crypto.randomUUID(),
@@ -276,13 +280,14 @@ export function useWorkout(userId: string | null) {
 
     const updatedSession = { ...session, completedSets: newSets };
 
-    // Between-set rest uses restSeconds directly; restAfter only applies to the
-    // transition between exercises (it may suppress or override that timer).
+    // restAfter === false suppresses all rest timers (both between-set and
+    // between-exercise) — used by warmup exercises to flow continuously.
+    // restAfter as a number overrides only the between-exercise timer duration.
     // IMPORTANT: always advance the position in state FIRST, then start the
     // rest timer. The timer only flips isResting → false; it never moves
     // currentSetNumber or currentExerciseIndex. This prevents double-advance
     // bugs caused by stale closures or rapid state updates.
-    const betweenSetRest = currentExercise.restSeconds;
+    const betweenSetRest = currentExercise.restAfter === false ? 0 : currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
       const nextSession = { ...updatedSession, currentSetNumber: session.currentSetNumber + 1 };
@@ -317,7 +322,11 @@ export function useWorkout(userId: string | null) {
       setNumber: session.currentSetNumber,
       targetWeight: currentWeight,
       actualWeight: 0,
-      targetReps: currentExercise.repMax.type === "count" ? currentExercise.repMax.value : currentExercise.repMin,
+      targetReps:
+        currentExercise.repMax.type === "count" &&
+        !(currentExercise.lastSetAmrap && session.currentSetNumber === currentExercise.sets)
+          ? currentExercise.repMax.value
+          : currentExercise.repMin,
       actualReps: 0,
       completed: false,
       timestamp: Timestamp.now(),
@@ -438,7 +447,23 @@ export function useWorkout(userId: string | null) {
       const exercises = prev.workout.exercises.map((e) =>
         e.id === exerciseId ? { ...e, sets: newSets } : e
       );
-      return { ...prev, workout: { ...prev.workout, exercises } };
+      const updated = { ...prev, workout: { ...prev.workout, exercises } };
+
+      // If the current exercise's set count drops below the current set number,
+      // advance to the next exercise immediately (no rest timer).
+      const isCurrent = prev.workout.exercises[prev.currentExerciseIndex]?.id === exerciseId;
+      if (isCurrent && newSets < prev.currentSetNumber) {
+        if (prev.currentExerciseIndex < prev.workout.exercises.length - 1) {
+          return {
+            ...updated,
+            currentExerciseIndex: prev.currentExerciseIndex + 1,
+            currentSetNumber: 1,
+            isResting: false,
+          };
+        }
+      }
+
+      return updated;
     });
   }, []);
 

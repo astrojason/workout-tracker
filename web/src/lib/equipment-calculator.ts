@@ -269,7 +269,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
         const bandLabel = display.weight === 1 ? "band" : "bands";
         return `${display.weight} ${bandLabel} (~${display.weight * 80} lbs assistance)`;
       }
-      return display.detail || "Assisted";
+      return display.detail?.replace(/_/g, " ") || "Assisted";
     }
     case "kettlebell": return `Kettlebell: ${cleanWeight(display.weight)} lbs`;
     case "gripper": return display.weight > 0 ? `Gripper: ${cleanWeight(display.weight)} lbs` : "Gripper";

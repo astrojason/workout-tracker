@@ -163,6 +163,19 @@ describe("parseXLSX - phase sort order", () => {
     expect(result.workouts[0].exercises.map((e) => e.name)).toEqual(["First", "Second", "Third"]);
   });
 
+  it("re-indexes exercises 1–N after sorting (program-import user story)", () => {
+    const buf = buildXLSX({
+      Monday: [
+        makeRow({ Phase: "finisher", Order: 10, Exercise: "Finisher" }),
+        makeRow({ Phase: "warmup",   Order: 5,  Exercise: "Warm Up" }),
+        makeRow({ Phase: "main",     Order: 3,  Exercise: "Main Lift" }),
+      ],
+    });
+    const result = parseXLSX(buf);
+    const orders = result.workouts[0].exercises.map((e) => e.order);
+    expect(orders).toEqual([1, 2, 3]);
+  });
+
 });
 
 // ── rest_after column ─────────────────────────────────────────────────────────
@@ -260,6 +273,47 @@ describe("parseXLSX - Progression column", () => {
   it("defaults empty Progression to 'none'", () => {
     const buf = buildXLSX({ Monday: [makeRow({ Progression: "" })] });
     expect(parseXLSX(buf).workouts[0].exercises[0].progressionRule).toBe("none");
+  });
+});
+
+// ── time-based-exercises and unilateral-exercises user stories ────────────────
+
+describe("parseXLSX - time-based-exercises user story", () => {
+  it("sets isTimeBased=true when progression is add_time", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ Progression: "add_time", "Rep Min": 10 })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isTimeBased).toBe(true);
+  });
+
+  it("sets isTimeBased=true when repMin >= 30", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Rep Min": 30 })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isTimeBased).toBe(true);
+  });
+
+  it("sets isTimeBased=false when repMin is 29 (boundary: not a duration)", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Rep Min": 29 })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isTimeBased).toBe(false);
+  });
+
+  it("sets isTimeBased=true when repMin > 30", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Rep Min": 45 })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isTimeBased).toBe(true);
+  });
+});
+
+describe("parseXLSX - unilateral-exercises user story", () => {
+  it("sets isUnilateral=true when Unilateral column is true", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ Unilateral: true })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isUnilateral).toBe(true);
+  });
+
+  it("sets isUnilateral=true when Unilateral column is string 'TRUE'", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ Unilateral: "TRUE" })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isUnilateral).toBe(true);
+  });
+
+  it("sets isUnilateral=false when Unilateral column is false", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ Unilateral: false })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].isUnilateral).toBe(false);
   });
 });
 

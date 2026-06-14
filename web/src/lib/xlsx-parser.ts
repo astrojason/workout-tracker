@@ -151,7 +151,7 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
     phase: phaseStr,
     equipmentType,
     equipmentDetail,
-    baseWeight: { type: "fixed", value: totalWeight ?? 0 },
+    baseWeight: { type: "progressive" },
     sets,
     repMin,
     repMax,

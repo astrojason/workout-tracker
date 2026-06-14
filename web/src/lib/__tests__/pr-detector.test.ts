@@ -187,4 +187,35 @@ describe("checkForPRs", () => {
     const oneRM = result.find((r) => r.type === "estimated1RM");
     expect(oneRM!.value).toBeCloseTo(240, 1);
   });
+
+  // amrap-pr-edge-cases user story
+  it("failed AMRAP set does not generate PR even with high rep count", async () => {
+    const sets = [
+      makeSet({ actualWeight: 100, actualReps: 25, completed: false }),
+    ];
+    const result = await checkForPRs("user-1", "Assisted Pull-ups", sets);
+    expect(result).toEqual([]);
+    expect(mockSavePR).not.toHaveBeenCalled();
+  });
+
+  it("zero-weight bodyweight completed set generates no PRs (weight filter excludes volume too)", async () => {
+    // weight=0 → filtered from weightedSets → no weight, 1RM, or volume PR
+    // (volume = 0 × reps = 0 in any case)
+    const sets = [
+      makeSet({ actualWeight: 0, actualReps: 20, completed: true }),
+    ];
+    const result = await checkForPRs("user-1", "Push-ups", sets);
+    expect(result).toEqual([]);
+    expect(mockSavePR).not.toHaveBeenCalled();
+  });
+
+  // personal-records-and-history user story: skipped sets excluded
+  it("excludes skipped sets (0 reps, completed=false) from all PR calculations", async () => {
+    const sets = [
+      makeSet({ actualWeight: 135, actualReps: 0, completed: false, notes: "Skipped" }),
+    ];
+    const result = await checkForPRs("user-1", "Bench Press", sets);
+    expect(result).toEqual([]);
+    expect(mockSavePR).not.toHaveBeenCalled();
+  });
 });

@@ -68,12 +68,11 @@ describe("applyProgression", () => {
   });
 
   it("adds 2.5lbs with barbell equipment adjustment", () => {
-    // 50 + 2.5 = 52.5 on 45lb bar → per side = 3.75 → rounds up to nearest achievable
+    // 50 + 2.5 = 52.5 on 45lb bar → per side = 3.75 → rounds DOWN to nearest achievable
     const exercise = makeExercise({ progressionRule: "add_2.5lb", equipmentType: "barbell_45" });
     const result = applyProgression(50, exercise);
-    expect(result).toBeGreaterThanOrEqual(52.5);
-    // Should round to achievable plate config
-    expect(result).toBe(53); // 45 bar + 2x4 per side = 45 + 8 = 53 → actually calculated by plate algo
+    // 52.5 isn't exactly achievable; nearest below is 52 (per side = 3.5 = 2.5+1)
+    expect(result).toBe(52);
   });
 
   it("adds 10lbs for add_10lb rule", () => {
@@ -145,6 +144,33 @@ describe("applyProgression", () => {
     const result = applyProgression(0, exercise);
     // 0 + 5 = 5, on barbell that's less than bar weight
     expect(result).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── resistance-reduction-progression user story ───────────────────────────────
+
+describe("resistance-reduction-progression", () => {
+  it("'2 bands' progression rule returns unchanged weight for assisted_pullup", () => {
+    const exercise = makeExercise({ equipmentType: "assisted_pullup", progressionRule: "2 bands" });
+    expect(applyProgression(3, exercise)).toBe(3);
+  });
+
+  it("band color 'Blue' progression rule returns unchanged weight", () => {
+    const exercise = makeExercise({ equipmentType: "band", progressionRule: "Blue" });
+    expect(applyProgression(0, exercise)).toBe(0);
+  });
+
+  it("band color 'Green' progression rule returns unchanged weight", () => {
+    const exercise = makeExercise({ equipmentType: "band", progressionRule: "Green" });
+    expect(applyProgression(0, exercise)).toBe(0);
+  });
+
+  it("free-form progression rule strings never throw", () => {
+    const rules = ["2 bands", "3 bands", "Blue", "Green", "Red", "Purple", "Black"];
+    for (const rule of rules) {
+      const exercise = makeExercise({ progressionRule: rule });
+      expect(() => applyProgression(0, exercise)).not.toThrow();
+    }
   });
 });
 

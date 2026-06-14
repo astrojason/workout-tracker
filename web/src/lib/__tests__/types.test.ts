@@ -6,8 +6,9 @@ import {
   cleanWeight,
   formatRestTime,
   formatDuration,
+  isChecklistWorkout,
 } from "../types";
-import type { EquipmentType, RepTarget, Exercise } from "../types";
+import type { EquipmentType, RepTarget, Exercise, Workout } from "../types";
 
 describe("barWeight", () => {
   it("returns 45 for barbell_45", () => {
@@ -216,5 +217,85 @@ describe("formatDuration", () => {
   it("handles seconds that round to less than 1 minute", () => {
     expect(formatDuration(30)).toBe("0 min");
     expect(formatDuration(59)).toBe("0 min");
+  });
+});
+
+// ── checklist-workout user story ──────────────────────────────────────────────
+
+function makeChecklistExercise(overrides: Partial<Exercise> = {}): Exercise {
+  return {
+    id: "ex-1", order: 1, name: "Dead Bug", phase: "mobility",
+    equipmentType: "bodyweight", equipmentDetail: null,
+    baseWeight: { type: "fixed", value: 0 }, sets: 1,
+    repMin: 10, repMax: { type: "count", value: 10 },
+    restSeconds: 0, progressionRule: "none",
+    isUnilateral: false, isTimeBased: false, notes: null,
+    ...overrides,
+  };
+}
+
+function makeWorkout(overrides: Partial<Workout> = {}): Workout {
+  return {
+    id: "w-1", programName: "Test", week: 1, dayOfWeek: "Monday",
+    exercises: [makeChecklistExercise()],
+    ...overrides,
+  };
+}
+
+describe("isChecklistWorkout", () => {
+  it("returns true when isChecklist flag is explicitly true", () => {
+    expect(isChecklistWorkout(makeWorkout({ isChecklist: true }))).toBe(true);
+  });
+
+  it("returns false when isChecklist flag is explicitly false", () => {
+    // Explicit false overrides heuristic even if exercises would match
+    expect(isChecklistWorkout(makeWorkout({ isChecklist: false }))).toBe(false);
+  });
+
+  it("heuristic: returns true when all exercises have restSeconds=0 and allowed progression rules", () => {
+    const workout = makeWorkout({
+      exercises: [
+        makeChecklistExercise({ progressionRule: "none" }),
+        makeChecklistExercise({ progressionRule: "maintain" }),
+        makeChecklistExercise({ progressionRule: "add_time" }),
+        makeChecklistExercise({ progressionRule: "add_reps" }),
+      ],
+    });
+    expect(isChecklistWorkout(workout)).toBe(true);
+  });
+
+  it("heuristic: returns false when any exercise has restSeconds > 0", () => {
+    const workout = makeWorkout({
+      exercises: [
+        makeChecklistExercise({ restSeconds: 0 }),
+        makeChecklistExercise({ restSeconds: 60 }),
+      ],
+    });
+    expect(isChecklistWorkout(workout)).toBe(false);
+  });
+
+  it("heuristic: returns false when any exercise has a non-checklist progression rule", () => {
+    const workout = makeWorkout({
+      exercises: [
+        makeChecklistExercise({ progressionRule: "none" }),
+        makeChecklistExercise({ progressionRule: "add_5lb" }),
+      ],
+    });
+    expect(isChecklistWorkout(workout)).toBe(false);
+  });
+
+  it("heuristic: 'add_reps' is an allowed checklist progression rule", () => {
+    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_reps" })] });
+    expect(isChecklistWorkout(workout)).toBe(true);
+  });
+
+  it("heuristic: 'add_time' is an allowed checklist progression rule", () => {
+    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_time" })] });
+    expect(isChecklistWorkout(workout)).toBe(true);
+  });
+
+  it("heuristic: 'add_5lb' is not an allowed checklist progression rule", () => {
+    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_5lb" })] });
+    expect(isChecklistWorkout(workout)).toBe(false);
   });
 });

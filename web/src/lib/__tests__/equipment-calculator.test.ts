@@ -785,3 +785,127 @@ describe("FIXED_DUMBBELLS and KETTLEBELL_WEIGHTS inventories", () => {
     if (result.type === "dumbbell") expect(result.weight).toBe(2);
   });
 });
+
+// ── equipment-weight-display user story ───────────────────────────────────────
+
+describe("equipment-weight-display user story", () => {
+  it("Landmine Press at 55 lbs: achievedWeight=55, 10 lb plate on one side", () => {
+    const ex = makeExercise({ name: "Landmine Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 55);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBe(true);
+      expect(result.config.achievedWeight).toBe(55);
+      const oneSide = result.config.perSide.reduce((s, p) => s + p.plate * p.count, 0);
+      expect(oneSide).toBe(10);
+    }
+  });
+
+  it("Landmine Press at 90 lbs: achievedWeight=90, 45 lb plate on one side", () => {
+    const ex = makeExercise({ name: "Landmine Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 90);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBe(true);
+      expect(result.config.achievedWeight).toBe(90);
+      const oneSide = result.config.perSide.reduce((s, p) => s + p.plate * p.count, 0);
+      expect(oneSide).toBe(45);
+    }
+  });
+
+  it("Bench Press at 135 lbs: achievedWeight=135, 45 lbs each side", () => {
+    const ex = makeExercise({ name: "Bench Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 135);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBeUndefined();
+      expect(result.config.achievedWeight).toBe(135);
+      const perSide = result.config.perSide.reduce((s, p) => s + p.plate * p.count, 0);
+      expect(perSide).toBe(45);
+    }
+  });
+
+  it("Bench Press at 155 lbs: achievedWeight=155, 55 lbs each side", () => {
+    const ex = makeExercise({ name: "Bench Press", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 155);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.achievedWeight).toBe(155);
+      const perSide = result.config.perSide.reduce((s, p) => s + p.plate * p.count, 0);
+      expect(perSide).toBe(55);
+    }
+  });
+
+  it("achievedWeight always equals configured weight for exactly loadable barbell weights", () => {
+    // All weights achievable by the plate calculator must round-trip exactly.
+    const achievable = [45, 55, 65, 75, 85, 95, 105, 115, 135, 145, 155, 185, 225];
+    const ex = makeExercise({ name: "Bench Press", equipmentType: "barbell_45" });
+    for (const w of achievable) {
+      const result = getEquipmentDisplay(ex, w);
+      if (result.type === "barbell") {
+        expect(result.config.achievedWeight).toBe(w);
+      }
+    }
+  });
+
+  it("PowerBlock at 25 lbs: shows selector and rod configuration, not plates", () => {
+    const ex = makeExercise({ equipmentType: "powerblock" });
+    const result = getEquipmentDisplay(ex, 25);
+    expect(result.type).toBe("powerblock");
+    if (result.type === "powerblock") {
+      expect(result.weight).toBe(25);
+      expect(result.instructions.selector).toBeGreaterThan(0);
+    }
+  });
+
+  it("powerblock with equipment_detail '2lb' is treated as a regular dumbbell", () => {
+    const ex = makeExercise({ equipmentType: "powerblock", equipmentDetail: "2lb" });
+    const result = getEquipmentDisplay(ex, 2);
+    expect(result.type).toBe("dumbbell");
+  });
+});
+
+// ── resistance-reduction-progression user story ───────────────────────────────
+
+describe("resistance-reduction-progression user story", () => {
+  it("assisted_pullup with detail '3_bands' and weight=0 displays '3 bands' (underscores replaced)", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "3_bands" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("assisted");
+    expect(equipmentDisplayText(result)).toBe("3 bands");
+  });
+
+  it("assisted_pullup with detail '3 bands' (no underscore) and weight=0 displays '3 bands'", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "3 bands" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(equipmentDisplayText(result)).toBe("3 bands");
+  });
+
+  it("assisted_pullup with weight=3 (band count) displays '3 bands (~240 lbs assistance)'", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "3_bands" });
+    const result = getEquipmentDisplay(ex, 3);
+    expect(equipmentDisplayText(result)).toBe("3 bands (~240 lbs assistance)");
+  });
+
+  it("band equipment with Green detail displays name and resistance range", () => {
+    const ex = makeExercise({ equipmentType: "band", equipmentDetail: "Green" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("band");
+    expect(equipmentDisplayText(result)).toBe("Green Band (50-120 lbs)");
+  });
+
+  it("band equipment with Blue detail displays name and resistance range", () => {
+    const ex = makeExercise({ equipmentType: "band", equipmentDetail: "Blue" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("band");
+    expect(equipmentDisplayText(result)).toBe("Blue Band (20-80 lbs)");
+  });
+
+  it("assisted_pullup is never treated as a weighted exercise (type is 'assisted', not 'barbell')", () => {
+    const ex = makeExercise({ equipmentType: "assisted_pullup", equipmentDetail: "3_bands" });
+    const result = getEquipmentDisplay(ex, 3);
+    expect(result.type).toBe("assisted");
+    expect(result.type).not.toBe("barbell");
+    expect(result.type).not.toBe("powerblock");
+  });
+});
