@@ -88,13 +88,17 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
           >
             -
           </button>
-          <input
-            type="number"
-            value={weight}
-            onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
-            step={step}
-            className="w-28 bg-gray-800 rounded-xl px-4 py-3 text-2xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
-          />
+          <div>
+            <label htmlFor="weight-editor-input" className="sr-only">Weight (lbs)</label>
+            <input
+              id="weight-editor-input"
+              type="number"
+              value={weight}
+              onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
+              step={step}
+              className="w-28 bg-gray-800 rounded-xl px-4 py-3 text-2xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
+            />
+          </div>
           <button
             onClick={() => setWeight(weight + step)}
             className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
@@ -108,7 +112,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
             Cancel
           </button>
           <button onClick={() => onSave(weight)} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition">
-            Update
+            Save
           </button>
         </div>
       </div>

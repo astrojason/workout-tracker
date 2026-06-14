@@ -193,8 +193,10 @@ export function plateFullDisplayString(config: PlateConfiguration): string {
     return `Bar only (${cleanWeight(config.barWeight)} lbs)`;
   }
   const plateStr = plateDisplayString(config);
-  const label = config.isLandmine ? "One side" : "Each side";
-  return `${label}: ${plateStr} (${cleanWeight(config.achievedWeight)} lbs)`;
+  if (config.isLandmine) {
+    return `One side: ${cleanWeight(config.barWeight)} bar + ${plateStr} plate (${cleanWeight(config.achievedWeight)} lbs)`;
+  }
+  return `Each side: ${plateStr} (${cleanWeight(config.achievedWeight)} lbs)`;
 }
 
 function parseWeightFromDetail(detail: string): number | null {

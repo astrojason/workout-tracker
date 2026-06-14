@@ -41,7 +41,7 @@ export function SetCompletionModal({
 
         {/* Reps / Duration */}
         <div className="mb-5">
-          <label className="text-sm text-gray-400 block mb-2">
+          <label htmlFor="modal-reps-input" className="text-sm text-gray-400 block mb-2">
             {timeBased ? "Duration Completed" : "Reps Completed"}
           </label>
           <div className="flex items-center justify-center gap-4">
@@ -52,6 +52,7 @@ export function SetCompletionModal({
               -
             </button>
             <input
+              id="modal-reps-input"
               type="number"
               value={reps}
               onChange={(e) => setReps(Math.max(0, parseInt(e.target.value) || 0))}
@@ -69,10 +70,11 @@ export function SetCompletionModal({
         {/* Weight */}
         {targetWeight > 0 && (
           <div className="mb-5">
-            <label className="text-sm text-gray-400 block mb-2">
+            <label htmlFor="modal-weight-input" className="text-sm text-gray-400 block mb-2">
               {isAssistedPullup ? "Bands" : "Weight (lbs)"}
             </label>
             <input
+              id="modal-weight-input"
               type="number"
               value={weight}
               onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}

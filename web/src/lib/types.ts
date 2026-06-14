@@ -230,7 +230,7 @@ export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: E
     if (repMax.type === "count") return `${formatTimeValue(repMin)}-${formatTimeValue(repMax.value)}`;
   }
   if (repMin === repMax.value) return `${repMin} reps`;
-  return `${repMin}-${repMax.value} reps`;
+  return `${repMin}–${repMax.value} reps`;
 }
 
 export function cleanWeight(w: number): string {

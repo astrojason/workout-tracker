@@ -32,8 +32,8 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
           className={`bg-gray-800 rounded-xl p-3 text-center ${onEditSets ? "cursor-pointer active:bg-gray-700" : ""}`}
           onClick={onEditSets}
         >
-          <div className="text-xs text-gray-400">Set {onEditSets && <span className="text-indigo-400">Edit</span>}</div>
-          <div className="text-lg font-bold">{setNumber} of {exercise.sets}</div>
+          <div className="text-xs text-gray-400">{onEditSets ? <span className="text-indigo-400">Edit</span> : null}</div>
+          <div className="text-lg font-bold">Set {setNumber} of {exercise.sets}</div>
         </div>
         <div className="bg-gray-800 rounded-xl p-3 text-center">
           <div className="text-xs text-gray-400">{isTimeBased(exercise) ? "Duration" : "Reps"}</div>
@@ -41,33 +41,49 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
         </div>
         {exercise.restSeconds > 0 && (
           <div className="bg-gray-800 rounded-xl p-3 text-center">
-            <div className="text-xs text-gray-400">Rest</div>
+            <div className="text-xs text-gray-400">Recovery</div>
             <div className="text-lg font-bold">{formatRestTime(exercise.restSeconds)}</div>
           </div>
         )}
       </div>
 
       {/* Equipment */}
-      <div
-        className={`bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4 ${onEditWeight ? "cursor-pointer active:bg-indigo-950/80" : ""}`}
-        onClick={onEditWeight}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-indigo-300 font-semibold">
-              {equipmentDisplayText(equipmentDisplay)}
-            </div>
-            {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
-              <div className="text-indigo-400/70 text-xs mt-0.5">
-                {equipmentDisplay.instructions.label}
+      {onEditWeight ? (
+        <button
+          type="button"
+          onClick={onEditWeight}
+          className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4 w-full text-left cursor-pointer active:bg-indigo-950/80"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-indigo-300 font-semibold">
+                {equipmentDisplayText(equipmentDisplay)}
               </div>
-            )}
+              {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+                <div className="text-indigo-400/70 text-xs mt-0.5">
+                  {equipmentDisplay.instructions.label}
+                </div>
+              )}
+            </div>
+            <span className="text-indigo-400 text-xs">Edit weight</span>
           </div>
-          {onEditWeight && (
-            <span className="text-indigo-400 text-xs">Edit</span>
-          )}
+        </button>
+      ) : (
+        <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-indigo-300 font-semibold">
+                {equipmentDisplayText(equipmentDisplay)}
+              </div>
+              {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+                <div className="text-indigo-400/70 text-xs mt-0.5">
+                  {equipmentDisplay.instructions.label}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Unilateral */}
       {exercise.isUnilateral && (

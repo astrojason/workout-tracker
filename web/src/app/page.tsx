@@ -18,6 +18,70 @@ export default function HomePage() {
   const workout = useWorkout(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
 
+  // Active workout — show regardless of auth so a session restored from localStorage
+  // is never blocked by the sign-in screen.
+  if (workout.session) {
+    const lastExercise = workout.session.workout.exercises[workout.session.workout.exercises.length - 1];
+    const lastExerciseSets = workout.session.completedSets.filter(s => s.exerciseOrder === lastExercise?.order).length;
+    const workoutDone = lastExerciseSets >= (lastExercise?.sets ?? 0) || workout.session.prsAchieved.length > 0;
+
+    if (workoutDone && !workout.session.isResting) {
+      return (
+        <WorkoutComplete
+          session={workout.session}
+          onDone={() => {
+            workout.dismissWorkout();
+            refreshCompletedDays();
+          }}
+        />
+      );
+    }
+
+    return (
+      <ActiveWorkout
+        session={workout.session}
+        onCompleteSet={workout.completeSet}
+        onSkipSet={workout.skipSet}
+        onSkipRest={workout.skipRest}
+        onEndWorkout={async () => {
+          await workout.endWorkout();
+        }}
+        onUpdateWeight={workout.updateWeight}
+        onUpdateSets={workout.updateSets}
+        onDismiss={workout.dismissWorkout}
+        onPause={workout.pauseWorkout}
+      />
+    );
+  }
+
+  // Paused workout for unauthenticated users — show resume page before the sign-in wall.
+  if (!user && workout.pausedSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-1">Workout Paused</h1>
+          <p className="text-gray-400">
+            {workout.pausedSession.workout.programName} &middot; {workout.pausedSession.workout.dayOfWeek}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={workout.dismissWorkout}
+            className="px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+          >
+            Discard
+          </button>
+          <button
+            onClick={workout.resumeWorkout}
+            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition"
+          >
+            Resume
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -59,47 +123,6 @@ export default function HomePage() {
           setChecklistWorkout(null);
           refreshCompletedDays();
         }}
-      />
-    );
-  }
-
-  // Active workout overlay
-  if (workout.session) {
-    const isComplete = workout.session.prsAchieved.length > 0 ||
-      (workout.session.completedSets.length > 0 &&
-        workout.session.currentExerciseIndex >= workout.session.workout.exercises.length - 1 &&
-        !workout.session.isResting);
-
-    // Check if workout is truly done (all sets of last exercise completed)
-    const lastExercise = workout.session.workout.exercises[workout.session.workout.exercises.length - 1];
-    const lastExerciseSets = workout.session.completedSets.filter(s => s.exerciseOrder === lastExercise?.order).length;
-    const workoutDone = lastExerciseSets >= (lastExercise?.sets ?? 0) || workout.session.prsAchieved.length > 0;
-
-    if (workoutDone && !workout.session.isResting) {
-      return (
-        <WorkoutComplete
-          session={workout.session}
-          onDone={() => {
-            workout.dismissWorkout();
-            refreshCompletedDays();
-          }}
-        />
-      );
-    }
-
-    return (
-      <ActiveWorkout
-        session={workout.session}
-        onCompleteSet={workout.completeSet}
-        onSkipSet={workout.skipSet}
-        onSkipRest={workout.skipRest}
-        onEndWorkout={async () => {
-          await workout.endWorkout();
-        }}
-        onUpdateWeight={workout.updateWeight}
-        onUpdateSets={workout.updateSets}
-        onDismiss={workout.dismissWorkout}
-        onPause={workout.pauseWorkout}
       />
     );
   }

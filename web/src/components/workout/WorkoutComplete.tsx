@@ -103,6 +103,13 @@ export function WorkoutComplete({ session, onDone }: WorkoutCompleteProps) {
           </div>
         </div>
 
+        {/* View details link */}
+        <div className="mb-4 text-center">
+          <a href="#session-details" className="text-indigo-400 text-sm hover:text-indigo-300 transition">
+            View Details
+          </a>
+        </div>
+
         {/* Done button */}
         <button
           onClick={onDone}
@@ -110,6 +117,31 @@ export function WorkoutComplete({ session, onDone }: WorkoutCompleteProps) {
         >
           Done
         </button>
+
+        {/* Session details table */}
+        <div id="session-details" className="mt-6">
+          <h2 className="font-bold mb-3">Set Details</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 uppercase">
+                <th className="py-2 text-left">Set</th>
+                <th className="py-2 text-right">Weight</th>
+                <th className="py-2 text-right">Reps</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {session.completedSets.map((s) => (
+                <tr key={s.id}>
+                  <td className="py-2 text-gray-400">{s.setNumber}</td>
+                  <td className="py-2 text-right font-mono">
+                    {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lbs` : "BW"}
+                  </td>
+                  <td className="py-2 text-right font-mono">{s.actualReps}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

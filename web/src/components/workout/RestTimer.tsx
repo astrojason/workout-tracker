@@ -76,9 +76,10 @@ export function RestTimer({ session, onSkipRest }: RestTimerProps) {
         {/* Skip */}
         <button
           onClick={onSkipRest}
+          aria-label="Skip Rest"
           className="px-8 py-3 rounded-full bg-gray-800 hover:bg-gray-700 font-semibold transition"
         >
-          Skip Rest
+          Skip
         </button>
       </div>
     </div>
