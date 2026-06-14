@@ -44,11 +44,11 @@ describe("repTargetDisplay", () => {
   });
 
   it("returns range when min differs from max", () => {
-    expect(repTargetDisplay(8, { type: "count", value: 12 })).toBe("8-12 reps");
+    expect(repTargetDisplay(8, { type: "count", value: 12 })).toBe("8–12 reps");
   });
 
   it("handles low rep range", () => {
-    expect(repTargetDisplay(1, { type: "count", value: 3 })).toBe("1-3 reps");
+    expect(repTargetDisplay(1, { type: "count", value: 3 })).toBe("1–3 reps");
   });
 
   it("returns 'AMRAP' regardless of repMin value", () => {
@@ -97,7 +97,7 @@ describe("repTargetDisplay", () => {
       repMax: { type: "count", value: 12 }, restSeconds: 120,
       progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
     };
-    expect(repTargetDisplay(8, { type: "count", value: 12 }, exercise)).toBe("8-12 reps");
+    expect(repTargetDisplay(8, { type: "count", value: 12 }, exercise)).toBe("8–12 reps");
   });
 
   it("still works without exercise argument (backwards compatible)", () => {

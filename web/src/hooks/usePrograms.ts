@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Program, Workout, UserSettings } from "@/lib/types";
 import {
   getPrograms, getSettings, updateSettings,
-  getWorkoutsForProgram, getAllWorkoutsForProgram,
+  getWorkoutsForProgram,
   getCompletedDays, saveProgram, saveWorkout,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
 } from "@/lib/firestore";
@@ -105,6 +105,13 @@ export function usePrograms(userId: string | null) {
     return completedDaysCache[`${programName}_${week}`] || new Set();
   }, [completedDaysCache, settings]);
 
+  async function _cacheWorkoutsForProgram(progName: string) {
+    if (!userId) return;
+    const week = settings.currentWeeks[progName] || 1;
+    const wks = await getWorkoutsForProgram(userId, progName, week);
+    setWorkoutsCache((prev) => ({ ...prev, [`${progName}_${week}`]: wks }));
+  }
+
   async function _saveAndReload(
     parsed: ReturnType<typeof parseXLSX>,
     nameOverride?: string,
@@ -125,9 +132,7 @@ export function usePrograms(userId: string | null) {
     const progs = await getPrograms(userId);
     setPrograms(progs);
     for (const prog of progs.filter((p) => !p.archived)) {
-      const week = settings.currentWeeks[prog.name] || 1;
-      const wks = await getWorkoutsForProgram(userId, prog.name, week);
-      setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: wks }));
+      await _cacheWorkoutsForProgram(prog.name);
     }
   }
 
@@ -165,9 +170,7 @@ export function usePrograms(userId: string | null) {
 
     const progs = await getPrograms(userId);
     setPrograms(progs);
-    const week = settings.currentWeeks[programName] || 1;
-    const wks = await getWorkoutsForProgram(userId, programName, week);
-    setWorkoutsCache((prev) => ({ ...prev, [`${programName}_${week}`]: wks }));
+    await _cacheWorkoutsForProgram(programName);
   }, [userId, programs, settings]);
 
   const archiveProgram = useCallback(async (programId: string) => {
@@ -182,11 +185,7 @@ export function usePrograms(userId: string | null) {
     setPrograms((prev) => prev.map((p) => p.id === programId ? { ...p, archived: false } : p));
     // Load workouts for the newly active program
     const prog = programs.find((p) => p.id === programId);
-    if (prog) {
-      const week = settings.currentWeeks[prog.name] || 1;
-      const wks = await getWorkoutsForProgram(userId, prog.name, week);
-      setWorkoutsCache((prev) => ({ ...prev, [`${prog.name}_${week}`]: wks }));
-    }
+    if (prog) await _cacheWorkoutsForProgram(prog.name);
   }, [userId, programs, settings]);
 
   const deleteProgram = useCallback(async (programId: string, programName: string) => {
@@ -203,20 +202,15 @@ export function usePrograms(userId: string | null) {
     await updateSettings(userId, { currentWeeks: restWeeks });
 
     // Clean up caches
-    setWorkoutsCache((prev) => {
+    const evictPrefix = <T>(prev: Record<string, T>, prefix: string): Record<string, T> => {
       const next = { ...prev };
       for (const key of Object.keys(next)) {
-        if (key.startsWith(`${programName}_`)) delete next[key];
+        if (key.startsWith(prefix)) delete next[key];
       }
       return next;
-    });
-    setCompletedDaysCache((prev) => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        if (key.startsWith(`${programName}_`)) delete next[key];
-      }
-      return next;
-    });
+    };
+    setWorkoutsCache((prev) => evictPrefix(prev, `${programName}_`));
+    setCompletedDaysCache((prev) => evictPrefix(prev, `${programName}_`));
   }, [userId, settings]);
 
   const updateWorkout = useCallback(async (workout: Workout) => {

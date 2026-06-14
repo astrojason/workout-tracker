@@ -13,6 +13,24 @@ interface ExerciseCardProps {
   onEditSets?: () => void;
 }
 
+function EquipmentContent({ equipmentDisplay, editable }: { equipmentDisplay: EquipmentDisplay; editable: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-indigo-300 font-semibold">
+          {equipmentDisplayText(equipmentDisplay)}
+        </div>
+        {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+          <div className="text-indigo-400/70 text-xs mt-0.5">
+            {equipmentDisplay.instructions.label}
+          </div>
+        )}
+      </div>
+      {editable && <span className="text-indigo-400 text-xs">Edit weight</span>}
+    </div>
+  );
+}
+
 export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, onEditWeight, onEditSets }: ExerciseCardProps) {
   const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
 
@@ -54,34 +72,11 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
           onClick={onEditWeight}
           className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4 w-full text-left cursor-pointer active:bg-indigo-950/80"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-indigo-300 font-semibold">
-                {equipmentDisplayText(equipmentDisplay)}
-              </div>
-              {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
-                <div className="text-indigo-400/70 text-xs mt-0.5">
-                  {equipmentDisplay.instructions.label}
-                </div>
-              )}
-            </div>
-            <span className="text-indigo-400 text-xs">Edit weight</span>
-          </div>
+          <EquipmentContent equipmentDisplay={equipmentDisplay} editable />
         </button>
       ) : (
         <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-indigo-300 font-semibold">
-                {equipmentDisplayText(equipmentDisplay)}
-              </div>
-              {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
-                <div className="text-indigo-400/70 text-xs mt-0.5">
-                  {equipmentDisplay.instructions.label}
-                </div>
-              )}
-            </div>
-          </div>
+          <EquipmentContent equipmentDisplay={equipmentDisplay} editable={false} />
         </div>
       )}
 

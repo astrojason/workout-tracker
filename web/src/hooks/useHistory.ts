@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import type { WorkoutSessionDoc } from "@/lib/types";
 import { getSessions, getExerciseHistory } from "@/lib/firestore";
 
-export interface ExerciseStat {
+interface ExerciseStat {
   name: string;
   maxWeight: number;
   maxWeightReps: number;

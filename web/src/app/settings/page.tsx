@@ -4,6 +4,44 @@ import { useRef, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
+import { BottomNav } from "@/components/ui/BottomNav";
+
+function DeleteConfirmDialog({
+  programId,
+  programName,
+  deletingId,
+  onCancel,
+  onConfirm,
+}: {
+  programId: string;
+  programName: string;
+  deletingId: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
+      <p className="text-sm text-gray-300 mb-2">
+        Delete {programName}? This removes all workouts but keeps history.
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={deletingId === programId}
+          className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
+        >
+          {deletingId === programId ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -194,26 +232,13 @@ export default function SettingsPage() {
                 </div>
               </div>
               {confirmDeleteId === program.id && (
-                <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
-                  <p className="text-sm text-gray-300 mb-2">
-                    Delete {program.name}? This removes all workouts but keeps history.
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setConfirmDeleteId(null)}
-                      className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleDelete(program.id, program.name)}
-                      disabled={deletingId === program.id}
-                      className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
-                    >
-                      {deletingId === program.id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
+                <DeleteConfirmDialog
+                  programId={program.id}
+                  programName={program.name}
+                  deletingId={deletingId}
+                  onCancel={() => setConfirmDeleteId(null)}
+                  onConfirm={() => handleDelete(program.id, program.name)}
+                />
               )}
             </div>
           ))}
@@ -312,26 +337,13 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     {confirmDeleteId === program.id && (
-                      <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
-                        <p className="text-sm text-gray-300 mb-2">
-                          Delete {program.name}? This removes all workouts but keeps history.
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleDelete(program.id, program.name)}
-                            disabled={deletingId === program.id}
-                            className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
-                          >
-                            {deletingId === program.id ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </div>
+                      <DeleteConfirmDialog
+                        programId={program.id}
+                        programName={program.name}
+                        deletingId={deletingId}
+                        onCancel={() => setConfirmDeleteId(null)}
+                        onConfirm={() => handleDelete(program.id, program.name)}
+                      />
                     )}
                   </div>
                 ))}
@@ -408,23 +420,7 @@ export default function SettingsPage() {
         Workout Tracker v1.0.0
       </div>
 
-      {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 px-4 py-3">
-        <div className="max-w-lg mx-auto flex justify-around">
-          <Link href="/" className="flex flex-col items-center text-gray-500 hover:text-gray-300">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" /></svg>
-            <span className="text-xs mt-1">Home</span>
-          </Link>
-          <Link href="/history" className="flex flex-col items-center text-gray-500 hover:text-gray-300">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-            <span className="text-xs mt-1">History</span>
-          </Link>
-          <Link href="/settings" className="flex flex-col items-center text-indigo-400">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            <span className="text-xs mt-1">Settings</span>
-          </Link>
-        </div>
-      </nav>
+      <BottomNav active="settings" />
     </div>
   );
 }

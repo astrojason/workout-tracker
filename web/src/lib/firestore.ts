@@ -87,7 +87,7 @@ function workoutDocId(programName: string, week: number, day: string): string {
   return `${programName.toLowerCase().replace(/\s+/g, "-")}_${week}_${day}`;
 }
 
-export async function getWorkout(
+async function getWorkout(
   userId: string, programName: string, week: number, day: string
 ): Promise<Workout | null> {
   const id = workoutDocId(programName, week, day);
@@ -108,7 +108,7 @@ export async function getWorkoutsForProgram(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Workout));
 }
 
-export async function getAllWorkoutsForProgram(
+async function getAllWorkoutsForProgram(
   userId: string, programName: string
 ): Promise<Workout[]> {
   const q = query(workoutsCol(userId), where("programName", "==", programName));
@@ -297,7 +297,7 @@ export async function getExerciseHistory(
   return results.reverse();
 }
 
-export async function getAllExerciseNames(userId: string): Promise<string[]> {
+async function getAllExerciseNames(userId: string): Promise<string[]> {
   const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(100));
   const snap = await getDocs(q);
   const names = new Set<string>();

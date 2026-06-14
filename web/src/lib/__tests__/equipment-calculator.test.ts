@@ -381,7 +381,7 @@ describe("plateFullDisplayString", () => {
       perSide: [{ plate: 35, count: 1 }, { plate: 5, count: 1 }],
       isLandmine: true,
     };
-    expect(plateFullDisplayString(config)).toBe("One side: 1x35 + 1x5 (85 lbs)");
+    expect(plateFullDisplayString(config)).toBe("One side: 45 bar + 1x35 + 1x5 plate (85 lbs)");
   });
 });
 

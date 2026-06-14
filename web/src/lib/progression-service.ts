@@ -3,7 +3,7 @@ import { barWeight } from "./types";
 import { calculateBarbell, calculateLandmine, nearestPowerBlock } from "./equipment-calculator";
 import { getLastSetsForExercise } from "./firestore";
 
-export function getProgressionIncrement(exercise: Exercise): number {
+function getProgressionIncrement(exercise: Exercise): number {
   switch (exercise.progressionRule as string) {
     case "add_5lb": return 5;
     case "add_2.5lb": return 2.5;
@@ -12,7 +12,7 @@ export function getProgressionIncrement(exercise: Exercise): number {
   }
 }
 
-export function adjustForEquipment(target: number, exercise: Exercise): number {
+function adjustForEquipment(target: number, exercise: Exercise): number {
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {
     const isLandmine = exercise.name.toLowerCase().includes("landmine");
