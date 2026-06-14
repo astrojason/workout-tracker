@@ -1,6 +1,6 @@
 # Workout Tracker - Complete Technical Specification
 
-> **Last updated:** March 2026
+> **Last updated:** June 2026
 > This document reflects the actual current implementation across both the native iOS app and the Next.js web app.
 
 ---
@@ -57,15 +57,16 @@ web/src/
 │       └── AuthProvider.tsx
 ├── hooks/
 │   ├── useWorkout.ts             # Active workout state machine
-│   ├── usePrograms.ts            # Programs, settings, CSV import
-│   ├── useHistory.ts             # Session history + exercise stats
+│   ├── usePrograms.ts            # Programs, settings, XLSX import
+│   ├── useHistory.ts             # Session history + exercise stats (useHistory, useExerciseHistory)
 │   └── useSound.ts
 └── lib/
     ├── types.ts                  # All shared types + helper functions
     ├── firestore.ts              # All Firestore CRUD operations
-    ├── csv-parser.ts             # CSV -> Program/Workout objects
-    ├── progression-service.ts    # Weight resolution + progression logic
-    ├── equipment-calculator.ts   # Plate math, PowerBlock, display strings
+    ├── xlsx-parser.ts            # XLSX -> Program/Workout objects (primary import format)
+    ├── csv-parser.ts             # CSV -> Program/Workout objects (daily_mobility.csv only; not exposed in UI)
+    ├── progression-service.ts    # Planned weight resolution + equipment snapping
+    ├── equipment-calculator.ts   # Plate math, PowerBlock selector/rod config, display strings
     └── pr-detector.ts            # PR detection (weight, 1RM, volume)
 ```
 
@@ -80,8 +81,8 @@ type Phase = "warmup" | "main" | "finisher" | "cooldown" | "mobility";
 
 type EquipmentType =
   | "barbell_45" | "barbell_35" | "barbell_ez"
-  | "powerblock" | "band" | "kettlebell"
-  | "bodyweight" | "assisted_pullup";
+  | "powerblock" | "dumbbell" | "band" | "kettlebell"
+  | "bodyweight" | "assisted_pullup" | "gripper";
 
 type ProgressionRule =
   | "add_5lb" | "add_2.5lb" | "add_10lb"
@@ -113,7 +114,12 @@ interface Exercise {
   restSeconds: number;
   progressionRule: ProgressionRule;
   isUnilateral: boolean;
+  isTimeBased: boolean;         // true when repMin is a duration (seconds); set by parser
   notes: string | null;
+  // XLSX-only fields (optional on legacy CSV-sourced exercises):
+  totalWeight?: number;         // pre-calculated total weight; seeds progressive starting weight
+  lastSetAmrap?: boolean;       // when true, the final set is AMRAP regardless of repMax
+  restAfter?: false | number;   // false = no rest timer; number = rest seconds after exercise
 }
 
 interface Workout {
@@ -130,6 +136,7 @@ interface Program {
   name: string;
   totalWeeks: number;
   createdAt: Timestamp | Date;
+  archived?: boolean;           // soft-delete; archived programs hidden from home screen
 }
 
 interface UserSettings {
@@ -154,7 +161,9 @@ interface CompletedSet {
   completed: boolean;
   timestamp: Timestamp | Date;
   notes: string | null;
-  rating?: "easy" | "normal" | "hard";  // recorded per set
+  rating?: "easy" | "normal" | "hard";  // recorded per set (informational only)
+  isTimeBased?: boolean;                // true for time-based exercises
+  equipmentType?: EquipmentType;        // recorded for history display
 }
 
 interface WorkoutSessionDoc {
@@ -195,15 +204,6 @@ interface ActiveSession {
 #### Equipment Display Types
 
 ```typescript
-type EquipmentDisplay =
-  | { type: "barbell"; config: PlateConfiguration }
-  | { type: "powerblock"; weight: number }
-  | { type: "dumbbell"; weight: number }   // PowerBlock detail < 5 lbs
-  | { type: "band"; name: string; range: string }
-  | { type: "bodyweight"; detail: string | null }
-  | { type: "assisted"; weight: number; detail: string | null }
-  | { type: "kettlebell"; weight: number };
-
 interface PlateConfiguration {
   targetWeight: number;
   barWeight: number;
@@ -211,6 +211,22 @@ interface PlateConfiguration {
   perSide: { plate: number; count: number }[];
   isLandmine?: boolean;                    // true for landmine exercises
 }
+
+interface PowerBlockInstructions {
+  selector: number;                        // selector weight to dial to
+  rods: "none" | "one" | "both";          // rod insert configuration
+  label: string;                           // e.g. "Selector to 25 · no rods"
+}
+
+type EquipmentDisplay =
+  | { type: "barbell"; config: PlateConfiguration }
+  | { type: "powerblock"; weight: number; instructions: PowerBlockInstructions }
+  | { type: "dumbbell"; weight: number }   // fixed dumbbell or PowerBlock detail < 5 lbs
+  | { type: "band"; name: string; range: string }
+  | { type: "bodyweight"; detail: string | null }
+  | { type: "assisted"; weight: number; detail: string | null }
+  | { type: "kettlebell"; weight: number }
+  | { type: "gripper"; weight: number };
 ```
 
 ---
@@ -220,7 +236,7 @@ interface PlateConfiguration {
 ```
 /users/{userId}/
   settings/prefs          -> UserSettings
-  programs/{programId}    -> { name, totalWeeks, createdAt }
+  programs/{programId}    -> { name, totalWeeks, createdAt, archived? }
   workouts/{workoutId}    -> Workout (exercises embedded as array)
   sessions/{sessionId}    -> WorkoutSessionDoc (sets embedded as array)
   personalRecords/{prId}  -> PersonalRecordDoc
@@ -233,9 +249,13 @@ interface PlateConfiguration {
 
 ### Services
 
+#### XLSX Parser (`lib/xlsx-parser.ts`)
+
+Reads multi-sheet XLSX files (primary import format). Each sheet is a day of the week. Parses all XLSX-extended columns, assigns `crypto.randomUUID()` to each exercise on parse. Sets `isChecklist: true` for any workout where `dayOfWeek === "Daily"`. Derives `isTimeBased` per exercise based on the progression rule and rep values.
+
 #### CSV Parser (`lib/csv-parser.ts`)
 
-Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Assigns `crypto.randomUUID()` to each exercise on parse. Sets `isChecklist: true` for any workout where `dayOfWeek === "Daily"`.
+Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Used only for `daily_mobility.csv`; not exposed via the Settings UI (XLSX import only).
 
 #### Equipment Calculator (`lib/equipment-calculator.ts`)
 
@@ -253,13 +273,19 @@ Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Assigns `
 | 0.75  | 1 |
 | 0.5   | 1 |
 
-**`calculateBarbell(targetWeight, barWeight)`** — subtracts bar, divides by 2, builds greedy plate combination. If exact match impossible, rounds up in 0.25 lb increments.
+**`calculateBarbell(targetWeight, barWeight)`** — subtracts bar, divides by 2, builds greedy plate combination (largest plates first). If exact match impossible, rounds down in 0.25 lb increments to the nearest achievable weight.
 
-**`calculateLandmine(targetWeight, barWeight)`** — same but divides by 1 (one-side loading). Triggered when exercise name contains "landmine".
+**`calculateLandmine(targetWeight, barWeight)`** — same but uses one-side loading (no ÷2). Triggered when exercise name contains "landmine".
 
 **`nearestPowerBlock(target)`** — clamps to 5–50 lbs, rounds to nearest 2.5 lbs.
 
-**`getEquipmentDisplay(exercise, weight)`** — returns the appropriate `EquipmentDisplay` variant. Special case: if `equipmentType === "powerblock"` and `equipmentDetail` indicates a weight < 5 lbs (e.g. "2lb"), returns `{ type: "dumbbell" }` instead.
+**`getPowerBlockInstructions(weight)`** — returns `PowerBlockInstructions` with selector dial position and rod configuration for each valid PowerBlock weight (5–50 lbs in 2.5 lb steps).
+
+**`getEquipmentDisplay(exercise, weight)`** — returns the appropriate `EquipmentDisplay` variant:
+- `equipmentType === "powerblock"` with `equipmentDetail` or weight < 5 lbs → `{ type: "dumbbell" }` instead
+- `equipmentType === "dumbbell"` → `{ type: "dumbbell" }` directly
+- `equipmentType === "gripper"` → `{ type: "gripper" }`
+- All barbell types check for "landmine" in exercise name → uses `calculateLandmine`
 
 **Band info:**
 
@@ -272,28 +298,22 @@ Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Assigns `
 
 #### Progression Service (`lib/progression-service.ts`)
 
-Called at workout start to resolve each progressive exercise's weight.
+Called at workout start to resolve each exercise's planned weight. Uses the exercise definition directly — no Firestore history lookup.
 
 **Weight resolution logic (`resolveWeightWithMeta`):**
 
-1. `fixed` base weight -> return as-is (`reason: "fixed"`)
-2. No history -> return 0 (`reason: "no_history"`, prompts user to set weight)
-3. Last session did not complete all sets:
-   - Check two sessions back
-   - Both failed -> reduce by 1x increment (`reason: "reduced_2x_miss"`)
-   - Only one failed -> keep same weight (`reason: "kept_same_miss"`)
-4. Last session completed:
-   - Last set rated "easy" -> bump by 2x increment (`reason: "easy_bump"`)
-   - Any set rated "hard" -> keep same weight (`reason: "kept_same_hard"`)
-   - Normal -> apply progression rule (`reason: "normal_progression"`)
-   - No increment (band/bodyweight/etc.) -> keep same (`reason: "no_increment"`)
+1. `base_weight: fixed` → return that value directly
+2. `base_weight: "progressive"` → return `exercise.totalWeight ?? 0` (the pre-calculated total weight from XLSX; 0 if not set)
 
-**Mid-workout adjustments (in `useWorkout.ts`):**
-- After completing a set rated "easy" with sets remaining -> immediately bump weight for remaining sets by 1x increment
-- After last set of exercise rated "easy" (all sets met repMin) -> show prompt: 2x next session vs. standard
-- After a set rated "hard" with sets remaining -> show prompt: keep weight vs. reduce by 1x increment for remaining sets
+Returns `{ weight: number, prevWeight: null }`.
 
-**2x Miss deduction at workout start:** surfaced as `MissReductionPrompt` queue — user sees one prompt per affected exercise before the workout begins and can accept or override the reduction.
+**Manual overrides (in `useWorkout.ts`):**
+- `updateWeight(exerciseId, newWeight)` — user can edit weight for any exercise before or during a workout
+- `updateSets(exerciseId, newSets)` — user can adjust set count mid-workout
+
+**Ratings** (easy/normal/hard) are still recorded per set for session history and PR display, but do not automatically trigger weight changes.
+
+**`applyProgression(currentWeight, exercise)`** — increments weight by the rule's amount and snaps to nearest achievable equipment value. Used for display/reference; not called automatically at workout end.
 
 #### PR Detector (`lib/pr-detector.ts`)
 
@@ -312,18 +332,17 @@ Three PR types checked after each workout:
 
 ```
 Start Workout
-  -> resolveWeightWithMeta() for all exercises
-  -> Show MissReductionPrompt queue (if any 2x-miss exercises)
+  -> resolveWeightWithMeta() for all exercises (uses planned weight from exercise definition)
 
 Exercise Loop:
   Show ExerciseCard (name, set N of M, weight, equipment setup, next-up preview)
+  User can edit weight or set count before/during the exercise
   User taps "Complete Set"
     -> SetCompletionModal (reps, weight, difficulty rating, failed toggle, notes)
     -> playSetComplete()
-    -> If sets remain + restSeconds > 0: RestTimer overlay
-    -> If rated "easy" + sets remain: bump weight immediately by 1x increment
-    -> If rated "hard" + sets remain: show HardWeightDecision prompt
-    -> After last set if all-easy: show EasyPrompt (2x jump vs standard)
+    -> Record rating per set (informational; does not change weight)
+    -> If sets remain + restSeconds > 0: RestTimer overlay (between-set rest)
+    -> After last set of exercise: RestTimer with restAfter duration (between-exercise rest)
     -> Advance to next set or next exercise
   User taps "Skip" -> record 0 reps, skip rest, advance
 
@@ -408,8 +427,8 @@ Active sessions are serialized to `localStorage` (key: `activeWorkout`) on every
 
 - Per-program week selector dropdown
 - Edit exercises -> `/programs/[id]`
-- Delete program (keeps history)
-- Import CSV via file picker
+- Delete or archive program (keeps history)
+- Re-import XLSX to update exercise definitions
 - Default rest time: 60/90/120/150/180s
 - Timer sound toggle
 - Account info (email) + sign out
@@ -428,11 +447,30 @@ Active sessions are serialized to `localStorage` (key: `activeWorkout`) on every
 
 | Hook | Responsibility |
 |------|---------------|
-| `useWorkout(userId)` | Full active workout state machine: session, rest timer, set completion, PR detection, pause/resume, localStorage persistence, WakeLock |
-| `usePrograms(userId)` | Programs list, per-program workouts cache, week state, CSV import, settings load/save |
-| `useHistory(userId)` | Recent sessions + per-exercise best-set stats |
-| `useExerciseHistory(userId, name)` | Time-series history for a single exercise |
+| `useWorkout(userId)` | Full active workout state machine: session, rest timer, set completion, PR detection, pause/resume, localStorage persistence, WakeLock, manual weight/set-count override |
+| `usePrograms(userId)` | Programs list, per-program workouts cache, week state, XLSX import, settings load/save |
+| `useHistory(userId)` | Recent sessions + per-exercise best-set stats (`ExerciseStat` — handles weight, time-based, bodyweight) |
+| `useExerciseHistory(userId, name)` | Time-series history for a single exercise; returns `isTimeBased` and `isBodyweight` flags |
 | `useSound()` | `playTimerComplete()`, `playSetComplete()`, `initAudio()` |
+
+**`ExerciseStat` interface (from `useHistory`):**
+```typescript
+interface ExerciseStat {
+  name: string;
+  maxWeight: number;
+  maxWeightReps: number;
+  isTimeBased: boolean;
+  isBodyweight: boolean;
+  maxReps: number;  // max reps (bodyweight) or max duration in seconds (time-based)
+}
+```
+
+**`useWorkout` return values:**
+- `session`, `pausedSession`, `currentExercise`, `currentWeight`
+- `setsCompletedForCurrent`, `isCurrentSetAmrap`
+- `startWorkout`, `completeSet`, `skipSet`, `skipRest`
+- `endWorkout`, `dismissWorkout`, `pauseWorkout`, `resumeWorkout`
+- `updateWeight(exerciseId, newWeight)`, `updateSets(exerciseId, newSets)`
 
 ---
 
@@ -495,7 +533,7 @@ enum Phase: String, Codable { case warmup, main, finisher, cooldown, mobility }
 
 enum EquipmentType: String, Codable {
     case barbell_45, barbell_35, barbell_ez
-    case powerblock, band, kettlebell, bodyweight, assisted_pullup
+    case powerblock, dumbbell, band, kettlebell, bodyweight, assisted_pullup, gripper
 
     var barWeight: Double? { /* 45, 35, 15, nil */ }
 }
@@ -538,9 +576,9 @@ struct Exercise: Identifiable, Codable {
     let restSeconds: Int
     let progressionRule: ProgressionRule
     let isUnilateral: Bool
+    let isTimeBased: Bool     // explicit field; true when repMin represents a duration
     let notes: String?
 
-    var isTimeBased: Bool     // repMin >= 30 && progressionRule == .add_time
     var timeDisplay: String?  // formats repMin as "2 min", "30s", etc.
 }
 ```
@@ -561,7 +599,7 @@ struct Exercise: Identifiable, Codable {
 3. Otherwise -> keep same weight
 4. `adjustForEquipment()` -> runs through EquipmentCalculator to snap to achievable weight
 
-Key difference from web: no easy/hard rating influence, no 2x-miss deduction.
+Key difference from web: iOS reads session history to auto-advance weight; the web app uses planned weights from the XLSX and requires manual overrides.
 
 ---
 
@@ -583,9 +621,9 @@ rest_seconds,progression_rule,unilateral,notes
 | `phase` | string | warmup, main, finisher, cooldown, mobility |
 | `exercise_order` | integer | Sort order within workout |
 | `exercise_name` | string | Free text |
-| `equipment_type` | string | See EquipmentType enum |
+| `equipment_type` | string | `barbell_45`, `barbell_35`, `barbell_ez`, `powerblock`, `dumbbell`, `band`, `kettlebell`, `bodyweight`, `assisted_pullup`, `gripper` |
 | `equipment_detail` | string | Band color, "2lb" for regular dumbbell, etc. |
-| `base_weight` | number or "progressive" | lbs; "progressive" = resolve from history |
+| `base_weight` | number or "progressive" | lbs; "progressive" = seed from `total_weight` |
 | `sets` | integer | Number of sets |
 | `rep_min` | integer | Minimum reps (or hold duration in seconds for time-based) |
 | `rep_max` | integer or "failure" | Max reps; "failure" = AMRAP |
@@ -595,7 +633,7 @@ rest_seconds,progression_rule,unilateral,notes
 | `notes` | string | Displayed to user during workout |
 
 **Special values:**
-- `base_weight: "progressive"` — weight resolved from prior session history
+- `base_weight: "progressive"` — weight seeded from `total_weight` in XLSX (or 0 if not set)
 - `rep_max: "failure"` — last set is AMRAP
 - `day_of_week: "Daily"` — workout available every day; triggers checklist mode on import
 - `rest_seconds: 0` — no rest timer (also part of checklist heuristic detection)
@@ -631,6 +669,8 @@ progression_rule, unilateral, notes
 ---
 
 ## Progressive Overload Logic
+
+Weights are planned in the XLSX (`total_weight` column seeds the starting weight for progressive exercises). The web app does not auto-adjust weights based on session history — users modify weights manually via the weight editor. The iOS app checks the last Core Data session and advances weight if all sets were completed.
 
 ### Progression Rules
 
@@ -711,23 +751,28 @@ Exercises with "landmine" in the name use single-side plate loading (`calculateL
 | Area | Original Spec | Actual Implementation |
 |------|--------------|----------------------|
 | Platform | iOS + Watch only | iOS native **+** separate Next.js/Firebase web app |
-| Progression model | Add weight if all sets done | Rating-based (easy/hard prompts, 2x-miss deduction, mid-workout adjustments) |
-| Set capture | Reps + weight + failed toggle | Adds **difficulty rating** (easy/normal/hard) per set |
+| Progression model (web) | Add weight if all sets done | Planned weights only — `total_weight` in XLSX seeds progressive exercises; user overrides manually; no history-based auto-progression |
+| Progression model (iOS) | Add weight if all sets done | Core Data history check; advance weight if last session completed all sets |
+| Set capture | Reps + weight + failed toggle | Adds **difficulty rating** (easy/normal/hard) per set — recorded for history, does not auto-adjust weight |
 | Checklist mode | Not specified | Full checklist UI for Daily workouts with Firestore incremental sync + today-resume |
 | Landmine loading | Not specified | `calculateLandmine()` — one-side plate loading |
 | Pause/resume | Not specified | Full pause -> resume banner -> restore, with localStorage flag |
-| Program editor | Not specified | In-app add/edit/delete exercises, checklist toggle per day |
+| Program editor | Not specified | In-app add/edit/delete exercises, checklist toggle per day; mid-workout weight/set-count editor |
 | Session detail view | Not specified | `/session/[id]` with per-set breakdown and rating display |
+| Program lifecycle | Not specified | Archive (soft-delete) or delete programs; re-import XLSX to refresh exercise definitions |
 | Watch companion app | Planned | Not implemented |
 | Apple Health integration | Post-MVP | Not implemented |
 | Voice commands | Post-MVP | Not implemented |
 | Equipment inventory (web) | User configures missing plates | iOS only (`EquipmentInventoryView`); not yet in web |
+| Equipment types | barbell, powerblock, band, kettlebell, bodyweight, assisted_pullup | Added: `dumbbell` (distinct type), `gripper` |
 | Progression rules | add_5lb, add_2.5lb, reduce_assistance, maintain, deload, none | Added: `add_10lb`, `add_reps`, `add_time`, `progress_gripper`, `add_rounds`; `reduce_assistance` replaced by specific next-step strings (band color or band count) |
 | Auth (web) | Not specified | Google OAuth via Firebase; all data scoped per user |
-| Progression graphs | Swift Charts | iOS: `ProgressionChartView`; Web: `/exercise/[name]` page |
+| Progression graphs | Swift Charts | iOS: `ProgressionChartView`; Web: `/exercise/[name]` page (handles weight, time-based, bodyweight) |
 | Resistance bands | Orange, Purple, Red, Blue | Added: Green (50–120 lbs), Black (60–150 lbs) |
+| PowerBlock display | Weight only | Adds selector position + rod configuration instructions via lookup table |
 | rest_after column | Not specified | `FALSE` = flow through with no rest timer (warmup phase default); numeric/string = rest after exercise completes |
 | AMRAP last set | rep_max: "failure" | Explicit `last_set_amrap` flag per exercise row; Monday/Wednesday/Friday/Tuesday primary lifts |
+| Import format (web) | Not specified | XLSX only (multi-sheet); CSV parser retained for `daily_mobility.csv` but not exposed in UI |
 | Active program file | reacher_build_workout.csv | Superseded by reacher_build_cycle2.xlsx (multi-sheet XLSX, one sheet per day) |
 
 ---
@@ -742,13 +787,14 @@ npm test
 ```
 
 Test coverage:
+- `xlsx-parser.test.ts` — unit tests for XLSX parsing edge cases
+- `xlsx-parser.integration.test.ts` — parses actual XLSX program file, validates all fields
 - `csv-parser.test.ts` — unit tests for CSV parsing edge cases
 - `csv-parser.integration.test.ts` — parses actual bundled CSV files, validates all fields
 - `equipment-calculator.test.ts` — plate math, landmine, PowerBlock, rounding
-- `progression-service.test.ts` — all weight resolution scenarios
+- `progression-service.test.ts` — weight resolution scenarios
 - `pr-detector.test.ts` — weight PR, estimated 1RM, volume PR
 - `types.test.ts` — helper functions
-- `useWorkout.test.ts` — workout hook state transitions
 
 ---
 
