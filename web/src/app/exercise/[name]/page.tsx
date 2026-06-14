@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseHistory } from "@/hooks/useHistory";
-import { cleanWeight } from "@/lib/types";
+import { cleanWeight, formatTimeValue } from "@/lib/types";
 import Link from "next/link";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,7 +14,7 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
   const { name } = use(params);
   const exerciseName = decodeURIComponent(name);
   const { user } = useAuth();
-  const { history, loading } = useExerciseHistory(user?.uid ?? null, exerciseName);
+  const { history, isTimeBased, isBodyweight, loading } = useExerciseHistory(user?.uid ?? null, exerciseName);
   const [mode, setMode] = useState<"weight" | "volume">("weight");
 
   const chartData = history.map((h) => ({
@@ -26,6 +26,9 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
 
   const maxWeight = history.length > 0 ? Math.max(...history.map((h) => h.weight)) : 0;
   const maxVolume = history.length > 0 ? Math.max(...history.map((h) => h.volume)) : 0;
+  const maxReps = history.length > 0 ? Math.max(...history.map((h) => h.reps)) : 0;
+
+  const chartKey = isTimeBased || isBodyweight ? "reps" : mode;
 
   return (
     <div className="max-w-lg mx-auto p-4 pb-24">
@@ -35,25 +38,27 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
 
       <h1 className="text-2xl font-bold mb-6">{exerciseName}</h1>
 
-      {/* Mode Toggle */}
-      <div className="flex bg-gray-900 rounded-xl p-1 mb-6 border border-gray-800">
-        <button
-          onClick={() => setMode("weight")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-            mode === "weight" ? "bg-indigo-600" : "text-gray-400"
-          }`}
-        >
-          Weight
-        </button>
-        <button
-          onClick={() => setMode("volume")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
-            mode === "volume" ? "bg-indigo-600" : "text-gray-400"
-          }`}
-        >
-          Volume
-        </button>
-      </div>
+      {/* Mode Toggle — only for weighted exercises */}
+      {!isTimeBased && !isBodyweight && (
+        <div className="flex bg-gray-900 rounded-xl p-1 mb-6 border border-gray-800">
+          <button
+            onClick={() => setMode("weight")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+              mode === "weight" ? "bg-indigo-600" : "text-gray-400"
+            }`}
+          >
+            Weight
+          </button>
+          <button
+            onClick={() => setMode("volume")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
+              mode === "volume" ? "bg-indigo-600" : "text-gray-400"
+            }`}
+          >
+            Volume
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -78,7 +83,7 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
                 />
                 <Line
                   type="monotone"
-                  dataKey={mode}
+                  dataKey={chartKey}
                   stroke="#6366F1"
                   strokeWidth={2}
                   dot={{ fill: "#6366F1", r: 4 }}
@@ -88,15 +93,29 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="font-bold">{cleanWeight(maxWeight)} lbs</div>
-              <div className="text-xs text-gray-400">Max Weight</div>
-            </div>
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="font-bold">{cleanWeight(maxVolume)}</div>
-              <div className="text-xs text-gray-400">Max Volume</div>
-            </div>
+          <div className={`grid gap-3 mb-6 ${isTimeBased || isBodyweight ? "grid-cols-2" : "grid-cols-3"}`}>
+            {isTimeBased ? (
+              <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+                <div className="font-bold">{formatTimeValue(maxReps)}</div>
+                <div className="text-xs text-gray-400">Max Duration</div>
+              </div>
+            ) : isBodyweight ? (
+              <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+                <div className="font-bold">{maxReps}</div>
+                <div className="text-xs text-gray-400">Max Reps</div>
+              </div>
+            ) : (
+              <>
+                <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+                  <div className="font-bold">{cleanWeight(maxWeight)} lbs</div>
+                  <div className="text-xs text-gray-400">Max Weight</div>
+                </div>
+                <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+                  <div className="font-bold">{cleanWeight(maxVolume)}</div>
+                  <div className="text-xs text-gray-400">Max Volume</div>
+                </div>
+              </>
+            )}
             <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
               <div className="font-bold">{history.length}</div>
               <div className="text-xs text-gray-400">Sessions</div>
@@ -112,7 +131,11 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
                   {entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
                 <span className="font-semibold">
-                  {cleanWeight(entry.weight)} lbs x {entry.reps}
+                  {isTimeBased
+                    ? formatTimeValue(entry.reps)
+                    : isBodyweight
+                    ? `${entry.reps} reps`
+                    : `${cleanWeight(entry.weight)} lbs x ${entry.reps}`}
                 </span>
               </div>
             ))}

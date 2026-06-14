@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { getSession } from "@/lib/firestore";
-import { cleanWeight, formatDuration } from "@/lib/types";
+import { cleanWeight, formatDuration, formatTimeValue } from "@/lib/types";
 import type { WorkoutSessionDoc, CompletedSet } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
@@ -104,7 +104,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         <p className="text-gray-500 text-center py-8">No sets recorded.</p>
       ) : (
         <div className="space-y-4">
-          {groups.map(({ name, sets }) => (
+          {groups.map(({ name, sets }) => {
+            const exerciseTimeBased = sets[0]?.isTimeBased === true;
+            const exerciseBodyweight = !exerciseTimeBased && sets[0]?.equipmentType === "bodyweight";
+            return (
             <div key={name} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
                 <span className="font-semibold">{name}</span>
@@ -119,8 +122,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 <thead>
                   <tr className="text-xs text-gray-500 uppercase">
                     <th className="px-4 py-2 text-left">Set</th>
-                    <th className="px-4 py-2 text-right">Weight</th>
-                    <th className="px-4 py-2 text-right">Reps</th>
+                    {!exerciseTimeBased && <th className="px-4 py-2 text-right">Weight</th>}
+                    <th className="px-4 py-2 text-right">{exerciseTimeBased ? "Time" : "Reps"}</th>
                     {hasRatings && <th className="px-4 py-2 text-right">Feel</th>}
                     <th className="px-4 py-2 text-right">Status</th>
                   </tr>
@@ -129,10 +132,14 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   {sets.map((s) => (
                     <tr key={s.id} className={s.completed ? "" : "opacity-40"}>
                       <td className="px-4 py-2 text-gray-400">{s.setNumber}</td>
+                      {!exerciseTimeBased && (
+                        <td className="px-4 py-2 text-right font-mono">
+                          {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lb` : "BW"}
+                        </td>
+                      )}
                       <td className="px-4 py-2 text-right font-mono">
-                        {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lb` : "BW"}
+                        {exerciseTimeBased ? formatTimeValue(s.actualReps) : s.actualReps}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono">{s.actualReps}</td>
                       {hasRatings && (
                         <td className={`px-4 py-2 text-right capitalize ${s.rating ? RATING_STYLES[s.rating] : "text-gray-500"}`}>
                           {s.rating ?? "—"}
@@ -150,7 +157,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 </tbody>
               </table>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

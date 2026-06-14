@@ -262,11 +262,11 @@ export async function getLastTwoSessionSets(
 
 export async function getExerciseHistory(
   userId: string, exerciseName: string, limitCount: number = 50
-): Promise<{ date: Date; weight: number; reps: number; volume: number }[]> {
+): Promise<{ date: Date; weight: number; reps: number; volume: number; isTimeBased?: boolean; isBodyweight?: boolean }[]> {
   const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
   const snap = await getDocs(q);
 
-  const results: { date: Date; weight: number; reps: number; volume: number }[] = [];
+  const results: { date: Date; weight: number; reps: number; volume: number; isTimeBased?: boolean; isBodyweight?: boolean }[] = [];
 
   for (const d of snap.docs) {
     const session = d.data() as WorkoutSessionDoc;
@@ -275,14 +275,22 @@ export async function getExerciseHistory(
       (s) => s.exerciseName === exerciseName && s.completed
     );
     if (sets.length === 0) continue;
-    // Use the heaviest set per session — warm-up sets are always lighter
-    // so this naturally excludes them without needing phase data.
-    const best = sets.reduce((top, s) => s.actualWeight > top.actualWeight ? s : top, sets[0]);
+
+    const timeBased = sets[0].isTimeBased === true;
+    const bodyweight = !timeBased && sets[0].equipmentType === "bodyweight";
+
+    // For weighted: pick heaviest set. For time/bodyweight: pick highest reps.
+    const best = timeBased || bodyweight
+      ? sets.reduce((top, s) => s.actualReps > top.actualReps ? s : top, sets[0])
+      : sets.reduce((top, s) => s.actualWeight > top.actualWeight ? s : top, sets[0]);
+
     results.push({
       date,
       weight: best.actualWeight,
       reps: best.actualReps,
       volume: best.actualWeight * best.actualReps,
+      isTimeBased: timeBased || undefined,
+      isBodyweight: bodyweight || undefined,
     });
   }
 

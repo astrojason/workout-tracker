@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useHistory } from "@/hooks/useHistory";
-import { formatDuration } from "@/lib/types";
+import { formatDuration, formatTimeValue } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 
@@ -44,7 +44,11 @@ export default function HistoryPage() {
               >
                 <span className="font-medium">{stat.name}</span>
                 <span className="text-sm text-gray-400 ml-4 shrink-0">
-                  {stat.maxWeight}lbs x {stat.maxWeightReps}
+                  {stat.isTimeBased
+                    ? formatTimeValue(stat.maxReps)
+                    : stat.isBodyweight
+                    ? `${stat.maxReps} reps`
+                    : `${stat.maxWeight}lbs x ${stat.maxWeightReps}`}
                 </span>
               </Link>
             ))}

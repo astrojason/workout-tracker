@@ -102,6 +102,8 @@ export interface CompletedSet {
   timestamp: Timestamp | Date;
   notes: string | null;
   rating?: "easy" | "normal" | "hard";
+  isTimeBased?: boolean;
+  equipmentType?: EquipmentType;
 }
 
 export interface WorkoutSessionDoc {

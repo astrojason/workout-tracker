@@ -114,19 +114,11 @@ export function useWorkout(userId: string | null) {
               restEndRef.current = restEnd;
               startRestTimerFromEnd(restEnd);
             } else {
-              // Timer expired while away — advance state
-              setSession((prev) => {
-                if (!prev) return prev;
-                const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-                const setsRemaining = exercise.sets - prev.currentSetNumber;
-
-                if (setsRemaining > 0) {
-                  return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
-                } else if (prev.currentExerciseIndex < prev.workout.exercises.length - 1) {
-                  return { ...prev, isResting: false, currentExerciseIndex: prev.currentExerciseIndex + 1, currentSetNumber: 1 };
-                }
-                return { ...prev, isResting: false };
-              });
+              // Timer expired while away — state was already advanced before
+              // the rest timer started, so just clear the resting flag.
+              setSession((prev) =>
+                prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev
+              );
             }
           }
         }
@@ -228,6 +220,10 @@ export function useWorkout(userId: string | null) {
     const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
     restEndRef.current = endDate;
 
+    // NOTE: State (currentSetNumber / currentExerciseIndex) must already be
+    // advanced by the caller before startRestTimerFromEnd is invoked.
+    // The timer only flips isResting → false when it expires; it never
+    // advances exercise/set counters itself, eliminating double-advance bugs.
     setSession((prev) => prev ? { ...prev, isResting: true, restTimeRemaining: remaining } : prev);
 
     timerRef.current = setInterval(() => {
@@ -239,20 +235,8 @@ export function useWorkout(userId: string | null) {
         timerRef.current = null;
         restEndRef.current = null;
         playTimerComplete();
-
-        setSession((prev) => {
-          if (!prev) return prev;
-          const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-          const setsRemaining = exercise.sets - prev.currentSetNumber;
-
-          if (setsRemaining > 0) {
-            return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
-          } else if (prev.currentExerciseIndex < prev.workout.exercises.length - 1) {
-            return { ...prev, isResting: false, currentExerciseIndex: prev.currentExerciseIndex + 1, currentSetNumber: 1 };
-          } else {
-            return { ...prev, isResting: false };
-          }
-        });
+        // Only flip the resting flag — position in the workout is already correct.
+        setSession((prev) => prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev);
       }
     }, 1000);
   }
@@ -280,6 +264,8 @@ export function useWorkout(userId: string | null) {
       timestamp: Timestamp.now(),
       notes: notes || null,
       rating,
+      isTimeBased: currentExercise.isTimeBased,
+      equipmentType: currentExercise.equipmentType,
     };
 
     playSetComplete();
@@ -292,21 +278,27 @@ export function useWorkout(userId: string | null) {
 
     // Between-set rest uses restSeconds directly; restAfter only applies to the
     // transition between exercises (it may suppress or override that timer).
+    // IMPORTANT: always advance the position in state FIRST, then start the
+    // rest timer. The timer only flips isResting → false; it never moves
+    // currentSetNumber or currentExerciseIndex. This prevents double-advance
+    // bugs caused by stale closures or rapid state updates.
     const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
+      const nextSession = { ...updatedSession, currentSetNumber: session.currentSetNumber + 1 };
       if (betweenSetRest > 0) {
-        setSession(updatedSession);
+        setSession(nextSession);
         startRestTimer(betweenSetRest);
       } else {
-        setSession({ ...updatedSession, currentSetNumber: session.currentSetNumber + 1 });
+        setSession(nextSession);
       }
     } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
+      const nextSession = { ...updatedSession, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 };
       if (betweenExerciseRest > 0) {
-        setSession(updatedSession);
+        setSession(nextSession);
         startRestTimer(betweenExerciseRest);
       } else {
-        setSession({ ...updatedSession, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
+        setSession(nextSession);
       }
     } else {
       // Last exercise, last set
@@ -330,6 +322,8 @@ export function useWorkout(userId: string | null) {
       completed: false,
       timestamp: Timestamp.now(),
       notes: "Skipped",
+      isTimeBased: currentExercise.isTimeBased,
+      equipmentType: currentExercise.equipmentType,
     };
 
     const newSets = [...session.completedSets, skipped];
@@ -352,19 +346,9 @@ export function useWorkout(userId: string | null) {
       timerRef.current = null;
     }
     restEndRef.current = null;
-
-    setSession((prev) => {
-      if (!prev) return prev;
-      const exercise = prev.workout.exercises[prev.currentExerciseIndex];
-      const setsRemaining = exercise.sets - prev.currentSetNumber;
-
-      if (setsRemaining > 0) {
-        return { ...prev, isResting: false, currentSetNumber: prev.currentSetNumber + 1 };
-      } else if (prev.currentExerciseIndex < prev.workout.exercises.length - 1) {
-        return { ...prev, isResting: false, currentExerciseIndex: prev.currentExerciseIndex + 1, currentSetNumber: 1 };
-      }
-      return { ...prev, isResting: false };
-    });
+    // State (currentSetNumber / currentExerciseIndex) was already advanced when
+    // the rest timer started — just flip the resting flag.
+    setSession((prev) => prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev);
   }, []);
 
   async function endWorkoutInternal(sets: CompletedSet[]) {
