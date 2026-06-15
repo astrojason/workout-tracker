@@ -367,21 +367,21 @@ describe("plateFullDisplayString", () => {
     expect(plateFullDisplayString(config)).toBe("Bar only (45 lbs)");
   });
 
-  it("shows 'Each side:' prefix with total weight", () => {
+  it("shows bar weight and bracketed plates each side with total weight", () => {
     const config: PlateConfiguration = {
       targetWeight: 185, barWeight: 45, achievedWeight: 185,
       perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
     };
-    expect(plateFullDisplayString(config)).toBe("Each side: 1x45 + 1x25 (185 lbs)");
+    expect(plateFullDisplayString(config)).toBe("45lb bar + [1x45, 1x25] each side (185 lbs)");
   });
 
-  it("shows 'One side:' prefix for landmine", () => {
+  it("shows bar weight and bracketed plates one end for landmine", () => {
     const config: PlateConfiguration = {
       targetWeight: 85, barWeight: 45, achievedWeight: 85,
       perSide: [{ plate: 35, count: 1 }, { plate: 5, count: 1 }],
       isLandmine: true,
     };
-    expect(plateFullDisplayString(config)).toBe("One side: 45 bar + 1x35 + 1x5 plate (85 lbs)");
+    expect(plateFullDisplayString(config)).toBe("45lb bar + [1x35, 1x5] one end (85 lbs)");
   });
 });
 
@@ -579,7 +579,7 @@ describe("getEquipmentDisplay", () => {
 });
 
 describe("equipmentDisplayText", () => {
-  it("displays barbell with plate info", () => {
+  it("displays barbell with bracketed plate info and bar weight", () => {
     const text = equipmentDisplayText({
       type: "barbell",
       config: {
@@ -587,7 +587,7 @@ describe("equipmentDisplayText", () => {
         perSide: [{ plate: 45, count: 1 }, { plate: 25, count: 1 }],
       },
     });
-    expect(text).toBe("Each side: 1x45 + 1x25 (185 lbs)");
+    expect(text).toBe("45lb bar + [1x45, 1x25] each side (185 lbs)");
   });
 
   it("displays bar only for barbell", () => {

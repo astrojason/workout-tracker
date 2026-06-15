@@ -188,15 +188,18 @@ export function plateDisplayString(config: PlateConfiguration): string {
   return config.perSide.map((p) => `${p.count}x${cleanWeight(p.plate)}`).join(" + ");
 }
 
+function plateBracketString(config: PlateConfiguration): string {
+  const items = config.perSide.map((p) => `${p.count}x${cleanWeight(p.plate)}`).join(", ");
+  return `[${items}]`;
+}
+
 export function plateFullDisplayString(config: PlateConfiguration): string {
   if (config.perSide.length === 0) {
     return `Bar only (${cleanWeight(config.barWeight)} lbs)`;
   }
-  const plateStr = plateDisplayString(config);
-  if (config.isLandmine) {
-    return `One side: ${cleanWeight(config.barWeight)} bar + ${plateStr} plate (${cleanWeight(config.achievedWeight)} lbs)`;
-  }
-  return `Each side: ${plateStr} (${cleanWeight(config.achievedWeight)} lbs)`;
+  const brackets = plateBracketString(config);
+  const label = config.isLandmine ? "one end" : "each side";
+  return `${cleanWeight(config.barWeight)}lb bar + ${brackets} ${label} (${cleanWeight(config.achievedWeight)} lbs)`;
 }
 
 function parseWeightFromDetail(detail: string): number | null {

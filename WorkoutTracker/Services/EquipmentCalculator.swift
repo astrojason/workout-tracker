@@ -24,16 +24,18 @@ struct PlateConfiguration {
         return parts.joined(separator: " + ")
     }
 
+    private var bracketString: String {
+        let items = perSide.map { "\($0.count)x\($0.plate.cleanWeight)" }.joined(separator: ", ")
+        return "[\(items)]"
+    }
+
     var fullDisplayString: String {
         if perSide.isEmpty {
             return "Bar only (\(barWeight.cleanWeight) lbs)"
         }
-        let plateStr = displayString
-        let label = isLandmine ? "One side" : "Each side"
-        if achievedWeight != targetWeight {
-            return "\(label): \(plateStr) (\(achievedWeight.cleanWeight) lbs total)"
-        }
-        return "\(label): \(plateStr) (\(achievedWeight.cleanWeight) lbs)"
+        let label = isLandmine ? "one end" : "each side"
+        let suffix = achievedWeight != targetWeight ? " total" : ""
+        return "\(barWeight.cleanWeight)lb bar + \(bracketString) \(label) (\(achievedWeight.cleanWeight) lbs\(suffix))"
     }
 
     var weightChanged: Bool {
