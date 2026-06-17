@@ -44,15 +44,17 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
         {exercise.phase.charAt(0).toUpperCase() + exercise.phase.slice(1)}
       </span>
 
-      {/* Set / Rep / Rest info */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div
-          className={`bg-gray-800 rounded-xl p-3 text-center ${onEditSets ? "cursor-pointer active:bg-gray-700" : ""}`}
-          onClick={onEditSets}
-        >
-          <div className="text-xs text-gray-400">{onEditSets ? <span className="text-indigo-400">Edit</span> : null}</div>
-          <div className="text-lg font-bold">Set {setNumber} of {exercise.sets}</div>
-        </div>
+      {/* Set counter row */}
+      <div
+        className={`flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3 mb-3 ${onEditSets ? "cursor-pointer active:bg-gray-700" : ""}`}
+        onClick={onEditSets}
+      >
+        <div className="text-lg font-bold">Set {setNumber} of {exercise.sets}</div>
+        {onEditSets && <span className="text-indigo-400 text-xs">Edit</span>}
+      </div>
+
+      {/* Rep / Rest info */}
+      <div className={`grid gap-3 mb-4 ${exercise.restSeconds > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
         <div className="bg-gray-800 rounded-xl p-3 text-center">
           <div className="text-xs text-gray-400">{isTimeBased(exercise) ? "Duration" : "Reps"}</div>
           <div className="text-lg font-bold">{repTargetDisplay(exercise.repMin, exercise.repMax, exercise, setNumber)}</div>

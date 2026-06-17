@@ -30,7 +30,7 @@ export function RestTimer({ session, onSkipRest }: RestTimerProps) {
 
   if (setsRemaining > 0) {
     nextLabel = "Next Set";
-    nextDetail = `${exercise.name} - Set ${session.currentSetNumber + 1}`;
+    nextDetail = `${exercise.name} - Set ${session.currentSetNumber}`;
     equipText = equipmentDisplayText(getEquipmentDisplay(exercise, weight));
   } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
     const next = session.workout.exercises[session.currentExerciseIndex + 1];
