@@ -5,43 +5,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
-
-function DeleteConfirmDialog({
-  programId,
-  programName,
-  deletingId,
-  onCancel,
-  onConfirm,
-}: {
-  programId: string;
-  programName: string;
-  deletingId: string | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="mt-3 bg-red-950/30 border border-red-800/40 rounded-lg p-3">
-      <p className="text-sm text-gray-300 mb-2">
-        Delete {programName}? This removes all workouts but keeps history.
-      </p>
-      <div className="flex gap-2">
-        <button
-          onClick={onCancel}
-          className="px-3 py-1 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={deletingId === programId}
-          className="px-3 py-1 text-xs bg-red-600 rounded-lg hover:bg-red-500 font-semibold transition"
-        >
-          {deletingId === programId ? "Deleting..." : "Delete"}
-        </button>
-      </div>
-    </div>
-  );
-}
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -63,6 +27,7 @@ export default function SettingsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
   const [reimportingId, setReimportingId] = useState<string | null>(null);
   // Tracks which program the re-import file picker was opened for
   const reimportTargetRef = useRef<{ id: string; name: string } | null>(null);
@@ -125,6 +90,7 @@ export default function SettingsPage() {
 
   async function handleArchive(programId: string) {
     setArchivingId(programId);
+    setConfirmArchiveId(null);
     try {
       await archiveProgram(programId);
     } finally {
@@ -210,7 +176,7 @@ export default function SettingsPage() {
                     </svg>
                   </Link>
                   <button
-                    onClick={() => handleArchive(program.id)}
+                    onClick={() => setConfirmArchiveId(program.id)}
                     disabled={archivingId === program.id}
                     className="text-gray-600 hover:text-yellow-400 transition p-1"
                     title="Archive program"
@@ -231,15 +197,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
-              {confirmDeleteId === program.id && (
-                <DeleteConfirmDialog
-                  programId={program.id}
-                  programName={program.name}
-                  deletingId={deletingId}
-                  onCancel={() => setConfirmDeleteId(null)}
-                  onConfirm={() => handleDelete(program.id, program.name)}
-                />
-              )}
             </div>
           ))}
 
@@ -336,15 +293,6 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     </div>
-                    {confirmDeleteId === program.id && (
-                      <DeleteConfirmDialog
-                        programId={program.id}
-                        programName={program.name}
-                        deletingId={deletingId}
-                        onCancel={() => setConfirmDeleteId(null)}
-                        onConfirm={() => handleDelete(program.id, program.name)}
-                      />
-                    )}
                   </div>
                 ))}
               </div>
@@ -419,6 +367,35 @@ export default function SettingsPage() {
       <div className="text-center text-xs text-gray-600">
         Workout Tracker v1.0.0
       </div>
+
+      {confirmArchiveId && (() => {
+        const program = activePrograms.find((p) => p.id === confirmArchiveId);
+        return program ? (
+          <ConfirmDeleteModal
+            title="Archive Program"
+            message={`Archive "${program.name}"? It will move to the archived list and won't appear on the home screen.`}
+            confirmLabel="Archive"
+            confirmingLabel="Archiving..."
+            confirmClassName="bg-yellow-600 hover:bg-yellow-500"
+            isConfirming={archivingId === confirmArchiveId}
+            onCancel={() => setConfirmArchiveId(null)}
+            onConfirm={() => handleArchive(program.id)}
+          />
+        ) : null;
+      })()}
+
+      {confirmDeleteId && (() => {
+        const program = [...activePrograms, ...archivedPrograms].find((p) => p.id === confirmDeleteId);
+        return program ? (
+          <ConfirmDeleteModal
+            title="Delete Program"
+            message={`Delete "${program.name}"? This removes all workouts but keeps history.`}
+            isConfirming={deletingId === confirmDeleteId}
+            onCancel={() => setConfirmDeleteId(null)}
+            onConfirm={() => handleDelete(program.id, program.name)}
+          />
+        ) : null;
+      })()}
 
       <BottomNav active="settings" />
     </div>

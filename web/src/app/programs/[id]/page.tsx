@@ -8,6 +8,7 @@ import type { Exercise, Workout } from "@/lib/types";
 import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, cleanWeight, isChecklistWorkout } from "@/lib/types";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: programId } = use(params);
@@ -228,26 +229,6 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     </div>
 
-                    {/* Delete Confirmation */}
-                    {confirmDelete?.workoutId === workout.id && confirmDelete?.exerciseId === exercise.id && (
-                      <div className="mt-2 bg-red-950/30 border border-red-800/40 rounded-lg p-2">
-                        <p className="text-xs text-gray-300 mb-2">Remove {exercise.name}?</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setConfirmDelete(null)}
-                            className="px-2 py-1 text-xs bg-gray-800 rounded hover:bg-gray-700 transition"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleDeleteExercise(workout, exercise.id)}
-                            className="px-2 py-1 text-xs bg-red-600 rounded hover:bg-red-500 font-semibold transition"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -274,6 +255,20 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           onCancel={() => setEditingExercise(null)}
         />
       )}
+
+      {/* Delete Exercise Modal */}
+      {confirmDelete && (() => {
+        const workout = workouts.find((w) => w.id === confirmDelete.workoutId);
+        const exercise = workout?.exercises.find((e) => e.id === confirmDelete.exerciseId);
+        return exercise && workout ? (
+          <ConfirmDeleteModal
+            title="Delete Exercise"
+            message={`Remove "${exercise.name}" from this workout?`}
+            onCancel={() => setConfirmDelete(null)}
+            onConfirm={() => handleDeleteExercise(workout, exercise.id)}
+          />
+        ) : null;
+      })()}
 
       <BottomNav active={null} />
     </div>
