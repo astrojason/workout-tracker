@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Workout, CompletedSet, WorkoutSessionDoc } from "@/lib/types";
-import { repTargetDisplay, isTimeBased } from "@/lib/types";
+import type { Workout, CompletedSet, WorkoutSessionDoc, Exercise } from "@/lib/types";
+import { repTargetDisplay, isTimeBased, formatTimeValue } from "@/lib/types";
 import { getTodayChecklistSession, upsertChecklistSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
+import { useSound } from "@/hooks/useSound";
 
 interface ChecklistWorkoutProps {
   workout: Workout;
@@ -16,6 +17,14 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
   const [completedOrders, setCompletedOrders] = useState<Set<number>>(new Set());
   const [firestoreId, setFirestoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTimer, setActiveTimer] = useState<Exercise | null>(null);
+  const [timerRemaining, setTimerRemaining] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerTotal, setTimerTotal] = useState(0);
+  const [timerSide, setTimerSide] = useState<1 | 2>(1);
+  const [showSwitchSides, setShowSwitchSides] = useState(false);
+
+  const { playTimerComplete, initAudio } = useSound();
 
   // Load today's session on mount
   useEffect(() => {
@@ -34,6 +43,15 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
     }
     load();
   }, [userId, workout.programName, workout.dayOfWeek]);
+
+  // Countdown tick
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = setInterval(() => {
+      setTimerRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning]);
 
   const saveToFirestore = useCallback(async (orders: Set<number>) => {
     const sets: CompletedSet[] = [];
@@ -82,6 +100,44 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
     setCompletedOrders(next);
     await saveToFirestore(next);
   }, [completedOrders, saveToFirestore]);
+
+  // Handle timer completion — placed after toggleExercise to avoid TDZ error
+  const timerCompleteRef = useCallback(() => {
+    if (!activeTimer) return;
+    setTimerRunning(false);
+    playTimerComplete();
+    if (activeTimer.isUnilateral && timerSide === 1) {
+      setTimerSide(2);
+      setShowSwitchSides(true);
+    } else {
+      const order = activeTimer.order;
+      setTimerSide(1);
+      setShowSwitchSides(false);
+      setActiveTimer(null);
+      toggleExercise(order);
+    }
+  }, [activeTimer, playTimerComplete, toggleExercise, timerSide]);
+
+  useEffect(() => {
+    if (timerRunning && timerRemaining === 0 && activeTimer) {
+      timerCompleteRef();
+    }
+  }, [timerRemaining, timerRunning, activeTimer, timerCompleteRef]);
+
+  const handleExerciseTap = useCallback((exercise: Exercise) => {
+    const isChecked = completedOrders.has(exercise.order);
+    if (isChecked || !isTimeBased(exercise) || exercise.repMin <= 0) {
+      toggleExercise(exercise.order);
+    } else {
+      initAudio();
+      setTimerSide(1);
+      setShowSwitchSides(false);
+      setTimerTotal(exercise.repMin);
+      setTimerRemaining(exercise.repMin);
+      setTimerRunning(true);
+      setActiveTimer(exercise);
+    }
+  }, [completedOrders, toggleExercise, initAudio]);
 
   if (loading) {
     return (
@@ -134,7 +190,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
           return (
             <button
               key={exercise.id}
-              onClick={() => toggleExercise(exercise.order)}
+              onClick={() => handleExerciseTap(exercise)}
               className={`w-full text-left p-4 rounded-xl border transition ${
                 checked
                   ? "bg-green-950/30 border-green-800/50"
@@ -155,10 +211,13 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
 
                 {/* Exercise Info */}
                 <div className={`flex-1 ${checked ? "opacity-50" : ""}`}>
-                  <div className="font-semibold">
+                  <div className="font-semibold flex items-center gap-2">
                     {exercise.name}
                     {exercise.isUnilateral && (
-                      <span className="text-orange-400 text-sm ml-2">ES</span>
+                      <span className="text-orange-400 text-sm">ES</span>
+                    )}
+                    {isTimeBased(exercise) && !checked && (
+                      <span className="text-teal-400 text-xs">⏱</span>
                     )}
                   </div>
                   <div className="text-sm text-gray-400 mt-1">
@@ -174,6 +233,82 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
           );
         })}
       </div>
+
+      {/* Exercise Timer Overlay */}
+      {activeTimer && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+          <div className="text-center px-6 w-full max-w-sm">
+            <p className="text-lg font-semibold mb-1">{activeTimer.name}</p>
+
+            {showSwitchSides ? (
+              <>
+                <p className="text-teal-400 text-xs font-bold tracking-widest mb-6">SWITCH SIDES</p>
+                <p className="text-6xl mb-4">↔</p>
+                <p className="text-gray-300 mb-10">Side 1 done — get set for Side 2</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setShowSwitchSides(false); setTimerSide(1); setActiveTimer(null); toggleExercise(activeTimer.order); }}
+                    className="flex-1 px-6 py-3 rounded-full bg-gray-800 hover:bg-gray-700 font-semibold transition"
+                  >
+                    Skip Side 2
+                  </button>
+                  <button
+                    onClick={() => { setShowSwitchSides(false); setTimerRemaining(timerTotal); setTimerRunning(true); }}
+                    className="flex-1 px-6 py-3 rounded-full bg-teal-600 hover:bg-teal-500 font-bold transition"
+                  >
+                    Start Side 2
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-teal-400 text-xs font-bold tracking-widest mb-1">EXERCISE TIMER</p>
+                {activeTimer.isUnilateral && (
+                  <p className="text-gray-400 text-xs mb-4">Side {timerSide} of 2</p>
+                )}
+
+                <div className="text-7xl font-bold font-mono mb-8">
+                  {formatTimeValue(timerRemaining)}
+                </div>
+
+                <div className="flex justify-center mb-10">
+                  <svg width="140" height="140" className="-rotate-90">
+                    <circle cx="70" cy="70" r="62" fill="none" stroke="#1f2937" strokeWidth="7" />
+                    <circle
+                      cx="70" cy="70" r="62" fill="none"
+                      stroke="#14b8a6" strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 62}`}
+                      strokeDashoffset={`${2 * Math.PI * 62 * (1 - timerRemaining / timerTotal)}`}
+                      className="transition-all duration-1000 ease-linear"
+                    />
+                  </svg>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setTimerRunning(false); setActiveTimer(null); setTimerSide(1); }}
+                    className="flex-1 px-6 py-3 rounded-full bg-gray-800 hover:bg-gray-700 font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTimerRunning(false);
+                      const order = activeTimer.order;
+                      setActiveTimer(null);
+                      setTimerSide(1);
+                      toggleExercise(order);
+                    }}
+                    className="flex-1 px-6 py-3 rounded-full bg-teal-600 hover:bg-teal-500 font-semibold transition"
+                  >
+                    Done Early
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

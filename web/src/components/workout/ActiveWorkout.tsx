@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ActiveSession, Exercise } from "@/lib/types";
+import { isTimeBased, formatTimeValue } from "@/lib/types";
 import { getEquipmentDisplay } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
 import { SetCompletionModal } from "./SetCompletionModal";
+import { useSound } from "@/hooks/useSound";
 
 interface ActiveWorkoutProps {
   session: ActiveSession;
@@ -128,8 +130,60 @@ export function ActiveWorkout({
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showWeightEditor, setShowWeightEditor] = useState(false);
   const [showSetsEditor, setShowSetsEditor] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerRemaining, setTimerRemaining] = useState(0);
+  const [timerSide, setTimerSide] = useState<1 | 2>(1);
+  const [showSwitchSides, setShowSwitchSides] = useState(false);
 
+  const { playTimerComplete, initAudio } = useSound();
   const exercise = session.workout.exercises[session.currentExerciseIndex];
+  const timedExercise = isTimeBased(exercise);
+  const timerDuration = exercise.repMin;
+
+  // Reset timer when exercise changes
+  useEffect(() => {
+    setTimerRunning(false);
+    setTimerRemaining(0);
+    setTimerSide(1);
+    setShowSwitchSides(false);
+  }, [session.currentExerciseIndex]);
+
+  // Countdown tick
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = setInterval(() => {
+      setTimerRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning]);
+
+  // Handle timer completion
+  useEffect(() => {
+    if (timerRunning && timerRemaining === 0) {
+      setTimerRunning(false);
+      playTimerComplete();
+      if (exercise.isUnilateral && timerSide === 1) {
+        setTimerSide(2);
+        setShowSwitchSides(true);
+      } else {
+        setTimerSide(1);
+        setShowCompletion(true);
+      }
+    }
+  }, [timerRemaining, timerRunning, playTimerComplete, exercise.isUnilateral, timerSide]);
+
+  const startTimer = () => {
+    initAudio();
+    setTimerSide(1);
+    setTimerRemaining(timerDuration);
+    setTimerRunning(true);
+  };
+
+  const startSide2 = () => {
+    setShowSwitchSides(false);
+    setTimerRemaining(timerDuration);
+    setTimerRunning(true);
+  };
   const weight = session.resolvedWeights[exercise.id] ?? 0;
   const equipDisplay = getEquipmentDisplay(exercise, weight);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
@@ -204,6 +258,39 @@ export function ActiveWorkout({
           onEditSets={() => setShowSetsEditor(true)}
         />
 
+        {/* Exercise Timer */}
+        {timedExercise && (timerRunning || showSwitchSides) && (
+          <div className="bg-gray-900 rounded-2xl p-5 border border-teal-800/50 text-center">
+            {showSwitchSides ? (
+              <>
+                <p className="text-teal-400 text-xs font-bold tracking-widest mb-3">SWITCH SIDES</p>
+                <p className="text-4xl mb-2">↔</p>
+                <p className="text-gray-300 text-sm">Side 1 done — get set for Side 2</p>
+              </>
+            ) : (
+              <>
+                <p className="text-teal-400 text-xs font-bold tracking-widest mb-1">EXERCISE TIMER</p>
+                {exercise.isUnilateral && (
+                  <p className="text-gray-400 text-xs mb-3">Side {timerSide} of 2</p>
+                )}
+                <div className="text-6xl font-bold font-mono mb-4">{formatTimeValue(timerRemaining)}</div>
+                <div className="flex justify-center">
+                  <svg width="100" height="100" className="-rotate-90">
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#1f2937" strokeWidth="6" />
+                    <circle
+                      cx="50" cy="50" r="44" fill="none"
+                      stroke="#14b8a6" strokeWidth="6" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 44}`}
+                      strokeDashoffset={`${2 * Math.PI * 44 * (1 - timerRemaining / timerDuration)}`}
+                      className="transition-all duration-1000 ease-linear"
+                    />
+                  </svg>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Next Exercise Preview */}
         {nextExercise && (
           <div className="bg-gray-900/60 rounded-xl p-3 border border-gray-800/50">
@@ -226,18 +313,59 @@ export function ActiveWorkout({
       {/* Action Buttons */}
       <div className="p-4 space-y-3">
         <div className="flex gap-3">
-          <button
-            onClick={onSkipSet}
-            className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
-          >
-            Skip
-          </button>
-          <button
-            onClick={() => setShowCompletion(true)}
-            className="flex-[2] py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
-          >
-            Complete Set
-          </button>
+          {timedExercise && timerRunning ? (
+            <button
+              onClick={() => { setTimerRunning(false); setShowSwitchSides(false); setTimerSide(1); setShowCompletion(true); }}
+              className="flex-1 py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
+            >
+              Done Early
+            </button>
+          ) : timedExercise && showSwitchSides ? (
+            <>
+              <button
+                onClick={() => { setShowSwitchSides(false); setTimerSide(1); setShowCompletion(true); }}
+                className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
+              >
+                Skip Side 2
+              </button>
+              <button
+                onClick={startSide2}
+                className="flex-[2] py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
+              >
+                Start Side 2
+              </button>
+            </>
+          ) : timedExercise && !timerRunning ? (
+            <>
+              <button
+                onClick={onSkipSet}
+                className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
+              >
+                Skip
+              </button>
+              <button
+                onClick={startTimer}
+                className="flex-[2] py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
+              >
+                Start Timer
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onSkipSet}
+                className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => setShowCompletion(true)}
+                className="flex-[2] py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
+              >
+                Complete Set
+              </button>
+            </>
+          )}
         </div>
         <button
           onClick={() => setShowEndConfirm(true)}
