@@ -83,6 +83,9 @@ function clearPersistedSession() {
 export function useWorkout(userId: string | null) {
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingSaveRef = useRef<{ sets: CompletedSet[]; prs: PRResult[]; duration: number; date: import("firebase/firestore").Timestamp } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -367,29 +370,45 @@ export function useWorkout(userId: string | null) {
   async function endWorkoutInternal(sets: CompletedSet[]) {
     if (!session || !userId) return;
 
-    // Check PRs
-    const exerciseNames = [...new Set(sets.map((s) => s.exerciseName))];
-    const allPRs: PRResult[] = [];
-    for (const name of exerciseNames) {
-      const setsForExercise = sets.filter((s) => s.exerciseName === name);
-      const prs = await checkForPRs(userId, name, setsForExercise);
-      allPRs.push(...prs);
+    setSaveError(null);
+    setIsSaving(true);
+
+    // PR detection is best-effort — don't let it block the save
+    let allPRs: PRResult[] = [];
+    try {
+      const exerciseNames = [...new Set(sets.map((s) => s.exerciseName))];
+      for (const name of exerciseNames) {
+        const setsForExercise = sets.filter((s) => s.exerciseName === name);
+        const prs = await checkForPRs(userId, name, setsForExercise);
+        allPRs.push(...prs);
+      }
+    } catch {
+      // PR check failed; proceed with no PRs rather than losing the workout
     }
 
     const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
+    const saveDate = Timestamp.now();
+    pendingSaveRef.current = { sets, prs: allPRs, duration, date: saveDate };
 
-    await saveSession(userId, {
-      programName: session.workout.programName,
-      week: session.workout.week,
-      dayOfWeek: session.workout.dayOfWeek,
-      date: Timestamp.now(),
-      completed: true,
-      durationSeconds: duration,
-      sets,
-    });
-
-    clearPersistedSession();
-    setSession((prev) => prev ? { ...prev, prsAchieved: allPRs } : prev);
+    try {
+      await saveSession(userId, {
+        programName: session.workout.programName,
+        week: session.workout.week,
+        dayOfWeek: session.workout.dayOfWeek,
+        date: saveDate,
+        completed: true,
+        durationSeconds: duration,
+        sets,
+      });
+      pendingSaveRef.current = null;
+      clearPersistedSession();
+      setIsSaving(false);
+      setSession((prev) => prev ? { ...prev, prsAchieved: allPRs } : prev);
+    } catch {
+      // Don't clear localStorage — session survives for retry
+      setIsSaving(false);
+      setSaveError("Failed to save. Check your connection and try again.");
+    }
   }
 
   const endWorkout = useCallback(async () => {
@@ -445,6 +464,31 @@ export function useWorkout(userId: string | null) {
     } : prev);
   }, []);
 
+  const retrySave = useCallback(async () => {
+    if (!session || !userId || !pendingSaveRef.current) return;
+    const { sets, prs, duration, date } = pendingSaveRef.current;
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      await saveSession(userId, {
+        programName: session.workout.programName,
+        week: session.workout.week,
+        dayOfWeek: session.workout.dayOfWeek,
+        date,
+        completed: true,
+        durationSeconds: duration,
+        sets,
+      });
+      pendingSaveRef.current = null;
+      clearPersistedSession();
+      setIsSaving(false);
+      setSession((prev) => prev ? { ...prev, prsAchieved: prs } : prev);
+    } catch {
+      setIsSaving(false);
+      setSaveError("Failed to save. Check your connection and try again.");
+    }
+  }, [session, userId]);
+
   const updateSets = useCallback((exerciseId: string, newSets: number) => {
     setSession((prev) => {
       if (!prev) return prev;
@@ -474,6 +518,8 @@ export function useWorkout(userId: string | null) {
   return {
     session,
     pausedSession,
+    isSaving,
+    saveError,
     currentExercise,
     currentWeight,
     setsCompletedForCurrent,
@@ -486,6 +532,7 @@ export function useWorkout(userId: string | null) {
     dismissWorkout,
     pauseWorkout,
     resumeWorkout,
+    retrySave,
     updateWeight,
     updateSets,
   };

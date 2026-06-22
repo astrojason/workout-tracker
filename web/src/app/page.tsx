@@ -29,6 +29,9 @@ export default function HomePage() {
       return (
         <WorkoutComplete
           session={workout.session}
+          isSaving={workout.isSaving}
+          saveError={workout.saveError}
+          onRetrySave={workout.retrySave}
           onDone={() => {
             workout.dismissWorkout();
             refreshCompletedDays();

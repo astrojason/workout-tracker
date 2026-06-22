@@ -6,9 +6,12 @@ import { cleanWeight, formatDuration, isTimeBased, formatTimeValue } from "@/lib
 interface WorkoutCompleteProps {
   session: ActiveSession;
   onDone: () => void;
+  isSaving?: boolean;
+  saveError?: string | null;
+  onRetrySave?: () => void;
 }
 
-export function WorkoutComplete({ session, onDone }: WorkoutCompleteProps) {
+export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetrySave }: WorkoutCompleteProps) {
   const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
   const completedSets = session.completedSets.filter((s) => s.completed);
   const exerciseNames = [...new Set(session.completedSets.map((s) => s.exerciseName))];
@@ -110,13 +113,37 @@ export function WorkoutComplete({ session, onDone }: WorkoutCompleteProps) {
           </a>
         </div>
 
-        {/* Done button */}
-        <button
-          onClick={onDone}
-          className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-lg transition"
-        >
-          Done
-        </button>
+        {/* Done button / Save status */}
+        {saveError ? (
+          <div>
+            <p className="text-red-400 text-sm text-center mb-3">{saveError}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={onRetrySave}
+                className="flex-1 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-lg transition"
+              >
+                Retry Save
+              </button>
+              <button
+                onClick={onDone}
+                className="flex-1 py-4 rounded-xl bg-gray-700 hover:bg-gray-600 font-semibold text-lg transition text-gray-300"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : isSaving ? (
+          <button disabled className="w-full py-4 rounded-xl bg-gray-700 font-bold text-lg opacity-60 cursor-not-allowed">
+            Saving...
+          </button>
+        ) : (
+          <button
+            onClick={onDone}
+            className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-lg transition"
+          >
+            Done
+          </button>
+        )}
 
         {/* Session details table */}
         <div id="session-details" className="mt-6">
