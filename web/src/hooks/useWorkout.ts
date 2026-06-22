@@ -217,6 +217,10 @@ export function useWorkout(userId: string | null) {
   );
 
   function startRestTimerFromEnd(endDate: Date) {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
     restEndRef.current = endDate;
 
@@ -280,14 +284,14 @@ export function useWorkout(userId: string | null) {
 
     const updatedSession = { ...session, completedSets: newSets };
 
-    // restAfter === false suppresses all rest timers (both between-set and
-    // between-exercise) — used by warmup exercises to flow continuously.
-    // restAfter as a number overrides only the between-exercise timer duration.
+    // restAfter controls only the between-exercise rest (after the final set).
+    // restAfter === false suppresses it; a number overrides the duration.
+    // Between-set rest always uses restSeconds regardless of restAfter.
     // IMPORTANT: always advance the position in state FIRST, then start the
     // rest timer. The timer only flips isResting → false; it never moves
     // currentSetNumber or currentExerciseIndex. This prevents double-advance
     // bugs caused by stale closures or rapid state updates.
-    const betweenSetRest = currentExercise.restAfter === false ? 0 : currentExercise.restSeconds;
+    const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
       const nextSession = { ...updatedSession, currentSetNumber: session.currentSetNumber + 1 };
