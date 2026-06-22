@@ -4,6 +4,22 @@ import type { Program, Workout } from "@/lib/types";
 import { WeeklyOverview } from "./WeeklyOverview";
 import { useState } from "react";
 
+function getThisWeekDates(): Record<string, string> {
+  const today = new Date();
+  const dayIdx = today.getDay();
+  const mondayOffset = dayIdx === 0 ? -6 : 1 - dayIdx;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  const FULL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const result: Record<string, string> = {};
+  FULL_DAYS.forEach((name, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    result[name] = d.toLocaleDateString("en-CA");
+  });
+  return result;
+}
+
 interface ProgramCardProps {
   program: Program;
   week: number;
@@ -19,7 +35,9 @@ export function ProgramCard({
   onStartWorkout, onSelectDay,
 }: ProgramCardProps) {
   const [showDays, setShowDays] = useState(false);
-  const isCompleted = todaysWorkout ? completedDays.has(todaysWorkout.dayOfWeek) : false;
+  const weekDates = getThisWeekDates();
+  const todayISO = new Date().toLocaleDateString("en-CA");
+  const isCompleted = todaysWorkout ? completedDays.has(todayISO) : false;
 
   return (
     <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
@@ -43,14 +61,17 @@ export function ProgramCard({
       {todaysWorkout && (
         <button
           onClick={() => onStartWorkout(todaysWorkout)}
+          disabled={isCompleted}
           className={`w-full mt-4 p-4 rounded-xl font-semibold flex items-center justify-between transition ${
             isCompleted
-              ? "bg-green-700 hover:bg-green-600"
+              ? "bg-green-700 cursor-default"
               : "bg-indigo-600 hover:bg-indigo-500"
           }`}
         >
           <div className="text-left">
-            <div className="font-bold">Start {todaysWorkout.dayOfWeek}</div>
+            <div className="font-bold">
+              {isCompleted ? "Today's Workout Completed" : `Start ${todaysWorkout.dayOfWeek}`}
+            </div>
             <div className="text-sm opacity-80">
               {todaysWorkout.exercises.length} exercises
             </div>
@@ -78,7 +99,7 @@ export function ProgramCard({
               className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm flex justify-between items-center"
             >
               <span>{day}</span>
-              {completedDays.has(day) && (
+              {completedDays.has(weekDates[day] ?? "") && (
                 <span className="text-green-400 text-xs">Done</span>
               )}
             </button>

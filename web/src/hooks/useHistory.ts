@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { WorkoutSessionDoc } from "@/lib/types";
-import { getSessions, getExerciseHistory } from "@/lib/firestore";
+import { subscribeToSessions, getExerciseHistory } from "@/lib/firestore";
 
 interface ExerciseStat {
   name: string;
@@ -20,13 +20,9 @@ export function useHistory(userId: string | null) {
 
   useEffect(() => {
     if (!userId) return;
-    let cancelled = false;
+    setLoading(true);
 
-    async function load() {
-      setLoading(true);
-      const sess = await getSessions(userId!);
-      if (cancelled) return;
-
+    const unsubscribe = subscribeToSessions(userId, 50, (sess) => {
       // Compute per-exercise best set from sessions client-side.
       const statsMap = new Map<string, ExerciseStat>();
       for (const session of sess) {
@@ -67,10 +63,9 @@ export function useHistory(userId: string | null) {
       setSessions(sess);
       setExerciseStats(stats);
       setLoading(false);
-    }
+    });
 
-    load();
-    return () => { cancelled = true; };
+    return unsubscribe;
   }, [userId]);
 
   return { sessions, exerciseStats, loading };

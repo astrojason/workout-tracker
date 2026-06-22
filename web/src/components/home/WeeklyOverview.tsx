@@ -8,6 +8,22 @@ function todayIndex(): number {
   return FULL_DAYS.indexOf(today);
 }
 
+// Returns a map of full day name → ISO date (YYYY-MM-DD) for Mon–Sun of the current calendar week.
+function getThisWeekDates(): Record<string, string> {
+  const today = new Date();
+  const dayIdx = today.getDay(); // 0=Sun
+  const mondayOffset = dayIdx === 0 ? -6 : 1 - dayIdx;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  const result: Record<string, string> = {};
+  FULL_DAYS.forEach((name, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    result[name] = d.toLocaleDateString("en-CA");
+  });
+  return result;
+}
+
 interface WeeklyOverviewProps {
   availableDays: string[];
   completedDays: Set<string>;
@@ -15,13 +31,14 @@ interface WeeklyOverviewProps {
 
 export function WeeklyOverview({ availableDays, completedDays }: WeeklyOverviewProps) {
   const currentDay = todayIndex();
+  const weekDates = getThisWeekDates();
 
   return (
     <div className="flex gap-2 justify-between">
       {DAYS.map((day, i) => {
         const fullDay = FULL_DAYS[i];
         const isAvailable = availableDays.includes(fullDay);
-        const isCompleted = completedDays.has(fullDay);
+        const isCompleted = completedDays.has(weekDates[fullDay] ?? "");
         const isToday = i === currentDay;
 
         return (

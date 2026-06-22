@@ -1,6 +1,6 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
-  query, where, orderBy, limit, Timestamp, deleteDoc,
+  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -194,6 +194,17 @@ export async function getSessions(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc));
 }
 
+export function subscribeToSessions(
+  userId: string,
+  limitCount: number,
+  callback: (sessions: WorkoutSessionDoc[]) => void
+): () => void {
+  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc)));
+  });
+}
+
 export async function getSession(
   userId: string, sessionId: string
 ): Promise<WorkoutSessionDoc | null> {
@@ -216,13 +227,11 @@ export async function getCompletedDays(
   snap.docs.forEach((d) => {
     const data = d.data();
     if (!data.dayOfWeek) return;
-    if (since) {
-      const sessionDate = data.date instanceof Timestamp
-        ? data.date.toDate()
-        : new Date(data.date);
-      if (sessionDate < since) return;
-    }
-    days.add(data.dayOfWeek);
+    const sessionDate = data.date instanceof Timestamp
+      ? data.date.toDate()
+      : new Date(data.date);
+    if (since && sessionDate < since) return;
+    days.add(sessionDate.toLocaleDateString("en-CA")); // YYYY-MM-DD in local time
   });
   return days;
 }
