@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useError } from "@/components/providers/ErrorProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
@@ -9,6 +10,7 @@ import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
+  const { showError } = useError();
   const {
     activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
     importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
@@ -54,7 +56,8 @@ export default function SettingsPage() {
       setImportResult(`Imported "${importName.trim() || pendingImport.defaultName}" successfully!`);
       setPendingImport(null);
     } catch (err) {
-      setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      showError(err);
+      setImportResult("Import failed — see error details.");
     } finally {
       setImporting(false);
     }
@@ -72,7 +75,8 @@ export default function SettingsPage() {
       await reimportProgram(id, name, data);
       setImportResult(`Re-imported "${name}" successfully!`);
     } catch (err) {
-      setImportResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      showError(err);
+      setImportResult("Re-import failed — see error details.");
     } finally {
       setReimportingId(null);
     }

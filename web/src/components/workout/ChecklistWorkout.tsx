@@ -6,6 +6,7 @@ import { repTargetDisplay, isTimeBased, formatTimeValue } from "@/lib/types";
 import { getTodayChecklistSession, upsertChecklistSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "@/hooks/useSound";
+import { useError } from "@/components/providers/ErrorProvider";
 
 interface ChecklistWorkoutProps {
   workout: Workout;
@@ -25,6 +26,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
   const [showSwitchSides, setShowSwitchSides] = useState(false);
 
   const { playTimerComplete, initAudio } = useSound();
+  const { showError } = useError();
 
   // Load today's session on mount
   useEffect(() => {
@@ -36,8 +38,8 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
           const orders = new Set(existing.sets.filter((s) => s.completed).map((s) => s.exerciseOrder));
           setCompletedOrders(orders);
         }
-      } catch (e) {
-        console.error("Failed to load checklist session:", e);
+      } catch (err) {
+        showError(err);
       }
       setLoading(false);
     }
@@ -86,9 +88,13 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
       sets,
     };
 
-    const id = await upsertChecklistSession(userId, firestoreId, session);
-    if (!firestoreId) setFirestoreId(id);
-  }, [workout, userId, firestoreId]);
+    try {
+      const id = await upsertChecklistSession(userId, firestoreId, session);
+      if (!firestoreId) setFirestoreId(id);
+    } catch (err) {
+      showError(err);
+    }
+  }, [workout, userId, firestoreId, showError]);
 
   const toggleExercise = useCallback(async (order: number) => {
     const next = new Set(completedOrders);

@@ -7,6 +7,7 @@ import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
+import { useError } from "@/components/providers/ErrorProvider";
 
 // Returns the effective rest duration in seconds for an exercise.
 // restAfter === false → 0 (no rest timer); restAfter is a number → use it;
@@ -81,6 +82,7 @@ function clearPersistedSession() {
 }
 
 export function useWorkout(userId: string | null) {
+  const { showError } = useError();
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -382,8 +384,8 @@ export function useWorkout(userId: string | null) {
         const prs = await checkForPRs(userId, name, setsForExercise);
         allPRs.push(...prs);
       }
-    } catch {
-      // PR check failed; proceed with no PRs rather than losing the workout
+    } catch (err) {
+      showError(err); // Show but proceed — PR failure must not block the save
     }
 
     const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
@@ -404,10 +406,11 @@ export function useWorkout(userId: string | null) {
       clearPersistedSession();
       setIsSaving(false);
       setSession((prev) => prev ? { ...prev, prsAchieved: allPRs } : prev);
-    } catch {
+    } catch (err) {
+      showError(err); // Show full error in modal
       // Don't clear localStorage — session survives for retry
       setIsSaving(false);
-      setSaveError("Failed to save. Check your connection and try again.");
+      setSaveError("Save failed — use Retry Save to try again.");
     }
   }
 
@@ -483,9 +486,10 @@ export function useWorkout(userId: string | null) {
       clearPersistedSession();
       setIsSaving(false);
       setSession((prev) => prev ? { ...prev, prsAchieved: prs } : prev);
-    } catch {
+    } catch (err) {
+      showError(err);
       setIsSaving(false);
-      setSaveError("Failed to save. Check your connection and try again.");
+      setSaveError("Save failed — use Retry Save to try again.");
     }
   }, [session, userId]);
 
