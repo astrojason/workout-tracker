@@ -345,9 +345,15 @@ export function ActiveWorkout({
               </button>
               <button
                 onClick={startTimer}
-                className="flex-[2] py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
+                className="flex-1 py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
               >
                 Start Timer
+              </button>
+              <button
+                onClick={() => setShowCompletion(true)}
+                className="flex-1 py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
+              >
+                Complete Set
               </button>
             </>
           ) : (
