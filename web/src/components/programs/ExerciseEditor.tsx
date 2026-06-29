@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget } from "@/lib/types";
+import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget, UserEquipmentConfig } from "@/lib/types";
 import { barWeight as getBarWeight } from "@/lib/types";
 import {
   calculateBarbell,
@@ -60,9 +60,10 @@ interface ExerciseEditorProps {
   maxOrder: number;
   onSave: (exercise: Exercise) => void;
   onCancel: () => void;
+  equipmentConfig?: UserEquipmentConfig;
 }
 
-export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: ExerciseEditorProps) {
+export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipmentConfig }: ExerciseEditorProps) {
   const isNew = !exercise;
 
   const [name, setName] = useState(exercise?.name ?? "");
@@ -163,11 +164,11 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   if (isBarbellType && !barbellError && barWeightLbs) {
     const target = parseFloat(weightValue);
     if (!isNaN(target) && target >= barWeightLbs) {
-      const config = calculateBarbell(target, barWeightLbs);
-      if (config.perSide.length === 0) {
+      const plateConfig = calculateBarbell(target, barWeightLbs, equipmentConfig);
+      if (plateConfig.perSide.length === 0) {
         barbellHint = `${barWeightLbs} lb bar only`;
       } else {
-        barbellHint = `${barWeightLbs} lb bar + ${plateDisplayString(config)}/side → ${config.achievedWeight} lbs`;
+        barbellHint = `${barWeightLbs} lb bar + ${plateDisplayString(plateConfig)}/side → ${plateConfig.achievedWeight} lbs`;
       }
     }
   }
@@ -176,7 +177,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
   if (equipmentType === "powerblock") {
     const val = parseFloat(weightValue);
     if (!isNaN(val)) {
-      const snapped = nearestPowerBlock(val);
+      const snapped = nearestPowerBlock(val, equipmentConfig);
       const inst = getPowerBlockInstructions(snapped);
       powerBlockHint = `${snapped} lbs — ${inst.label}`;
     }
@@ -345,9 +346,10 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
                 onChange={(e) => setEquipmentDetail(e.target.value)}
                 className="input-field"
               >
-                {BAND_OPTIONS.map((b) => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
-                ))}
+                {(equipmentConfig?.bands.length ? equipmentConfig.bands : BAND_OPTIONS.map((b) => b.value as import("@/lib/types").BandColor)).map((color) => {
+                  const opt = BAND_OPTIONS.find((b) => b.value === color);
+                  return <option key={color} value={color}>{opt?.label ?? color}</option>;
+                })}
               </select>
             )}
 
@@ -360,6 +362,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
                   onChange={handlePullupChange}
                   step="1"
                   min={1}
+                  max={equipmentConfig?.assistedPullupBands ?? undefined}
                   className="input-field"
                   placeholder="number of bands"
                 />
@@ -374,7 +377,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel }: Exercis
                 onChange={(e) => setWeightValue(e.target.value)}
                 className="input-field"
               >
-                {KETTLEBELL_WEIGHTS.map((w) => (
+                {(equipmentConfig?.kettlebells.length ? equipmentConfig.kettlebells : KETTLEBELL_WEIGHTS).map((w) => (
                   <option key={w} value={String(w)}>{w} lbs</option>
                 ))}
               </select>

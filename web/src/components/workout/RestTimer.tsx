@@ -1,14 +1,15 @@
 "use client";
 
-import type { ActiveSession } from "@/lib/types";
+import type { ActiveSession, UserEquipmentConfig } from "@/lib/types";
 import { getEquipmentDisplay, equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface RestTimerProps {
   session: ActiveSession;
   onSkipRest: () => void;
+  equipmentConfig?: UserEquipmentConfig;
 }
 
-export function RestTimer({ session, onSkipRest }: RestTimerProps) {
+export function RestTimer({ session, onSkipRest, equipmentConfig }: RestTimerProps) {
   const exercise = session.workout.exercises[session.currentExerciseIndex];
   const weight = session.resolvedWeights[exercise.id] ?? 0;
   const totalRest = exercise.restSeconds || 120;
@@ -31,13 +32,13 @@ export function RestTimer({ session, onSkipRest }: RestTimerProps) {
   if (setsRemaining > 0) {
     nextLabel = "Next Set";
     nextDetail = `${exercise.name} - Set ${session.currentSetNumber}`;
-    equipText = equipmentDisplayText(getEquipmentDisplay(exercise, weight));
+    equipText = equipmentDisplayText(getEquipmentDisplay(exercise, weight, equipmentConfig));
   } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
     const next = session.workout.exercises[session.currentExerciseIndex + 1];
     const nextWeight = session.resolvedWeights[next.id] ?? 0;
     nextLabel = "Up Next";
     nextDetail = next.name;
-    equipText = equipmentDisplayText(getEquipmentDisplay(next, nextWeight));
+    equipText = equipmentDisplayText(getEquipmentDisplay(next, nextWeight, equipmentConfig));
   }
 
   return (

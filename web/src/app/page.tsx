@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useWorkout } from "@/hooks/useWorkout";
+import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
@@ -16,6 +17,7 @@ export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { activePrograms, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
+  const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
 
   // Active workout — show regardless of auth so a session restored from localStorage
@@ -53,6 +55,7 @@ export default function HomePage() {
         onUpdateSets={workout.updateSets}
         onDismiss={workout.dismissWorkout}
         onPause={workout.pauseWorkout}
+        equipmentConfig={equipmentConfig}
       />
     );
   }

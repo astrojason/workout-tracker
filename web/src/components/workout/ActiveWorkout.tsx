@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { ActiveSession, Exercise } from "@/lib/types";
+import type { ActiveSession, Exercise, UserEquipmentConfig } from "@/lib/types";
 import { isTimeBased, formatTimeValue } from "@/lib/types";
 import { getEquipmentDisplay } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
@@ -19,6 +19,7 @@ interface ActiveWorkoutProps {
   onUpdateSets: (exerciseId: string, newSets: number) => void;
   onDismiss: () => void;
   onPause: () => void;
+  equipmentConfig?: UserEquipmentConfig;
 }
 
 function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
@@ -124,7 +125,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onDismiss, onPause,
+  onUpdateWeight, onUpdateSets, onDismiss, onPause, equipmentConfig,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -185,7 +186,7 @@ export function ActiveWorkout({
     setTimerRunning(true);
   };
   const weight = session.resolvedWeights[exercise.id] ?? 0;
-  const equipDisplay = getEquipmentDisplay(exercise, weight);
+  const equipDisplay = getEquipmentDisplay(exercise, weight, equipmentConfig);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
 
   // Next exercise preview — show when on the last set of the current exercise
@@ -382,7 +383,7 @@ export function ActiveWorkout({
       </div>
 
       {/* Rest Timer Overlay */}
-      {session.isResting && <RestTimer session={session} onSkipRest={onSkipRest} />}
+      {session.isResting && <RestTimer session={session} onSkipRest={onSkipRest} equipmentConfig={equipmentConfig} />}
 
       {/* Set Completion Modal */}
       {showCompletion && (

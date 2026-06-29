@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
+import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { ExerciseEditor } from "@/components/programs/ExerciseEditor";
 import type { Exercise, Workout } from "@/lib/types";
 import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, cleanWeight, isChecklistWorkout } from "@/lib/types";
@@ -14,6 +15,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const { id: programId } = use(params);
   const { user } = useAuth();
   const { programs, loadWorkoutsForWeek, updateWorkout } = usePrograms(user?.uid ?? null);
+  const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
 
   const program = programs.find((p) => p.id === programId);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -253,6 +255,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           maxOrder={Math.max(0, ...editingExercise.workout.exercises.map((e) => e.order))}
           onSave={handleSaveExercise}
           onCancel={() => setEditingExercise(null)}
+          equipmentConfig={equipmentConfig}
         />
       )}
 

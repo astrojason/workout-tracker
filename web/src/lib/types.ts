@@ -87,6 +87,39 @@ export interface UserSettings {
   currentWeeks: Record<string, number>; // programName -> currentWeek
 }
 
+// ── Equipment config ──
+
+export type BandColor = "Orange" | "Purple" | "Red" | "Blue" | "Green" | "Black";
+export const ALL_BAND_COLORS: BandColor[] = ["Orange", "Purple", "Red", "Blue", "Green", "Black"];
+
+export type LoopBandSize = "Ultra-light" | "Light" | "Medium" | "Heavy" | "X-heavy" | "XX-heavy";
+export const ALL_LOOP_BAND_SIZES: LoopBandSize[] = ["Ultra-light", "Light", "Medium", "Heavy", "X-heavy", "XX-heavy"];
+
+export type CoCLevel = "T" | "0.5" | "1" | "1.5" | "2" | "2.5" | "3" | "3.5" | "4";
+export const ALL_COC_LEVELS: CoCLevel[] = ["T", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4"];
+
+export interface UserEquipmentConfig {
+  barbells: {
+    has45lb: boolean;
+    has35lb: boolean;
+    hasEZBar: boolean;
+  };
+  // totalOwned = total physical plates you own across both sides.
+  // Calculator derives per-side limit: barbell → floor(totalOwned/2), landmine → totalOwned.
+  plates: { weight: number; totalOwned: number }[]; // ordered largest → smallest
+  powerBlock: {
+    owned: boolean;
+    minLbs: number;
+    maxLbs: number;
+  };
+  fixedDumbbells: number[];
+  kettlebells: number[];        // sorted ascending
+  bands: BandColor[];           // owned Serious Steel bands
+  loopBands: LoopBandSize[];    // owned loop bands
+  assistedPullupBands: number;  // max bands available for pullup assist
+  grippers: CoCLevel[];         // owned Captains of Crush levels
+}
+
 // ── Session / history ──
 
 export interface CompletedSet {
