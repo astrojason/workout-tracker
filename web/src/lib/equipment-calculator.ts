@@ -21,10 +21,10 @@ export const DEFAULT_PLATES: { weight: number; totalOwned: number }[] = [
 
 export const DEFAULT_EQUIPMENT_CONFIG: UserEquipmentConfig = {
   barbells: { has45lb: true, has35lb: true, hasEZBar: true },
-  plates: DEFAULT_PLATES,
+  plates: DEFAULT_PLATES.map((p) => ({ ...p })),
   powerBlock: { owned: true, minLbs: 5, maxLbs: 50 },
-  fixedDumbbells: FIXED_DUMBBELLS,
-  kettlebells: KETTLEBELL_WEIGHTS,
+  fixedDumbbells: [...FIXED_DUMBBELLS],
+  kettlebells: [...KETTLEBELL_WEIGHTS],
   bands: [...ALL_BAND_COLORS],
   loopBands: [...ALL_LOOP_BAND_SIZES],
   assistedPullupBands: 2,

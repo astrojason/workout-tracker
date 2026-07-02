@@ -40,7 +40,10 @@ export function PowerBlockSection({ config, onChange }: Props) {
                 min={2.5}
                 step={2.5}
                 value={powerBlock.minLbs}
-                onChange={(e) => setPowerBlock({ minLbs: parseFloat(e.target.value) || 5 })}
+                onChange={(e) => {
+                  const minLbs = parseFloat(e.target.value) || 5;
+                  setPowerBlock({ minLbs: Math.min(minLbs, powerBlock.maxLbs) });
+                }}
                 className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right"
               />
             </div>
@@ -51,7 +54,10 @@ export function PowerBlockSection({ config, onChange }: Props) {
                 min={2.5}
                 step={2.5}
                 value={powerBlock.maxLbs}
-                onChange={(e) => setPowerBlock({ maxLbs: parseFloat(e.target.value) || 50 })}
+                onChange={(e) => {
+                  const maxLbs = parseFloat(e.target.value) || 50;
+                  setPowerBlock({ maxLbs: Math.max(maxLbs, powerBlock.minLbs) });
+                }}
                 className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right"
               />
             </div>

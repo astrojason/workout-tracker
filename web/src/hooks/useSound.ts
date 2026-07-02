@@ -16,8 +16,13 @@ export function useSound() {
   // "suspended"; scheduling oscillators before it actually resumes causes
   // the beep to be silently dropped, so callers must await this first.
   async function ensureRunning(ctx: AudioContext) {
-    if (ctx.state === "suspended") {
+    if (ctx.state !== "suspended") return;
+    try {
       await ctx.resume();
+    } catch {
+      // non-critical: resume() can reject without a recent user gesture;
+      // audio is a best-effort enhancement, so just skip the beep rather
+      // than throwing an unhandled rejection into unawaited callers.
     }
   }
 

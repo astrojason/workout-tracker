@@ -9,6 +9,7 @@ import {
   nearestPowerBlock,
   plateDisplayString,
   KETTLEBELL_WEIGHTS,
+  DEFAULT_EQUIPMENT_CONFIG,
 } from "@/lib/equipment-calculator";
 
 const PHASES: { value: Phase; label: string }[] = [
@@ -183,6 +184,11 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
     }
   }
 
+  // Fall back to the default cap when config is missing (so the input stays
+  // capped rather than becoming unbounded), but omit the cap entirely when
+  // the configured value is <=0 — otherwise max<min (1) makes the input invalid.
+  const pullupBandsCap = equipmentConfig?.assistedPullupBands ?? DEFAULT_EQUIPMENT_CONFIG.assistedPullupBands;
+
   let pullupHint: string | null = null;
   if (equipmentType === "assisted_pullup") {
     const bands = parseInt(weightValue);
@@ -346,7 +352,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                 onChange={(e) => setEquipmentDetail(e.target.value)}
                 className="input-field"
               >
-                {(equipmentConfig?.bands.length ? equipmentConfig.bands : BAND_OPTIONS.map((b) => b.value as import("@/lib/types").BandColor)).map((color) => {
+                {(equipmentConfig?.bands.length ? equipmentConfig.bands : BAND_OPTIONS.map((b) => b.value)).map((color) => {
                   const opt = BAND_OPTIONS.find((b) => b.value === color);
                   return <option key={color} value={color}>{opt?.label ?? color}</option>;
                 })}
@@ -362,7 +368,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                   onChange={handlePullupChange}
                   step="1"
                   min={1}
-                  max={equipmentConfig?.assistedPullupBands ?? undefined}
+                  max={pullupBandsCap > 0 ? pullupBandsCap : undefined}
                   className="input-field"
                   placeholder="number of bands"
                 />

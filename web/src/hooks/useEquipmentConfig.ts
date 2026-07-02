@@ -33,7 +33,7 @@ export function useEquipmentConfig(userId: string | null) {
 
     load();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, showError]);
 
   const saveConfig = useCallback(async (newConfig: UserEquipmentConfig) => {
     if (!userId) return;
@@ -49,7 +49,7 @@ export function useEquipmentConfig(userId: string | null) {
     } finally {
       setSaving(false);
     }
-  }, [userId, config]);
+  }, [userId, config, showError]);
 
   return { config, loading, saving, saveConfig };
 }

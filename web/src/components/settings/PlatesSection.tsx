@@ -9,9 +9,14 @@ interface Props {
 
 export function PlatesSection({ config, onChange }: Props) {
   function setCount(weight: number, totalOwned: number) {
-    const updated = config.plates.map((p) =>
-      p.weight === weight ? { ...p, totalOwned } : p
-    );
+    // Rebuild from DEFAULT_PLATES (not config.plates) so every canonical
+    // denomination is present and editable, even if it was missing from a
+    // previously-saved config — mapping over config.plates alone would
+    // silently no-op for a denomination that isn't in it yet.
+    const updated = DEFAULT_PLATES.map(({ weight: w }) => {
+      if (w === weight) return { weight: w, totalOwned };
+      return config.plates.find((p) => p.weight === w) ?? { weight: w, totalOwned: 0 };
+    });
     onChange({ plates: updated });
   }
 

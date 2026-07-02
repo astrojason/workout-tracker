@@ -147,8 +147,13 @@ export function useWorkout(userId: string | null) {
           wakeLockRef.current = sentinel;
           // Some browsers release the lock spontaneously (not just on
           // visibilitychange, e.g. low battery) — reacquire if we're still
-          // in an active, visible session.
+          // in an active, visible session. Only do this for *unexpected*
+          // releases: if wakeLockRef.current no longer points at this
+          // sentinel, we already released it intentionally (releaseWakeLock
+          // clears the ref before calling release()) and must not fight
+          // that by requesting a new lock right as we're tearing down.
           sentinel.addEventListener("release", () => {
+            if (wakeLockRef.current !== sentinel) return;
             wakeLockRef.current = null;
             if (document.visibilityState === "visible" && session) {
               requestWakeLock();
@@ -161,9 +166,10 @@ export function useWorkout(userId: string | null) {
     }
 
     async function releaseWakeLock() {
+      const sentinel = wakeLockRef.current;
+      wakeLockRef.current = null;
       try {
-        await wakeLockRef.current?.release();
-        wakeLockRef.current = null;
+        await sentinel?.release();
       } catch {
         // non-critical: releasing is best-effort cleanup
       }
