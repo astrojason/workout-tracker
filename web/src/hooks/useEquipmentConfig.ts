@@ -14,6 +14,8 @@ export function useEquipmentConfig(userId: string | null) {
 
   useEffect(() => {
     if (!userId) {
+      setConfig(DEFAULT_EQUIPMENT_CONFIG);
+      setSaving(false);
       setLoading(false);
       return;
     }
