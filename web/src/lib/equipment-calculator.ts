@@ -163,8 +163,8 @@ export function calculateLandmine(targetWeight: number, bWeight: number, config?
 // ── PowerBlock ──
 
 export function nearestPowerBlock(target: number, config?: UserEquipmentConfig): number {
-  const min = config?.powerBlock.minLbs ?? 5;
-  const max = config?.powerBlock.maxLbs ?? 50;
+  const min = config?.powerBlock?.minLbs ?? 5;
+  const max = config?.powerBlock?.maxLbs ?? 50;
   const clamped = Math.max(min, Math.min(max, target));
   return Math.round(clamped / 2.5) * 2.5;
 }
