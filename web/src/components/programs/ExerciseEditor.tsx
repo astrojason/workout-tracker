@@ -383,7 +383,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                 onChange={(e) => setWeightValue(e.target.value)}
                 className="input-field"
               >
-                {(equipmentConfig?.kettlebells.length ? equipmentConfig.kettlebells : KETTLEBELL_WEIGHTS).map((w) => (
+                {(equipmentConfig?.kettlebells?.length ? equipmentConfig.kettlebells : KETTLEBELL_WEIGHTS).map((w) => (
                   <option key={w} value={String(w)}>{w} lbs</option>
                 ))}
               </select>
