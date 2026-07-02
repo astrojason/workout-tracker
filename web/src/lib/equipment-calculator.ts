@@ -260,8 +260,8 @@ export function getEquipmentDisplay(exercise: Exercise, weight: number, config?:
         if (dbWeight !== null && dbWeight < 5) return { type: "dumbbell", weight: dbWeight };
       }
       // If PowerBlock not owned, treat as plain dumbbell
-      if (config?.powerBlock.owned === false) return { type: "dumbbell", weight };
-      if (weight > 0 && weight < (config?.powerBlock.minLbs ?? 5)) return { type: "dumbbell", weight };
+      if (config?.powerBlock?.owned === false) return { type: "dumbbell", weight };
+      if (weight > 0 && weight < (config?.powerBlock?.minLbs ?? 5)) return { type: "dumbbell", weight };
       const resolvedWeight = weight > 0 ? nearestPowerBlock(weight, config) : 0;
       const instructions = resolvedWeight > 0
         ? getPowerBlockInstructions(resolvedWeight)
