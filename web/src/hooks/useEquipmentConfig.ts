@@ -24,8 +24,22 @@ export function useEquipmentConfig(userId: string | null) {
     async function load() {
       setLoading(true);
       try {
-        const saved = await getEquipmentConfig(userId!);
-        if (!cancelled) setConfig(saved ?? DEFAULT_EQUIPMENT_CONFIG);
+        const saved = (await getEquipmentConfig(userId!)) as Partial<UserEquipmentConfig> | null;
+        if (!cancelled) {
+          const base = DEFAULT_EQUIPMENT_CONFIG;
+          const normalized: UserEquipmentConfig = {
+            barbells: { ...base.barbells, ...(saved?.barbells ?? {}) },
+            plates: saved?.plates ?? base.plates,
+            powerBlock: { ...base.powerBlock, ...(saved?.powerBlock ?? {}) },
+            fixedDumbbells: saved?.fixedDumbbells ?? base.fixedDumbbells,
+            kettlebells: saved?.kettlebells ?? base.kettlebells,
+            bands: saved?.bands ?? base.bands,
+            loopBands: saved?.loopBands ?? base.loopBands,
+            assistedPullupBands: saved?.assistedPullupBands ?? base.assistedPullupBands,
+            grippers: saved?.grippers ?? base.grippers,
+          };
+          setConfig(saved ? normalized : base);
+        }
       } catch (err) {
         if (!cancelled) showError(err);
       } finally {
