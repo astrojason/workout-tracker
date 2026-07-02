@@ -272,9 +272,15 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
               onChange={(e) => handleEquipmentChange(e.target.value as EquipmentType)}
               className="input-field"
             >
-              <option value="barbell_ez">EZ Bar (15 lbs)</option>
-              <option value="barbell_35">35 lb Bar</option>
-              <option value="barbell_45">Olympic Bar (45 lbs)</option>
+              {(!equipmentConfig || equipmentConfig.barbells.hasEZBar || equipmentType === "barbell_ez") && (
+                <option value="barbell_ez">EZ Bar (15 lbs)</option>
+              )}
+              {(!equipmentConfig || equipmentConfig.barbells.has35lb || equipmentType === "barbell_35") && (
+                <option value="barbell_35">35 lb Bar</option>
+              )}
+              {(!equipmentConfig || equipmentConfig.barbells.has45lb || equipmentType === "barbell_45") && (
+                <option value="barbell_45">Olympic Bar (45 lbs)</option>
+              )}
               <option value="powerblock">PowerBlock (5–50 lbs)</option>
               <option value="dumbbell">Dumbbell</option>
               <option value="band">Serious Steel Band</option>
