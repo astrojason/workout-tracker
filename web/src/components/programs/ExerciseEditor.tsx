@@ -370,8 +370,8 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                   value={weightValue}
                   onChange={handlePullupChange}
                   step="1"
-                  min={1}
-                  max={pullupBandsCap > 0 ? pullupBandsCap : undefined}
+                  min={pullupBandsCap > 0 ? 1 : 0}
+                  max={pullupBandsCap}
                   className="input-field"
                   placeholder="number of bands"
                 />
