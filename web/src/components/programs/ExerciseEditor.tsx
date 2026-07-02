@@ -352,7 +352,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                 onChange={(e) => setEquipmentDetail(e.target.value)}
                 className="input-field"
               >
-                {(equipmentConfig?.bands.length ? equipmentConfig.bands : BAND_OPTIONS.map((b) => b.value)).map((color) => {
+                {(equipmentConfig?.bands?.length ? equipmentConfig.bands : BAND_OPTIONS.map((b) => b.value)).map((color) => {
                   const opt = BAND_OPTIONS.find((b) => b.value === color);
                   return <option key={color} value={color}>{opt?.label ?? color}</option>;
                 })}
