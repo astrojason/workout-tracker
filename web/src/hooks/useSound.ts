@@ -46,6 +46,7 @@ export function useSound() {
   const playSetComplete = useCallback(async () => {
     const ctx = getContext();
     await ensureRunning(ctx);
+    if (ctx.state === "suspended") return;
     const oscillator = ctx.createOscillator();
     oscillator.type = "sine";
     oscillator.frequency.value = 660;
