@@ -1,3 +1,5 @@
+"use client";
+
 import { DEFAULT_PLATES } from "@/lib/equipment-calculator";
 import type { UserEquipmentConfig } from "@/lib/types";
 import { cleanWeight } from "@/lib/types";
