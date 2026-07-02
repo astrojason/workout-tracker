@@ -123,7 +123,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
     }
 
     setBarbellError(null);
-    const config = calculateBarbell(target, barWeightLbs);
+    const config = calculateBarbell(target, barWeightLbs, equipmentConfig);
 
     if (config.achievedWeight !== target) {
       setWeightValue(String(config.achievedWeight));
