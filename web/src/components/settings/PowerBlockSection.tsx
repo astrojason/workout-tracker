@@ -1,3 +1,5 @@
+"use client";
+
 import type { UserEquipmentConfig } from "@/lib/types";
 
 interface Props {
