@@ -29,6 +29,7 @@ export function useSound() {
   const playTimerComplete = useCallback(async () => {
     const ctx = getContext();
     await ensureRunning(ctx);
+    if (ctx.state === "suspended") return;
     // 3 short beeps at 880Hz
     for (let i = 0; i < 3; i++) {
       const oscillator = ctx.createOscillator();
