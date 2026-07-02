@@ -187,9 +187,8 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
   const powerBlockMin = equipmentConfig?.powerBlock?.minLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.minLbs;
   const powerBlockMax = equipmentConfig?.powerBlock?.maxLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.maxLbs;
 
-  // Fall back to the default cap when config is missing (so the input stays
-  // capped rather than becoming unbounded), but omit the cap entirely when
-  // the configured value is <=0 — otherwise max<min (1) makes the input invalid.
+  // Fall back to the default cap when config is missing (so the input stays capped rather than becoming unbounded).
+  // A configured cap of 0 is respected (min becomes 0 and max becomes 0).
   const pullupBandsCap = equipmentConfig?.assistedPullupBands ?? DEFAULT_EQUIPMENT_CONFIG.assistedPullupBands;
 
   let pullupHint: string | null = null;
