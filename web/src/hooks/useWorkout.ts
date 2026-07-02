@@ -143,10 +143,20 @@ export function useWorkout(userId: string | null) {
     async function requestWakeLock() {
       try {
         if ("wakeLock" in navigator && session) {
-          wakeLockRef.current = await navigator.wakeLock.request("screen");
+          const sentinel = await navigator.wakeLock.request("screen");
+          wakeLockRef.current = sentinel;
+          // Some browsers release the lock spontaneously (not just on
+          // visibilitychange, e.g. low battery) — reacquire if we're still
+          // in an active, visible session.
+          sentinel.addEventListener("release", () => {
+            wakeLockRef.current = null;
+            if (document.visibilityState === "visible" && session) {
+              requestWakeLock();
+            }
+          });
         }
       } catch {
-        // WakeLock request can fail (e.g., low battery)
+        // non-critical: WakeLock is a best-effort enhancement, safe to ignore failures
       }
     }
 
@@ -155,17 +165,24 @@ export function useWorkout(userId: string | null) {
         await wakeLockRef.current?.release();
         wakeLockRef.current = null;
       } catch {
-        // Ignore release errors
+        // non-critical: releasing is best-effort cleanup
       }
     }
 
     if (session) {
       requestWakeLock();
 
-      // Re-acquire on visibility change (WakeLock is released when tab is hidden)
+      // Re-acquire on visibility change (WakeLock is released when tab is hidden).
+      // Also resync the rest timer immediately: a backgrounded tab can have its
+      // interval throttled/suspended past the rest duration, so waiting for the
+      // next tick could leave the countdown and completion sound stale for a
+      // while after the user returns.
       function handleVisibilityChange() {
         if (document.visibilityState === "visible" && session) {
           requestWakeLock();
+          if (restEndRef.current) {
+            startRestTimerFromEnd(restEndRef.current);
+          }
         }
       }
       document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -228,6 +245,16 @@ export function useWorkout(userId: string | null) {
     }
     const remaining = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
     restEndRef.current = endDate;
+
+    // Already past the end time — e.g. resyncing after a backgrounded tab's
+    // interval was throttled past the rest duration. Complete immediately
+    // rather than waiting for a tick that may be a while away.
+    if (remaining <= 0) {
+      restEndRef.current = null;
+      playTimerComplete();
+      setSession((prev) => prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev);
+      return;
+    }
 
     // NOTE: State (currentSetNumber / currentExerciseIndex) must already be
     // advanced by the caller before startRestTimerFromEnd is invoked.

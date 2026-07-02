@@ -9,14 +9,21 @@ export function useSound() {
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
     }
-    if (audioContextRef.current.state === "suspended") {
-      audioContextRef.current.resume();
-    }
     return audioContextRef.current;
   }, []);
 
-  const playTimerComplete = useCallback(() => {
+  // Returning from a backgrounded tab commonly leaves the AudioContext
+  // "suspended"; scheduling oscillators before it actually resumes causes
+  // the beep to be silently dropped, so callers must await this first.
+  async function ensureRunning(ctx: AudioContext) {
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+  }
+
+  const playTimerComplete = useCallback(async () => {
     const ctx = getContext();
+    await ensureRunning(ctx);
     // 3 short beeps at 880Hz
     for (let i = 0; i < 3; i++) {
       const oscillator = ctx.createOscillator();
@@ -30,8 +37,9 @@ export function useSound() {
     }
   }, [getContext]);
 
-  const playSetComplete = useCallback(() => {
+  const playSetComplete = useCallback(async () => {
     const ctx = getContext();
+    await ensureRunning(ctx);
     const oscillator = ctx.createOscillator();
     oscillator.type = "sine";
     oscillator.frequency.value = 660;
