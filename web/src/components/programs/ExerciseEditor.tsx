@@ -156,7 +156,8 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
 
   function handlePullupChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseInt(e.target.value);
-    setWeightValue(isNaN(val) || val < 1 ? "1" : String(val));
+    const min = pullupBandsCap > 0 ? 1 : 0;
+    setWeightValue(isNaN(val) || val < min ? String(min) : String(val));
   }
 
   // ── Inline hints (computed from current state) ──
