@@ -141,13 +141,13 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
   function handlePowerBlockBlur() {
     const val = parseFloat(weightValue);
     if (isNaN(val)) {
-      setWeightValue("5");
+      setWeightValue(String(powerBlockMin));
       setWeightWarning(null);
       return;
     }
-    const clamped = nearestPowerBlock(val);
+    const clamped = nearestPowerBlock(val, equipmentConfig);
     if (clamped !== val) {
-      setWeightWarning(`Clamped to ${clamped} lbs (PowerBlock range: 5–50 lbs).`);
+      setWeightWarning(`Clamped to ${clamped} lbs (PowerBlock range: ${powerBlockMin}–${powerBlockMax} lbs).`);
     } else {
       setWeightWarning(null);
     }
@@ -183,6 +183,9 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
       powerBlockHint = `${snapped} lbs — ${inst.label}`;
     }
   }
+
+  const powerBlockMin = equipmentConfig?.powerBlock?.minLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.minLbs;
+  const powerBlockMax = equipmentConfig?.powerBlock?.maxLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.maxLbs;
 
   // Fall back to the default cap when config is missing (so the input stays
   // capped rather than becoming unbounded), but omit the cap entirely when
@@ -322,8 +325,8 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
                   onChange={(e) => { setWeightValue(e.target.value); setWeightWarning(null); }}
                   onBlur={handlePowerBlockBlur}
                   step="2.5"
-                  min={5}
-                  max={50}
+                  min={powerBlockMin}
+                  max={powerBlockMax}
                   className="input-field"
                   placeholder="lbs"
                 />
