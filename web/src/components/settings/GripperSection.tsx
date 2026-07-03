@@ -1,3 +1,5 @@
+"use client";
+
 import type { UserEquipmentConfig, CoCLevel } from "@/lib/types";
 import { ALL_COC_LEVELS } from "@/lib/types";
 
