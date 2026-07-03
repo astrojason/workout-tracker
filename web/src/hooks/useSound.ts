@@ -49,17 +49,22 @@ export function useSound() {
   }, [getContext]);
 
   const playSetComplete = useCallback(async () => {
-    const ctx = getContext();
-    await ensureRunning(ctx);
-    if (ctx.state === "suspended") return;
-    const oscillator = ctx.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.value = 660;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.15;
-    oscillator.connect(gain).connect(ctx.destination);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.1);
+    try {
+      const ctx = getContext();
+      await ensureRunning(ctx);
+      if (ctx.state === "suspended") return;
+      const oscillator = ctx.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.value = 660;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.15;
+      oscillator.connect(gain).connect(ctx.destination);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.1);
+    } catch {
+      // non-critical: audio playback is best-effort, and many callers do not
+      // await this Promise, so swallow unexpected WebAudio failures.
+    }
   }, [getContext]);
 
   // Must be called from a user gesture to enable audio

@@ -90,4 +90,19 @@ describe("useSound", () => {
 
     await expect(result.current.playTimerComplete()).resolves.toBeUndefined();
   });
+
+  it("swallows unexpected set-complete audio failures", async () => {
+    const { result } = renderHook(() => useSound());
+
+    act(() => {
+      result.current.initAudio();
+    });
+
+    mockCtx.state = "running";
+    mockCtx.createOscillator.mockImplementationOnce(() => {
+      throw new Error("AudioContext closed");
+    });
+
+    await expect(result.current.playSetComplete()).resolves.toBeUndefined();
+  });
 });
