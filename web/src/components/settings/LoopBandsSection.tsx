@@ -1,3 +1,5 @@
+"use client";
+
 import type { UserEquipmentConfig, LoopBandSize } from "@/lib/types";
 import { ALL_LOOP_BAND_SIZES } from "@/lib/types";
 
