@@ -45,7 +45,9 @@ const BAND_INFO: Record<string, { name: string; range: string }> = {
 function getEffectivePlates(
   config?: UserEquipmentConfig
 ): { weight: number; totalOwned: number }[] {
-  return config?.plates ?? DEFAULT_PLATES;
+  const plates = config?.plates ?? DEFAULT_PLATES;
+  // Defensive: greedy algorithm assumes largest → smallest order.
+  return [...plates].sort((a, b) => b.weight - a.weight);
 }
 
 // loadingSides: 2 for symmetric barbell (plates on both ends), 1 for landmine (one end only).
