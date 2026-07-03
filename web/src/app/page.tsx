@@ -199,7 +199,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   setChecklistWorkout(w);
                 } else {
-                  workout.startWorkout(w);
+                  workout.startWorkout(w, equipmentConfig ?? undefined);
                 }
               }}
               onSelectDay={(day) => {
@@ -208,7 +208,7 @@ export default function HomePage() {
                   if (isChecklistWorkout(w)) {
                     setChecklistWorkout(w);
                   } else {
-                    workout.startWorkout(w);
+                    workout.startWorkout(w, equipmentConfig ?? undefined);
                   }
                 }
               }}

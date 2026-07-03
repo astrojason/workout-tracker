@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Workout, ActiveSession, CompletedSet, PRResult } from "@/lib/types";
+import type { Workout, ActiveSession, CompletedSet, PRResult, UserEquipmentConfig } from "@/lib/types";
 import { resolveWeightWithMeta } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession } from "@/lib/firestore";
@@ -209,13 +209,13 @@ export function useWorkout(userId: string | null) {
     };
   }, []);
 
-  const startWorkout = useCallback(async (workout: Workout) => {
+  const startWorkout = useCallback(async (workout: Workout, equipmentConfig?: UserEquipmentConfig) => {
     if (!userId) return;
     initAudio();
 
     const resolvedWeights: Record<string, number> = {};
     for (const exercise of workout.exercises) {
-      const { weight } = await resolveWeightWithMeta(userId, exercise);
+      const { weight } = await resolveWeightWithMeta(userId, exercise, equipmentConfig);
       resolvedWeights[exercise.id] = weight;
     }
 
