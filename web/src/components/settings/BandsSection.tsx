@@ -1,3 +1,5 @@
+"use client";
+
 import type { UserEquipmentConfig, BandColor } from "@/lib/types";
 import { ALL_BAND_COLORS } from "@/lib/types";
 
