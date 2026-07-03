@@ -13,8 +13,8 @@ export function useSound() {
   }, []);
 
   // Returning from a backgrounded tab commonly leaves the AudioContext
-  // "suspended"; scheduling oscillators before it actually resumes causes
-  // the beep to be silently dropped, so callers must await this first.
+  // "suspended"; we await ctx.resume() before scheduling oscillators so the
+  // beep isn't silently dropped in the resume gap.
   async function ensureRunning(ctx: AudioContext) {
     if (ctx.state !== "suspended") return;
     try {
