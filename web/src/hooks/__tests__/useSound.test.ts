@@ -6,7 +6,7 @@ import { useSound } from "../useSound";
 // backgrounded tab in a "suspended" state and resume() takes a moment to
 // settle — the completion beep must not be silently dropped in that gap.
 describe("useSound", () => {
-  let mockCtx: {
+  let mockCtx!: {
     state: "suspended" | "running";
     currentTime: number;
     destination: object;
@@ -14,8 +14,7 @@ describe("useSound", () => {
     createGain: ReturnType<typeof vi.fn>;
     resume: ReturnType<typeof vi.fn>;
   };
-  let resolveResume: () => void;
-
+  let resolveResume!: () => void;
   beforeEach(() => {
     const resumePromise = new Promise<void>((res) => {
       resolveResume = () => {
