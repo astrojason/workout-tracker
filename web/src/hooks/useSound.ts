@@ -27,19 +27,24 @@ export function useSound() {
   }
 
   const playTimerComplete = useCallback(async () => {
-    const ctx = getContext();
-    await ensureRunning(ctx);
-    if (ctx.state === "suspended") return;
-    // 3 short beeps at 880Hz
-    for (let i = 0; i < 3; i++) {
-      const oscillator = ctx.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.value = 880;
-      const gain = ctx.createGain();
-      gain.gain.value = 0.3;
-      oscillator.connect(gain).connect(ctx.destination);
-      oscillator.start(ctx.currentTime + i * 0.3);
-      oscillator.stop(ctx.currentTime + i * 0.3 + 0.15);
+    try {
+      const ctx = getContext();
+      await ensureRunning(ctx);
+      if (ctx.state === "suspended") return;
+      // 3 short beeps at 880Hz
+      for (let i = 0; i < 3; i++) {
+        const oscillator = ctx.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.value = 880;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.3;
+        oscillator.connect(gain).connect(ctx.destination);
+        oscillator.start(ctx.currentTime + i * 0.3);
+        oscillator.stop(ctx.currentTime + i * 0.3 + 0.15);
+      }
+    } catch {
+      // non-critical: audio playback is best-effort, and many callers do not
+      // await this Promise, so swallow unexpected WebAudio failures.
     }
   }, [getContext]);
 
