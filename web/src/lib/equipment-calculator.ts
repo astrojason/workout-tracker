@@ -165,8 +165,9 @@ export function calculateLandmine(targetWeight: number, bWeight: number, config?
 export function nearestPowerBlock(target: number, config?: UserEquipmentConfig): number {
   const min = config?.powerBlock?.minLbs ?? 5;
   const max = config?.powerBlock?.maxLbs ?? 50;
-  const clamped = Math.max(min, Math.min(max, target));
-  return Math.round(clamped / 2.5) * 2.5;
+  const step = 2.5;
+  const snapped = Math.round(target / step) * step;
+  return Math.max(min, Math.min(max, snapped));
 }
 
 // PowerBlock Elite EXP Stage 1 selector + rod configuration per weight
