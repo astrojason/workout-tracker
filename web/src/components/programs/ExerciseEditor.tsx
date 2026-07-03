@@ -282,7 +282,7 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
               {(!equipmentConfig || equipmentConfig.barbells.has45lb || equipmentType === "barbell_45") && (
                 <option value="barbell_45">Olympic Bar (45 lbs)</option>
               )}
-              <option value="powerblock">PowerBlock (5–50 lbs)</option>
+              <option value="powerblock">PowerBlock ({powerBlockMin}–{powerBlockMax} lbs)</option>
               <option value="dumbbell">Dumbbell</option>
               <option value="band">Serious Steel Band</option>
               <option value="assisted_pullup">Pull-Up Assist (Bands)</option>
