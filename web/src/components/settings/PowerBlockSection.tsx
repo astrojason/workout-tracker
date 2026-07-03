@@ -53,12 +53,15 @@ export function PowerBlockSection({ config, onChange }: Props) {
               <span className="text-sm text-gray-400">Max weight (lbs)</span>
               <input
                 type="number"
-                min={2.5}
+                min={5}
+                max={50}
                 step={2.5}
                 value={powerBlock.maxLbs}
                 onChange={(e) => {
-                  const maxLbs = parseFloat(e.target.value) || 50;
-                  setPowerBlock({ maxLbs: Math.max(maxLbs, powerBlock.minLbs) });
+                  const raw = parseFloat(e.target.value);
+                  const snapped = Number.isFinite(raw) ? Math.round(raw / 2.5) * 2.5 : 50;
+                  const maxLbs = Math.max(5, Math.min(50, Math.max(snapped, powerBlock.minLbs)));
+                  setPowerBlock({ maxLbs });
                 }}
                 className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right"
               />
