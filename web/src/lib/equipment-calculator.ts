@@ -1,21 +1,35 @@
-import type { Exercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions } from "./types";
-import { barWeight, cleanWeight } from "./types";
+import type { Exercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions, UserEquipmentConfig } from "./types";
+import { barWeight, cleanWeight, ALL_BAND_COLORS, ALL_LOOP_BAND_SIZES, ALL_COC_LEVELS } from "./types";
 
 export const FIXED_DUMBBELLS: number[] = [2];
 export const KETTLEBELL_WEIGHTS: number[] = [15, 25, 45];
 
-// Available plates per side (weight, max count per side)
-const DEFAULT_PLATES: { weight: number; maxPerSide: number }[] = [
-  { weight: 45, maxPerSide: 1 },
-  { weight: 35, maxPerSide: 1 },
-  { weight: 25, maxPerSide: 2 },
-  { weight: 10, maxPerSide: 2 },
-  { weight: 5, maxPerSide: 1 },
-  { weight: 2.5, maxPerSide: 1 },
-  { weight: 1, maxPerSide: 1 },
-  { weight: 0.75, maxPerSide: 1 },
-  { weight: 0.5, maxPerSide: 1 },
+// totalOwned = total physical plates owned across both sides.
+// For symmetric barbell: max per side = floor(totalOwned / 2).
+// For landmine (one-sided): all plates can go on the single loaded end.
+export const DEFAULT_PLATES: { weight: number; totalOwned: number }[] = [
+  { weight: 45, totalOwned: 2 },
+  { weight: 35, totalOwned: 2 },
+  { weight: 25, totalOwned: 4 },
+  { weight: 10, totalOwned: 4 },
+  { weight: 5, totalOwned: 2 },
+  { weight: 2.5, totalOwned: 2 },
+  { weight: 1, totalOwned: 2 },
+  { weight: 0.75, totalOwned: 2 },
+  { weight: 0.5, totalOwned: 2 },
 ];
+
+export const DEFAULT_EQUIPMENT_CONFIG: UserEquipmentConfig = {
+  barbells: { has45lb: true, has35lb: true, hasEZBar: true },
+  plates: DEFAULT_PLATES.map((p) => ({ ...p })),
+  powerBlock: { owned: true, minLbs: 5, maxLbs: 50 },
+  fixedDumbbells: [...FIXED_DUMBBELLS],
+  kettlebells: [...KETTLEBELL_WEIGHTS],
+  bands: [...ALL_BAND_COLORS],
+  loopBands: [...ALL_LOOP_BAND_SIZES],
+  assistedPullupBands: 2,
+  grippers: [...ALL_COC_LEVELS],
+};
 
 const BAND_INFO: Record<string, { name: string; range: string }> = {
   Orange: { name: "Orange", range: "2-12 lbs" },
@@ -28,9 +42,20 @@ const BAND_INFO: Record<string, { name: string; range: string }> = {
 
 // ── Plate Calculator ──
 
+function getEffectivePlates(
+  config?: UserEquipmentConfig
+): { weight: number; totalOwned: number }[] {
+  const plates = config?.plates ?? DEFAULT_PLATES;
+  // Defensive: greedy algorithm assumes largest → smallest order.
+  return [...plates].sort((a, b) => b.weight - a.weight);
+}
+
+// loadingSides: 2 for symmetric barbell (plates on both ends), 1 for landmine (one end only).
+// Per-side limit = floor(totalOwned / loadingSides).
 function findPlates(
   target: number,
-  plates: { weight: number; maxPerSide: number }[] = DEFAULT_PLATES
+  plates: { weight: number; totalOwned: number }[] = DEFAULT_PLATES,
+  loadingSides: 1 | 2 = 2
 ): { plates: { plate: number; count: number }[]; totalPerSide: number } | null {
   let remaining = target;
   const result: { plate: number; count: number }[] = [];
@@ -38,7 +63,8 @@ function findPlates(
 
   for (const plate of plates) {
     if (remaining < plate.weight - epsilon) continue;
-    const maxCount = Math.min(plate.maxPerSide, Math.floor(remaining / plate.weight));
+    const maxPerSide = Math.floor(plate.totalOwned / loadingSides);
+    const maxCount = Math.min(maxPerSide, Math.floor(remaining / plate.weight));
     if (maxCount > 0) {
       result.push({ plate: plate.weight, count: maxCount });
       remaining -= maxCount * plate.weight;
@@ -56,7 +82,8 @@ function isLandmineExercise(exercise: Exercise): boolean {
   return exercise.name.toLowerCase().includes("landmine");
 }
 
-export function calculateBarbell(targetWeight: number, bWeight: number): PlateConfiguration {
+export function calculateBarbell(targetWeight: number, bWeight: number, config?: UserEquipmentConfig): PlateConfiguration {
+  const plates = getEffectivePlates(config);
   const perSideNeeded = (targetWeight - bWeight) / 2;
 
   if (perSideNeeded <= 0) {
@@ -64,7 +91,7 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
   }
 
   // Try exact match
-  const exact = findPlates(perSideNeeded);
+  const exact = findPlates(perSideNeeded, plates, 2);
   if (exact) {
     return {
       targetWeight,
@@ -79,7 +106,7 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
   let tryPerSide = Math.floor((perSideNeeded - 0.001) / step) * step;
   while (tryPerSide > 0) {
     const normalized = Math.round(tryPerSide * 1000) / 1000;
-    const found = findPlates(normalized);
+    const found = findPlates(normalized, plates, 2);
     if (found) {
       return {
         targetWeight,
@@ -94,15 +121,16 @@ export function calculateBarbell(targetWeight: number, bWeight: number): PlateCo
   return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [] };
 }
 
-export function calculateLandmine(targetWeight: number, bWeight: number): PlateConfiguration {
+export function calculateLandmine(targetWeight: number, bWeight: number, config?: UserEquipmentConfig): PlateConfiguration {
+  const plates = getEffectivePlates(config);
   const oneSideNeeded = targetWeight - bWeight;
 
   if (oneSideNeeded <= 0) {
     return { targetWeight, barWeight: bWeight, achievedWeight: bWeight, perSide: [], isLandmine: true };
   }
 
-  // Try exact match
-  const exact = findPlates(oneSideNeeded);
+  // Try exact match (loadingSides=1: all owned plates available on the single loaded end)
+  const exact = findPlates(oneSideNeeded, plates, 1);
   if (exact) {
     return {
       targetWeight,
@@ -118,7 +146,7 @@ export function calculateLandmine(targetWeight: number, bWeight: number): PlateC
   let tryOneSide = Math.floor((oneSideNeeded - 0.001) / step) * step;
   while (tryOneSide > 0) {
     const normalized = Math.round(tryOneSide * 1000) / 1000;
-    const found = findPlates(normalized);
+    const found = findPlates(normalized, plates, 1);
     if (found) {
       return {
         targetWeight,
@@ -136,9 +164,12 @@ export function calculateLandmine(targetWeight: number, bWeight: number): PlateC
 
 // ── PowerBlock ──
 
-export function nearestPowerBlock(target: number): number {
-  const clamped = Math.max(5, Math.min(50, target));
-  return Math.round(clamped / 2.5) * 2.5;
+export function nearestPowerBlock(target: number, config?: UserEquipmentConfig): number {
+  const min = config?.powerBlock?.minLbs ?? 5;
+  const max = config?.powerBlock?.maxLbs ?? 50;
+  const step = 2.5;
+  const snapped = Math.round(target / step) * step;
+  return Math.max(min, Math.min(max, snapped));
 }
 
 // PowerBlock Elite EXP Stage 1 selector + rod configuration per weight
@@ -208,31 +239,33 @@ function parseWeightFromDetail(detail: string): number | null {
   return isNaN(num) ? null : num;
 }
 
-export function getEquipmentDisplay(exercise: Exercise, weight: number): EquipmentDisplay {
+export function getEquipmentDisplay(exercise: Exercise, weight: number, config?: UserEquipmentConfig): EquipmentDisplay {
   switch (exercise.equipmentType) {
     case "barbell_45": {
       const landmine = isLandmineExercise(exercise);
       if (weight <= 45) return { type: "barbell", config: { targetWeight: 45, barWeight: 45, achievedWeight: 45, perSide: [], isLandmine: landmine } };
-      return { type: "barbell", config: landmine ? calculateLandmine(weight, 45) : calculateBarbell(weight, 45) };
+      return { type: "barbell", config: landmine ? calculateLandmine(weight, 45, config) : calculateBarbell(weight, 45, config) };
     }
 
     case "barbell_35": {
       const landmine = isLandmineExercise(exercise);
       if (weight <= 35) return { type: "barbell", config: { targetWeight: 35, barWeight: 35, achievedWeight: 35, perSide: [], isLandmine: landmine } };
-      return { type: "barbell", config: landmine ? calculateLandmine(weight, 35) : calculateBarbell(weight, 35) };
+      return { type: "barbell", config: landmine ? calculateLandmine(weight, 35, config) : calculateBarbell(weight, 35, config) };
     }
 
     case "barbell_ez":
       if (weight <= 15) return { type: "barbell", config: { targetWeight: 15, barWeight: 15, achievedWeight: 15, perSide: [] } };
-      return { type: "barbell", config: calculateBarbell(weight, 15) };
+      return { type: "barbell", config: calculateBarbell(weight, 15, config) };
 
     case "powerblock": {
       if (exercise.equipmentDetail) {
         const dbWeight = parseWeightFromDetail(exercise.equipmentDetail);
         if (dbWeight !== null && dbWeight < 5) return { type: "dumbbell", weight: dbWeight };
       }
-      if (weight > 0 && weight < 5) return { type: "dumbbell", weight };
-      const resolvedWeight = weight > 0 ? nearestPowerBlock(weight) : 0;
+      // If PowerBlock not owned, treat as plain dumbbell
+      if (config?.powerBlock?.owned === false) return { type: "dumbbell", weight };
+      if (weight > 0 && weight < (config?.powerBlock?.minLbs ?? 5)) return { type: "dumbbell", weight };
+      const resolvedWeight = weight > 0 ? nearestPowerBlock(weight, config) : 0;
       const instructions = resolvedWeight > 0
         ? getPowerBlockInstructions(resolvedWeight)
         : { selector: 5, rods: "none" as const, label: "—" };

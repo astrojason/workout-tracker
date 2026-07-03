@@ -326,6 +326,22 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Equipment */}
+      <section className="mb-8">
+        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Equipment</h2>
+        <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <Link
+            href="/settings/equipment"
+            className="px-4 py-3 flex justify-between items-center hover:bg-gray-800/50 transition rounded-xl"
+          >
+            <span>Manage Equipment</span>
+            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+      </section>
+
       {/* Sound */}
       <section className="mb-8">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Notifications</h2>

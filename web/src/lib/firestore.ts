@@ -5,7 +5,7 @@ import {
 import { db } from "./firebase";
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
-  CompletedSet, PersonalRecordDoc, PRResult,
+  CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig,
 } from "./types";
 
 // ── Path helpers ──
@@ -15,6 +15,9 @@ function userRef(userId: string) {
 }
 function settingsRef(userId: string) {
   return doc(db, "users", userId, "settings", "prefs");
+}
+function equipmentRef(userId: string) {
+  return doc(db, "users", userId, "settings", "equipment");
 }
 function programsCol(userId: string) {
   return collection(db, "users", userId, "programs");
@@ -45,6 +48,20 @@ export async function getSettings(userId: string): Promise<UserSettings> {
 
 export async function updateSettings(userId: string, updates: Partial<UserSettings>) {
   await setDoc(settingsRef(userId), updates, { merge: true });
+}
+
+// ── Equipment config ──
+
+// Returns null when no equipment doc exists yet; callers fall back to DEFAULT_EQUIPMENT_CONFIG.
+export async function getEquipmentConfig(userId: string): Promise<UserEquipmentConfig | null> {
+  const snap = await getDoc(equipmentRef(userId));
+  if (!snap.exists()) return null;
+  return snap.data() as UserEquipmentConfig;
+}
+
+// Full replacement (not merge) — plates array is order-dependent and must be stored atomically.
+export async function saveEquipmentConfig(userId: string, config: UserEquipmentConfig): Promise<void> {
+  await setDoc(equipmentRef(userId), config);
 }
 
 // ── Programs ──

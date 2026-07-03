@@ -20,11 +20,15 @@ vi.mock("@/lib/pr-detector", () => ({
   checkForPRs: vi.fn().mockResolvedValue([]),
 }));
 
+const playTimerCompleteMock = vi.fn();
+const playSetCompleteMock = vi.fn();
+const initAudioMock = vi.fn();
+
 vi.mock("../useSound", () => ({
   useSound: () => ({
-    playTimerComplete: vi.fn(),
-    playSetComplete: vi.fn(),
-    initAudio: vi.fn(),
+    playTimerComplete: playTimerCompleteMock,
+    playSetComplete: playSetCompleteMock,
+    initAudio: initAudioMock,
   }),
 }));
 
@@ -658,5 +662,73 @@ describe("useWorkout", () => {
     expect(result.current.session!.currentExerciseIndex).toBe(1);
     expect(result.current.session!.currentSetNumber).toBe(1);
     expect(result.current.currentExercise!.name).toBe("Ex2");
+  });
+
+  it("catches up immediately when the tab becomes visible after the rest timer expired unnoticed", async () => {
+    // Simulates a backgrounded tab where setInterval is throttled/suspended by
+    // the browser for longer than the rest period, so it never fires on its
+    // own. Returning to the tab must resync state immediately instead of
+    // waiting for the next (possibly very late) interval tick.
+    const exercise = makeExercise({ sets: 3, restSeconds: 60 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+    });
+
+    act(() => {
+      result.current.completeSet(10, 135, false, "normal");
+    });
+    expect(result.current.session!.isResting).toBe(true);
+
+    // Real time passes well beyond the rest duration, but the interval never
+    // fires (fake timers are not advanced) — the throttled-background case.
+    vi.setSystemTime(Date.now() + 90_000);
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(result.current.session!.isResting).toBe(false);
+    expect(playTimerCompleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reacquires the wake lock if it is released unexpectedly while the session is still active", async () => {
+    const sentinel = {
+      release: vi.fn().mockResolvedValue(undefined),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const requestMock = vi.fn().mockResolvedValue(sentinel);
+    Object.defineProperty(navigator, "wakeLock", {
+      value: { request: requestMock },
+      configurable: true,
+    });
+
+    const workout = makeWorkout();
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout);
+      await Promise.resolve();
+    });
+
+    expect(requestMock).toHaveBeenCalledTimes(1);
+
+    // Grab the 'release' listener the hook registered on the sentinel and
+    // fire it, simulating a browser/OS-initiated release unrelated to a
+    // visibilitychange (e.g. some mobile browsers release it spontaneously).
+    const releaseHandler = sentinel.addEventListener.mock.calls.find(
+      ([eventName]) => eventName === "release"
+    )?.[1];
+    expect(releaseHandler).toBeDefined();
+
+    await act(async () => {
+      releaseHandler();
+      await Promise.resolve();
+    });
+
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 });

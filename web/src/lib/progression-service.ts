@@ -1,4 +1,4 @@
-import type { Exercise } from "./types";
+import type { Exercise, UserEquipmentConfig } from "./types";
 import { barWeight } from "./types";
 import { calculateBarbell, calculateLandmine, nearestPowerBlock } from "./equipment-calculator";
 import { getLastSetsForExercise } from "./firestore";
@@ -12,16 +12,16 @@ function getProgressionIncrement(exercise: Exercise): number {
   }
 }
 
-function adjustForEquipment(target: number, exercise: Exercise): number {
+function adjustForEquipment(target: number, exercise: Exercise, config?: UserEquipmentConfig): number {
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {
     const isLandmine = exercise.name.toLowerCase().includes("landmine");
     return isLandmine
-      ? calculateLandmine(target, bw).achievedWeight
-      : calculateBarbell(target, bw).achievedWeight;
+      ? calculateLandmine(target, bw, config).achievedWeight
+      : calculateBarbell(target, bw, config).achievedWeight;
   }
   if (exercise.equipmentType === "powerblock") {
-    return nearestPowerBlock(target);
+    return nearestPowerBlock(target, config);
   }
   return target;
 }
@@ -33,7 +33,8 @@ export interface WeightResolution {
 
 export async function resolveWeightWithMeta(
   userId: string,
-  exercise: Exercise
+  exercise: Exercise,
+  config?: UserEquipmentConfig
 ): Promise<WeightResolution> {
   if (exercise.baseWeight.type === "fixed") {
     return { weight: exercise.baseWeight.value, prevWeight: null };
@@ -50,24 +51,25 @@ export async function resolveWeightWithMeta(
   );
 
   if (allCompleted) {
-    return { weight: applyProgression(prevWeight, exercise), prevWeight };
+    return { weight: applyProgression(prevWeight, exercise, config), prevWeight };
   }
   return { weight: prevWeight, prevWeight };
 }
 
 export async function resolveWeight(
   userId: string,
-  exercise: Exercise
+  exercise: Exercise,
+  config?: UserEquipmentConfig
 ): Promise<number> {
-  const { weight } = await resolveWeightWithMeta(userId, exercise);
+  const { weight } = await resolveWeightWithMeta(userId, exercise, config);
   return weight;
 }
 
-export function applyProgression(currentWeight: number, exercise: Exercise): number {
+export function applyProgression(currentWeight: number, exercise: Exercise, config?: UserEquipmentConfig): number {
   const increment = getProgressionIncrement(exercise);
 
   if (increment > 0) {
-    return adjustForEquipment(currentWeight + increment, exercise);
+    return adjustForEquipment(currentWeight + increment, exercise, config);
   }
 
   // Free-form rules (band color, band count, etc.) and all non-increment keywords
