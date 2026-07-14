@@ -66,7 +66,8 @@ export interface Exercise {
 
 export interface Workout {
   id: string;
-  programName: string;
+  programId: string; // stable foreign key — query/filter by this, not programName
+  programName: string; // denormalized display copy, kept in sync on program rename
   week: number;
   dayOfWeek: string;
   exercises: Exercise[];
@@ -84,7 +85,8 @@ export interface Program {
 export interface UserSettings {
   defaultRestSeconds: number;
   soundEnabled: boolean;
-  currentWeeks: Record<string, number>; // programName -> currentWeek
+  currentWeeks: Record<string, number>; // programId -> currentWeek
+  migratedProgramIds?: boolean; // one-time backfill of programId onto legacy Workout/WorkoutSessionDoc docs
 }
 
 // ── Equipment config ──
@@ -141,7 +143,8 @@ export interface CompletedSet {
 
 export interface WorkoutSessionDoc {
   id: string;
-  programName: string;
+  programId: string; // stable foreign key — query/filter by this, not programName
+  programName: string; // denormalized display copy, kept in sync on program rename
   week: number;
   dayOfWeek: string;
   date: Timestamp | Date;

@@ -427,6 +427,7 @@ export function useWorkout(userId: string | null) {
 
     try {
       await saveSession(userId, {
+        programId: session.workout.programId,
         programName: session.workout.programName,
         week: session.workout.week,
         dayOfWeek: session.workout.dayOfWeek,
@@ -507,6 +508,7 @@ export function useWorkout(userId: string | null) {
     setIsSaving(true);
     try {
       await saveSession(userId, {
+        programId: session.workout.programId,
         programName: session.workout.programName,
         week: session.workout.week,
         dayOfWeek: session.workout.dayOfWeek,

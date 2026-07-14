@@ -1,6 +1,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
-  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot,
+  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot, writeBatch,
+  type CollectionReference, type DocumentReference,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -90,35 +91,78 @@ export async function deleteProgramDoc(userId: string, programId: string) {
   await deleteDoc(doc(programsCol(userId), programId));
 }
 
-export async function deleteAllWorkoutsForProgram(userId: string, programName: string) {
-  const q = query(workoutsCol(userId), where("programName", "==", programName));
+export async function deleteAllWorkoutsForProgram(userId: string, programId: string) {
+  const q = query(workoutsCol(userId), where("programId", "==", programId));
   const snap = await getDocs(q);
   for (const d of snap.docs) {
     await deleteDoc(d.ref);
   }
 }
 
+// Firestore batched writes cap out at 500 ops; chunk conservatively below that.
+const BATCH_CHUNK_SIZE = 400;
+
+async function commitBatchUpdates(updates: { ref: DocumentReference; data: Record<string, unknown> }[]) {
+  for (let i = 0; i < updates.length; i += BATCH_CHUNK_SIZE) {
+    const batch = writeBatch(db);
+    for (const { ref, data } of updates.slice(i, i + BATCH_CHUNK_SIZE)) {
+      batch.update(ref, data);
+    }
+    await batch.commit();
+  }
+}
+
+// Renaming a program must not disconnect its workouts/history, which are
+// queried by programId — only the denormalized display copy needs updating.
+export async function renameProgram(userId: string, programId: string, newName: string): Promise<void> {
+  await updateDoc(doc(programsCol(userId), programId), { name: newName });
+  await cascadeProgramName(workoutsCol(userId), programId, newName);
+  await cascadeProgramName(sessionsCol(userId), programId, newName);
+}
+
+async function cascadeProgramName(col: CollectionReference, programId: string, newName: string) {
+  const snap = await getDocs(query(col, where("programId", "==", programId)));
+  await commitBatchUpdates(snap.docs.map((d) => ({ ref: d.ref, data: { programName: newName } })));
+}
+
+// One-time, idempotent backfill: adds programId to legacy Workout/WorkoutSessionDoc
+// docs that predate the field, matched by their current programName. Only ever
+// links docs to a program that still exists — never guesses.
+export async function migrateProgramIds(userId: string, programs: Program[]): Promise<void> {
+  const idByName = new Map(programs.map((p) => [p.name, p.id]));
+  await backfillProgramId(workoutsCol(userId), idByName);
+  await backfillProgramId(sessionsCol(userId), idByName);
+}
+
+async function backfillProgramId(col: CollectionReference, idByName: Map<string, string>) {
+  const snap = await getDocs(col);
+  const updates = snap.docs
+    .filter((d) => !d.data().programId && idByName.has(d.data().programName))
+    .map((d) => ({ ref: d.ref, data: { programId: idByName.get(d.data().programName)! } }));
+  await commitBatchUpdates(updates);
+}
+
 // ── Workouts (exercise definitions by program/week/day) ──
 
-function workoutDocId(programName: string, week: number, day: string): string {
-  return `${programName.toLowerCase().replace(/\s+/g, "-")}_${week}_${day}`;
+function workoutDocId(programId: string, week: number, day: string): string {
+  return `${programId}_${week}_${day}`;
 }
 
 async function getWorkout(
-  userId: string, programName: string, week: number, day: string
+  userId: string, programId: string, week: number, day: string
 ): Promise<Workout | null> {
-  const id = workoutDocId(programName, week, day);
+  const id = workoutDocId(programId, week, day);
   const snap = await getDoc(doc(workoutsCol(userId), id));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as Workout;
 }
 
 export async function getWorkoutsForProgram(
-  userId: string, programName: string, week: number
+  userId: string, programId: string, week: number
 ): Promise<Workout[]> {
   const q = query(
     workoutsCol(userId),
-    where("programName", "==", programName),
+    where("programId", "==", programId),
     where("week", "==", week)
   );
   const snap = await getDocs(q);
@@ -126,16 +170,17 @@ export async function getWorkoutsForProgram(
 }
 
 async function getAllWorkoutsForProgram(
-  userId: string, programName: string
+  userId: string, programId: string
 ): Promise<Workout[]> {
-  const q = query(workoutsCol(userId), where("programName", "==", programName));
+  const q = query(workoutsCol(userId), where("programId", "==", programId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Workout));
 }
 
 export async function saveWorkout(userId: string, workout: Workout) {
-  const id = workoutDocId(workout.programName, workout.week, workout.dayOfWeek);
+  const id = workoutDocId(workout.programId, workout.week, workout.dayOfWeek);
   await setDoc(doc(workoutsCol(userId), id), {
+    programId: workout.programId,
     programName: workout.programName,
     week: workout.week,
     dayOfWeek: workout.dayOfWeek,
@@ -155,7 +200,7 @@ export async function saveSession(userId: string, session: Omit<WorkoutSessionDo
 }
 
 export async function getTodayChecklistSession(
-  userId: string, programName: string, dayOfWeek: string
+  userId: string, programId: string, dayOfWeek: string
 ): Promise<(WorkoutSessionDoc & { firestoreId: string }) | null> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -164,7 +209,7 @@ export async function getTodayChecklistSession(
   // Filter dayOfWeek and today's date entirely client-side.
   const q = query(
     sessionsCol(userId),
-    where("programName", "==", programName),
+    where("programId", "==", programId),
   );
   const snap = await getDocs(q);
   let best: (WorkoutSessionDoc & { firestoreId: string }) | null = null;
@@ -230,12 +275,16 @@ export async function getSession(
   return { id: snap.id, ...snap.data() } as WorkoutSessionDoc;
 }
 
+export async function deleteSession(userId: string, sessionId: string): Promise<void> {
+  await deleteDoc(doc(sessionsCol(userId), sessionId));
+}
+
 export async function getCompletedDays(
-  userId: string, programName: string, week: number, since?: Date
+  userId: string, programId: string, week: number, since?: Date
 ): Promise<Set<string>> {
   const q = query(
     sessionsCol(userId),
-    where("programName", "==", programName),
+    where("programId", "==", programId),
     where("week", "==", week),
     where("completed", "==", true)
   );

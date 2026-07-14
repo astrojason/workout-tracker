@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const { showError } = useError();
   const {
     activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
-    importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, updateUserSettings,
+    importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, renameProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +34,11 @@ export default function SettingsPage() {
   // Tracks which program the re-import file picker was opened for
   const reimportTargetRef = useRef<{ id: string; name: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  // Rename flow state
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -82,13 +87,33 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleDelete(programId: string, programName: string) {
+  async function handleDelete(programId: string) {
     setDeletingId(programId);
     try {
-      await deleteProgram(programId, programName);
+      await deleteProgram(programId);
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
+    }
+  }
+
+  function startRename(programId: string, currentName: string) {
+    setRenamingId(programId);
+    setRenameValue(currentName);
+  }
+
+  async function handleConfirmRename() {
+    if (!renamingId) return;
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    setSavingRename(true);
+    try {
+      await renameProgram(renamingId, trimmed);
+      setRenamingId(null);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setSavingRename(false);
     }
   }
 
@@ -136,71 +161,110 @@ export default function SettingsPage() {
         <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
           {activePrograms.map((program) => (
             <div key={program.id} className="px-4 py-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="font-semibold">{program.name}</div>
-                  <div className="text-xs text-gray-500">{program.totalWeeks} weeks</div>
-                </div>
+              {renamingId === program.id ? (
                 <div className="flex items-center gap-2">
-                  <select
-                    value={currentWeek(program.name)}
-                    onChange={(e) => setCurrentWeek(program.name, parseInt(e.target.value))}
-                    className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
-                  >
-                    {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
-                      <option key={w} value={w}>Week {w}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      reimportTargetRef.current = { id: program.id, name: program.name };
-                      reimportFileInputRef.current?.click();
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleConfirmRename();
+                      if (e.key === "Escape") setRenamingId(null);
                     }}
-                    disabled={reimportingId === program.id}
-                    className="text-gray-600 hover:text-blue-400 transition p-1"
-                    title="Re-import program file"
-                  >
-                    {reimportingId === program.id ? (
-                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                    )}
-                  </button>
-                  <Link
-                    href={`/programs/${program.id}`}
-                    className="text-gray-600 hover:text-indigo-400 transition p-1"
-                    title="Edit exercises"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </Link>
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500"
+                    autoFocus
+                  />
                   <button
-                    onClick={() => setConfirmArchiveId(program.id)}
-                    disabled={archivingId === program.id}
-                    className="text-gray-600 hover:text-yellow-400 transition p-1"
-                    title="Archive program"
+                    onClick={handleConfirmRename}
+                    disabled={savingRename || !renameValue.trim()}
+                    className="px-3 py-1.5 text-xs bg-indigo-600 rounded-lg hover:bg-indigo-500 font-semibold transition disabled:opacity-50"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                    </svg>
+                    {savingRename ? "Saving..." : "Save"}
                   </button>
                   <button
-                    onClick={() => setConfirmDeleteId(program.id)}
-                    disabled={deletingId === program.id}
-                    className="text-gray-600 hover:text-red-400 transition p-1"
-                    title="Delete program"
+                    onClick={() => setRenamingId(null)}
+                    disabled={savingRename}
+                    className="px-3 py-1.5 text-xs bg-gray-800 rounded-lg hover:bg-gray-700 transition"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    Cancel
                   </button>
                 </div>
-              </div>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-semibold">{program.name}</div>
+                    <div className="text-xs text-gray-500">{program.totalWeeks} weeks</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={currentWeek(program.id)}
+                      onChange={(e) => setCurrentWeek(program.id, parseInt(e.target.value))}
+                      className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
+                    >
+                      {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
+                        <option key={w} value={w}>Week {w}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => startRename(program.id, program.name)}
+                      className="text-gray-600 hover:text-green-400 transition p-1"
+                      title="Rename program"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        reimportTargetRef.current = { id: program.id, name: program.name };
+                        reimportFileInputRef.current?.click();
+                      }}
+                      disabled={reimportingId === program.id}
+                      className="text-gray-600 hover:text-blue-400 transition p-1"
+                      title="Re-import program file"
+                    >
+                      {reimportingId === program.id ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                      )}
+                    </button>
+                    <Link
+                      href={`/programs/${program.id}`}
+                      className="text-gray-600 hover:text-indigo-400 transition p-1"
+                      title="Edit exercises"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </Link>
+                    <button
+                      onClick={() => setConfirmArchiveId(program.id)}
+                      disabled={archivingId === program.id}
+                      className="text-gray-600 hover:text-yellow-400 transition p-1"
+                      title="Archive program"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(program.id)}
+                      disabled={deletingId === program.id}
+                      className="text-gray-600 hover:text-red-400 transition p-1"
+                      title="Delete program"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
 
@@ -412,7 +476,7 @@ export default function SettingsPage() {
             message={`Delete "${program.name}"? This removes all workouts but keeps history.`}
             isConfirming={deletingId === confirmDeleteId}
             onCancel={() => setConfirmDeleteId(null)}
-            onConfirm={() => handleDelete(program.id, program.name)}
+            onConfirm={() => handleDelete(program.id)}
           />
         ) : null;
       })()}

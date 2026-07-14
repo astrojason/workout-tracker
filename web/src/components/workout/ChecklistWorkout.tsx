@@ -32,7 +32,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
   useEffect(() => {
     async function load() {
       try {
-        const existing = await getTodayChecklistSession(userId, workout.programName, workout.dayOfWeek);
+        const existing = await getTodayChecklistSession(userId, workout.programId, workout.dayOfWeek);
         if (existing) {
           setFirestoreId(existing.firestoreId);
           const orders = new Set(existing.sets.filter((s) => s.completed).map((s) => s.exerciseOrder));
@@ -44,7 +44,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
       setLoading(false);
     }
     load();
-  }, [userId, workout.programName, workout.dayOfWeek]);
+  }, [userId, workout.programId, workout.dayOfWeek]);
 
   // Countdown tick
   useEffect(() => {
@@ -79,6 +79,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
     }
 
     const session: Omit<WorkoutSessionDoc, "id"> = {
+      programId: workout.programId,
       programName: workout.programName,
       week: workout.week,
       dayOfWeek: workout.dayOfWeek,

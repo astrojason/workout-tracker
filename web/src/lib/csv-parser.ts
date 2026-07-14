@@ -170,6 +170,7 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
     data.exercises.sort((a, b) => a.order - b.order);
     workouts.push({
       id: key.toLowerCase().replace(/\s+/g, "-"),
+      programId: data.programName.toLowerCase().replace(/\s+/g, "-"),
       programName: data.programName,
       week: data.week,
       dayOfWeek: data.day,

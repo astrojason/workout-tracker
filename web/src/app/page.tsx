@@ -191,10 +191,10 @@ export default function HomePage() {
             <ProgramCard
               key={program.id}
               program={program}
-              week={currentWeek(program.name)}
-              todaysWorkout={getTodaysWorkout(program.name)}
-              availableDays={getAvailableDays(program.name)}
-              completedDays={getCompletedDaysForProgram(program.name)}
+              week={currentWeek(program.id)}
+              todaysWorkout={getTodaysWorkout(program.id)}
+              availableDays={getAvailableDays(program.id)}
+              completedDays={getCompletedDaysForProgram(program.id)}
               onStartWorkout={(w) => {
                 if (isChecklistWorkout(w)) {
                   setChecklistWorkout(w);
@@ -203,7 +203,7 @@ export default function HomePage() {
                 }
               }}
               onSelectDay={(day) => {
-                const w = getWorkoutsForDay(program.name, day);
+                const w = getWorkoutsForDay(program.id, day);
                 if (w) {
                   if (isChecklistWorkout(w)) {
                     setChecklistWorkout(w);

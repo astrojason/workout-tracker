@@ -110,6 +110,7 @@ export const externalRotations: Exercise = makeExercise({
 
 export const landminePressWorkout: Workout = {
   id: "reacher-build_1_monday",
+  programId: "reacher-build",
   programName: "Reacher Build",
   week: 1,
   dayOfWeek: "Monday",
@@ -121,6 +122,7 @@ export const landminePressWorkout: Workout = {
 
 export const pullUpWorkout: Workout = {
   id: "reacher-build_1_friday",
+  programId: "reacher-build",
   programName: "Reacher Build",
   week: 1,
   dayOfWeek: "Friday",
@@ -134,6 +136,7 @@ export const pullUpWorkout: Workout = {
 
 export const warmupWorkout: Workout = {
   id: "reacher-build_1_tuesday",
+  programId: "reacher-build",
   programName: "Reacher Build",
   week: 1,
   dayOfWeek: "Tuesday",

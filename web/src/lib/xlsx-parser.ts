@@ -214,9 +214,10 @@ export function parseXLSX(
     }
   }
 
+  const programId = programName.toLowerCase().replace(/\s+/g, "-");
   const programs: Omit<Program, "createdAt">[] = [
     {
-      id: programName.toLowerCase().replace(/\s+/g, "-"),
+      id: programId,
       name: programName,
       totalWeeks: maxWeek || 1,
     },
@@ -236,6 +237,7 @@ export function parseXLSX(
 
     workouts.push({
       id: key.toLowerCase().replace(/\s+/g, "-"),
+      programId,
       programName,
       week: data.week,
       dayOfWeek: data.day,

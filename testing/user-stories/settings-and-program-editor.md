@@ -8,8 +8,18 @@
 - I can toggle timer sound on or off
 - I can select the current week for each program via a dropdown
 - I can import a new XLSX to add or update a program
+- I can rename a program without losing its progress or history
 - I can sign out
 - I can see my account email
+
+## Renaming a Program
+
+**As a user renaming a program in Settings:**
+
+- Clicking the rename (pencil) icon on a program row switches it to an inline text field pre-filled with the current name, with Save and Cancel
+- Saving updates the program's display name everywhere it appears — the program list, the home screen, and its workout history — without resetting its current week, cached workouts, or completed-day history
+- Pressing Escape or clicking Cancel discards the edit
+- The program keeps its underlying id across a rename, so `currentWeeks` (keyed by program id) and existing history stay linked to the correct program
 
 ## Program Editor
 
@@ -36,6 +46,6 @@
 
 **As a user managing program weeks:**
 
-- The current week for each program is stored in settings (not the program itself)
+- The current week for each program is stored in settings, keyed by program id (not the program itself, and not by name — renaming a program does not affect its week selection)
 - Changing the week in Settings immediately updates which workout is shown on the home screen
 - The week selector shows weeks 1 through the program's `totalWeeks`

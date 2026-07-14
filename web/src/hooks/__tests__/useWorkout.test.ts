@@ -81,6 +81,7 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
 function makeWorkout(overrides: Partial<Workout> = {}): Workout {
   return {
     id: "workout-1",
+    programId: "test-program",
     programName: "Test Program",
     week: 1,
     dayOfWeek: "Monday",

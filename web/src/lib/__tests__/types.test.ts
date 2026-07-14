@@ -236,7 +236,7 @@ function makeChecklistExercise(overrides: Partial<Exercise> = {}): Exercise {
 
 function makeWorkout(overrides: Partial<Workout> = {}): Workout {
   return {
-    id: "w-1", programName: "Test", week: 1, dayOfWeek: "Monday",
+    id: "w-1", programId: "test", programName: "Test", week: 1, dayOfWeek: "Monday",
     exercises: [makeChecklistExercise()],
     ...overrides,
   };

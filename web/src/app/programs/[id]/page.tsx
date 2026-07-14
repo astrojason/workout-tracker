@@ -27,7 +27,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (!program) return;
     setLoadingWorkouts(true);
-    loadWorkoutsForWeek(program.name, selectedWeek).then(async (wks) => {
+    loadWorkoutsForWeek(program.id, selectedWeek).then(async (wks) => {
       const fixed = await Promise.all(
         wks.map(async (w) => {
           const sorted = [...w.exercises].sort((a, b) => a.order - b.order);
