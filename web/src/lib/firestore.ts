@@ -302,6 +302,18 @@ export async function getCompletedDays(
   return days;
 }
 
+export async function getSessionsForWeek(
+  userId: string, programId: string, week: number
+): Promise<WorkoutSessionDoc[]> {
+  const q = query(
+    sessionsCol(userId),
+    where("programId", "==", programId),
+    where("week", "==", week)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc));
+}
+
 export async function getLastSetsForExercise(
   userId: string, exerciseName: string
 ): Promise<CompletedSet[]> {

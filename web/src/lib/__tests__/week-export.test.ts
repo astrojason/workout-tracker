@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { formatWeekAsText } from "../week-export";
-import type { Workout, Exercise } from "../types";
+import { formatWeekAsText, formatSessionsWeekAsText } from "../week-export";
+import type { Workout, Exercise, WorkoutSessionDoc, CompletedSet } from "../types";
 
 const makeExercise = (overrides: Partial<Exercise>): Exercise => ({
   id: "ex-1",
@@ -78,5 +78,98 @@ describe("formatWeekAsText", () => {
 
     const text = formatWeekAsText("Reacher Build", 1, [workout]);
     expect(text.indexOf("First Exercise")).toBeLessThan(text.indexOf("Second Exercise"));
+  });
+});
+
+const makeCompletedSet = (overrides: Partial<CompletedSet>): CompletedSet => ({
+  id: "set-1",
+  exerciseName: "Landmine Press",
+  exerciseOrder: 1,
+  setNumber: 1,
+  targetWeight: 90,
+  actualWeight: 90,
+  targetReps: 8,
+  actualReps: 9,
+  completed: true,
+  timestamp: new Date(),
+  notes: null,
+  ...overrides,
+});
+
+describe("formatSessionsWeekAsText", () => {
+  it("includes the program name and week number as a header", () => {
+    const text = formatSessionsWeekAsText("Reacher Build", 1, []);
+    expect(text).toContain("Reacher Build");
+    expect(text).toContain("Week 1");
+  });
+
+  it("lists each session under its day of week, in DAY_ORDER", () => {
+    const monday: WorkoutSessionDoc = {
+      id: "s1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
+      date: new Date(), completed: true, durationSeconds: 1800,
+      sets: [makeCompletedSet({ id: "cs1" })],
+    };
+    const friday: WorkoutSessionDoc = {
+      id: "s2", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Friday",
+      date: new Date(), completed: true, durationSeconds: 900,
+      sets: [makeCompletedSet({ id: "cs2", exerciseName: "Scapular Hangs" })],
+    };
+
+    // Pass Friday before Monday to prove the formatter re-sorts, not just echoes input order.
+    const text = formatSessionsWeekAsText("Reacher Build", 1, [friday, monday]);
+
+    const mondayIndex = text.indexOf("MONDAY");
+    const fridayIndex = text.indexOf("FRIDAY");
+    expect(mondayIndex).toBeGreaterThanOrEqual(0);
+    expect(fridayIndex).toBeGreaterThan(mondayIndex);
+  });
+
+  it("formats each exercise with the actual weight and reps logged per completed set", () => {
+    const session: WorkoutSessionDoc = {
+      id: "s1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
+      date: new Date(), completed: true, durationSeconds: 1800,
+      sets: [
+        makeCompletedSet({ id: "cs1", setNumber: 1, actualWeight: 90, actualReps: 9 }),
+        makeCompletedSet({ id: "cs2", setNumber: 2, actualWeight: 90, actualReps: 8 }),
+      ],
+    };
+
+    const text = formatSessionsWeekAsText("Reacher Build", 1, [session]);
+
+    expect(text).toContain("Landmine Press");
+    expect(text).toContain("9");
+    expect(text).toContain("90 lb");
+    expect(text).toContain("8");
+  });
+
+  it("excludes sets that were not completed", () => {
+    const session: WorkoutSessionDoc = {
+      id: "s1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
+      date: new Date(), completed: false, durationSeconds: 600,
+      sets: [
+        makeCompletedSet({ id: "cs1", setNumber: 1, actualWeight: 90, actualReps: 9, completed: true }),
+        makeCompletedSet({ id: "cs2", setNumber: 2, actualWeight: 999, actualReps: 999, completed: false }),
+      ],
+    };
+
+    const text = formatSessionsWeekAsText("Reacher Build", 1, [session]);
+    expect(text).not.toContain("999");
+  });
+
+  it("formats time-based exercises using time display, not raw seconds", () => {
+    const session: WorkoutSessionDoc = {
+      id: "s1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
+      date: new Date(), completed: true, durationSeconds: 600,
+      sets: [
+        makeCompletedSet({
+          id: "cs1", exerciseName: "Scapular Hangs", setNumber: 1,
+          actualWeight: 0, actualReps: 30, isTimeBased: true,
+        }),
+      ],
+    };
+
+    const text = formatSessionsWeekAsText("Reacher Build", 1, [session]);
+    expect(text).toContain("Scapular Hangs");
+    expect(text).toContain("30s");
   });
 });
