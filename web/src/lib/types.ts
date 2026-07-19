@@ -283,6 +283,15 @@ export function formatRestTime(seconds: number): string {
   return `${seconds}s`;
 }
 
+export function exerciseWeightDisplay(exercise: Exercise): string {
+  const resolvedWeight = exercise.baseWeight.type === "progressive"
+    ? (exercise.totalWeight ?? 0)
+    : exercise.baseWeight.value;
+  if (resolvedWeight > 0) return `${cleanWeight(resolvedWeight)} lbs`;
+  if (exercise.equipmentType === "bodyweight") return "BW";
+  return exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
+}
+
 export function formatDuration(seconds: number): string {
   const min = Math.floor(seconds / 60);
   if (min < 60) return `${min} min`;

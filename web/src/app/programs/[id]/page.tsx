@@ -6,7 +6,8 @@ import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { ExerciseEditor } from "@/components/programs/ExerciseEditor";
 import type { Exercise, Workout } from "@/lib/types";
-import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, cleanWeight, isChecklistWorkout } from "@/lib/types";
+import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout } from "@/lib/types";
+import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
@@ -23,6 +24,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const [loadingWorkouts, setLoadingWorkouts] = useState(false);
   const [editingExercise, setEditingExercise] = useState<{ workout: Workout; exercise: Exercise | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ workoutId: string; exerciseId: string } | null>(null);
+  const [weekCopied, setWeekCopied] = useState(false);
 
   useEffect(() => {
     if (!program) return;
@@ -99,6 +101,17 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
     setEditingExercise(null);
   }
 
+  async function handleCopyWeek() {
+    const text = formatWeekAsText(program!.name, selectedWeek, sortedWorkouts);
+    try {
+      await navigator.clipboard.writeText(text);
+      setWeekCopied(true);
+      setTimeout(() => setWeekCopied(false), 2000);
+    } catch {
+      // non-critical: Clipboard API unavailable or permission denied — no fallback needed
+    }
+  }
+
   async function handleDeleteExercise(workout: Workout, exerciseId: string) {
     const updatedExercises = workout.exercises.filter((e) => e.id !== exerciseId);
     const updatedWorkout = { ...workout, exercises: updatedExercises };
@@ -120,20 +133,29 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Week Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((week) => (
-          <button
-            key={week}
-            onClick={() => setSelectedWeek(week)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition ${
-              selectedWeek === week
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-            }`}
-          >
-            Week {week}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((week) => (
+            <button
+              key={week}
+              onClick={() => setSelectedWeek(week)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition ${
+                selectedWeek === week
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+              }`}
+            >
+              Week {week}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleCopyWeek}
+          disabled={sortedWorkouts.length === 0}
+          className="shrink-0 px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:hover:bg-gray-800 transition"
+        >
+          {weekCopied ? "Copied!" : "Copy Week"}
+        </button>
       </div>
 
       {/* Loading */}
@@ -178,14 +200,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
               .sort((a, b) => a.order - b.order)
               .map((exercise) => {
                 const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
-                const resolvedWeight = exercise.baseWeight.type === "progressive"
-                  ? (exercise.totalWeight ?? 0)
-                  : exercise.baseWeight.value;
-                const weightDisplay = resolvedWeight > 0
-                    ? `${cleanWeight(resolvedWeight)} lbs`
-                    : exercise.equipmentType === "bodyweight"
-                      ? "BW"
-                      : exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
+                const weightDisplay = exerciseWeightDisplay(exercise);
 
                 return (
                   <div key={exercise.id} className="px-4 py-3">
