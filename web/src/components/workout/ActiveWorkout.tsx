@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { ActiveSession, Exercise, UserEquipmentConfig } from "@/lib/types";
 import { isTimeBased, formatTimeValue } from "@/lib/types";
-import { getEquipmentDisplay } from "@/lib/equipment-calculator";
+import { getEquipmentDisplay, nearestPowerBlock } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
 import { SetCompletionModal } from "./SetCompletionModal";
@@ -71,14 +71,25 @@ function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
   );
 }
 
-function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
+function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCancel }: {
   currentWeight: number;
   exercise: Exercise;
+  equipmentConfig?: UserEquipmentConfig;
   onSave: (weight: number) => void;
   onCancel: () => void;
 }) {
-  const [weight, setWeight] = useState(currentWeight);
-  const step = exercise.equipmentType === "powerblock" ? 2.5 : 5;
+  const isPowerBlock = exercise.equipmentType === "powerblock";
+  const step = isPowerBlock ? 2.5 : 5;
+  const [weight, setWeight] = useState(
+    isPowerBlock ? nearestPowerBlock(currentWeight, equipmentConfig) : currentWeight
+  );
+
+  const adjustWeight = (delta: number) => {
+    setWeight((prev) => {
+      const next = prev + delta;
+      return isPowerBlock ? nearestPowerBlock(next, equipmentConfig) : Math.max(0, next);
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
@@ -86,7 +97,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
         <h3 className="text-lg font-bold mb-4">Adjust Weight</h3>
         <div className="flex items-center justify-center gap-4 mb-6">
           <button
-            onClick={() => setWeight(Math.max(0, weight - step))}
+            onClick={() => adjustWeight(-step)}
             className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
           >
             -
@@ -103,7 +114,7 @@ function WeightEditor({ currentWeight, exercise, onSave, onCancel }: {
             />
           </div>
           <button
-            onClick={() => setWeight(weight + step)}
+            onClick={() => adjustWeight(step)}
             className="w-14 h-14 rounded-xl bg-gray-800 hover:bg-gray-700 text-2xl font-bold transition"
           >
             +
@@ -405,6 +416,7 @@ export function ActiveWorkout({
         <WeightEditor
           currentWeight={weight}
           exercise={exercise}
+          equipmentConfig={equipmentConfig}
           onSave={(newWeight) => {
             onUpdateWeight(exercise.id, newWeight);
             setShowWeightEditor(false);

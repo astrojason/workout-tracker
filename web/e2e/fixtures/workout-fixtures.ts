@@ -90,6 +90,19 @@ export const dips: Exercise = makeExercise({
   totalWeight: 0,
 });
 
+// ── PowerBlock Curl (Wednesday main) ─────────────────────────────────────────
+export const powerblockCurl: Exercise = makeExercise({
+  name: "PowerBlock Curl",
+  equipmentType: "powerblock",
+  equipmentDetail: null,
+  sets: 3,
+  repMin: 8,
+  repMax: { type: "count", value: 10 },
+  restSeconds: 90,
+  progressionRule: "add_2.5lb",
+  totalWeight: 20,
+});
+
 // ── External Rotations warmup ────────────────────────────────────────────────
 export const externalRotations: Exercise = makeExercise({
   name: "External Rotations",
@@ -130,6 +143,18 @@ export const pullUpWorkout: Workout = {
     { ...scapularHangs, id: "exercise-1", order: 1 },
     { ...assistedPullups, id: "exercise-2", order: 2 },
     { ...assistedPullupsAmrap, id: "exercise-3", order: 3 },
+  ],
+  isChecklist: false,
+};
+
+export const powerblockCurlWorkout: Workout = {
+  id: "reacher-build_1_wednesday",
+  programId: "reacher-build",
+  programName: "Reacher Build",
+  week: 1,
+  dayOfWeek: "Wednesday",
+  exercises: [
+    { ...powerblockCurl, id: "exercise-1", order: 1 },
   ],
   isChecklist: false,
 };
