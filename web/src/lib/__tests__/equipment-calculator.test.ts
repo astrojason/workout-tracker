@@ -576,6 +576,18 @@ describe("getEquipmentDisplay", () => {
       expect(result.config.isLandmine).toBe(true);
     }
   });
+
+  it("uses landmine calculation for Meadows Row (one-sided loading, no 'landmine' in name)", () => {
+    const ex = makeExercise({ name: "Meadows Row", equipmentType: "barbell_45" });
+    const result = getEquipmentDisplay(ex, 85);
+    expect(result.type).toBe("barbell");
+    if (result.type === "barbell") {
+      expect(result.config.isLandmine).toBe(true);
+      expect(result.config.achievedWeight).toBe(85);
+      const oneSideTotal = result.config.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+      expect(oneSideTotal).toBe(40);
+    }
+  });
 });
 
 describe("equipmentDisplayText", () => {

@@ -93,6 +93,14 @@ describe("applyProgression", () => {
     expect(applyProgression(100, exercise)).toBe(100);
   });
 
+  it("applies landmine (one-sided) equipment adjustment for Meadows Row", () => {
+    // 79 + 5 = 84 target on 45lb bar.
+    // Bilateral (wrong): perSide=19.5, not exactly achievable, rounds down to 83.5.
+    // Landmine (correct, one-sided): 39 lbs on one side = 35+2.5+1+0.5, achievedWeight=84 exactly.
+    const exercise = makeExercise({ name: "Meadows Row", progressionRule: "add_5lb", equipmentType: "barbell_45" });
+    expect(applyProgression(79, exercise)).toBe(84);
+  });
+
   it("returns same weight for free-form band color rule (e.g. 'Blue')", () => {
     const exercise = makeExercise({ progressionRule: "Blue" });
     expect(applyProgression(100, exercise)).toBe(100);

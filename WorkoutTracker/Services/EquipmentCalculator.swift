@@ -221,8 +221,11 @@ struct EquipmentCalculator {
                                   achievedWeight: barWeight, perSide: [], isLandmine: true)
     }
 
+    // Exercises loaded one-sided (like a landmine attachment), even when the
+    // name doesn't literally say "landmine" — e.g. Meadows Row.
     private func isLandmine(_ exercise: Exercise) -> Bool {
-        exercise.name.lowercased().contains("landmine")
+        let name = exercise.name.lowercased()
+        return name.contains("landmine") || name.contains("meadows")
     }
 
     // MARK: - PowerBlock Calculator

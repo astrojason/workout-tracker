@@ -15,7 +15,8 @@ function getProgressionIncrement(exercise: Exercise): number {
 function adjustForEquipment(target: number, exercise: Exercise, config?: UserEquipmentConfig): number {
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {
-    const isLandmine = exercise.name.toLowerCase().includes("landmine");
+    const name = exercise.name.toLowerCase();
+    const isLandmine = name.includes("landmine") || name.includes("meadows");
     return isLandmine
       ? calculateLandmine(target, bw, config).achievedWeight
       : calculateBarbell(target, bw, config).achievedWeight;

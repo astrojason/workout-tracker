@@ -78,8 +78,11 @@ function findPlates(
   return null;
 }
 
+// Exercises loaded one-sided (like a landmine attachment), even when the
+// name doesn't literally say "landmine" — e.g. Meadows Row.
 function isLandmineExercise(exercise: Exercise): boolean {
-  return exercise.name.toLowerCase().includes("landmine");
+  const name = exercise.name.toLowerCase();
+  return name.includes("landmine") || name.includes("meadows");
 }
 
 export function calculateBarbell(targetWeight: number, bWeight: number, config?: UserEquipmentConfig): PlateConfiguration {

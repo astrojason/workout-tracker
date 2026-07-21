@@ -37,6 +37,20 @@ export const landminePress: Exercise = makeExercise({
   notes: null,
 });
 
+// ── Meadows Row (one-sided landmine-style loading, no "landmine" in name) ────
+export const meadowsRow: Exercise = makeExercise({
+  name: "Meadows Row",
+  equipmentType: "barbell_45",
+  sets: 3,
+  repMin: 8,
+  repMax: { type: "count", value: 10 },
+  lastSetAmrap: true,
+  totalWeight: 90,
+  restSeconds: 120,
+  progressionRule: "add_5lb",
+  notes: null,
+});
+
 // ── Assisted Pull-ups (Friday main) ──────────────────────────────────────────
 export const assistedPullups: Exercise = makeExercise({
   name: "Assisted Pull-ups",
@@ -129,6 +143,18 @@ export const landminePressWorkout: Workout = {
   dayOfWeek: "Monday",
   exercises: [
     { ...landminePress, id: "exercise-1", order: 1 },
+  ],
+  isChecklist: false,
+};
+
+export const meadowsRowWorkout: Workout = {
+  id: "reacher-build_1_monday",
+  programId: "reacher-build",
+  programName: "Reacher Build",
+  week: 1,
+  dayOfWeek: "Monday",
+  exercises: [
+    { ...meadowsRow, id: "exercise-1", order: 1 },
   ],
   isChecklist: false,
 };

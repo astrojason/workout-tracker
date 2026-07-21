@@ -73,7 +73,8 @@ struct ProgressionService {
     /// Ensure the weight is achievable with available equipment
     private func adjustForEquipment(_ target: Double, exercise: Exercise) -> Double {
         if let barWeight = exercise.equipmentType.barWeight {
-            let isLandmine = exercise.name.lowercased().contains("landmine")
+            let name = exercise.name.lowercased()
+            let isLandmine = name.contains("landmine") || name.contains("meadows")
             let config = isLandmine
                 ? calculator.calculateLandmine(targetWeight: target, barWeight: barWeight)
                 : calculator.calculateBarbell(targetWeight: target, barWeight: barWeight)
