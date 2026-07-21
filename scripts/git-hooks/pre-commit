@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Prompts for a version bump (major/minor/patch) on every commit and stages
+# the updated web/package.json (and lockfile) into the commit being made.
+#
+# Installed via: git config core.hooksPath scripts/git-hooks
+#
+# Skips automatically when there's no interactive terminal (e.g. commits made
+# by Claude Code or CI) or when SKIP_VERSION_BUMP=1 is set.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PKG_JSON="$REPO_ROOT/web/package.json"
+
+if [ "${SKIP_VERSION_BUMP:-}" = "1" ]; then
+  exit 0
+fi
+
+if ! { exec 3<> /dev/tty; } 2>/dev/null; then
+  echo "pre-commit: no interactive terminal, skipping version bump prompt." >&2
+  exit 0
+fi
+
+current_version=$(node -p "require('$PKG_JSON').version")
+
+echo "Current version: $current_version" >&3
+echo "Bump version? [m]ajor / [n]minor / [p]atch / [s]kip (default: skip)" >&3
+read -r choice <&3 || choice="s"
+exec 3>&-
+
+case "$choice" in
+  m|M|major) bump=major ;;
+  n|N|minor) bump=minor ;;
+  p|P|patch) bump=patch ;;
+  *)
+    echo "pre-commit: skipping version bump." >&2
+    exit 0
+    ;;
+esac
+
+new_version=$(cd "$REPO_ROOT/web" && npm version "$bump" --no-git-tag-version | tail -1 | sed 's/^v//')
+
+git add "$REPO_ROOT/web/package.json"
+if [ -f "$REPO_ROOT/web/package-lock.json" ]; then
+  git add "$REPO_ROOT/web/package-lock.json"
+fi
+
+echo "pre-commit: bumped version $current_version -> $new_version" >&2

@@ -59,3 +59,11 @@ Keep `TODO.md` up to date:
 
 - Mark items complete (`- [x]`) once the work, tests, and build all pass.
 - Add new bugs or planned features as they are identified.
+
+## Versioning
+
+The app version lives in `web/package.json` (`version`) and is shown in the web app footer (Settings page) via `web/src/lib/version.ts`.
+
+A `pre-commit` git hook (`scripts/git-hooks/pre-commit`, enabled via `git config core.hooksPath scripts/git-hooks`) interactively prompts a human committer for major/minor/patch and bumps `web/package.json` accordingly. It auto-skips when there's no interactive terminal — which includes commits made by Claude Code.
+
+Because that hook can't prompt Claude Code, **when proposing a commit, suggest whether it should be a major, minor, or patch bump** (following semver: breaking change / new feature / fix) and, if the user agrees, bump `web/package.json`'s `version` yourself as part of the commit.

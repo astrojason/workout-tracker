@@ -7,6 +7,7 @@ import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { APP_VERSION } from "@/lib/version";
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -449,7 +450,7 @@ export default function SettingsPage() {
 
       {/* Version */}
       <div className="text-center text-xs text-gray-600">
-        Workout Tracker v1.0.0
+        Workout Tracker v{APP_VERSION}
       </div>
 
       {confirmArchiveId && (() => {

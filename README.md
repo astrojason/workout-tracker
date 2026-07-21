@@ -24,6 +24,12 @@ npm run dev        # http://localhost:3000
 npm test           # run vitest suite
 ```
 
+One-time repo setup (from the repo root) to enable the version-bump pre-commit hook:
+
+```bash
+git config core.hooksPath scripts/git-hooks
+```
+
 ### Architecture
 
 ```
