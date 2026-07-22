@@ -1,6 +1,6 @@
 # Workout Tracker - Complete Technical Specification
 
-> **Last updated:** June 2026
+> **Last updated:** July 2026
 > This document reflects the actual current implementation across both the native iOS app and the Next.js web app.
 
 ---
@@ -35,9 +35,11 @@ Both share the same CSV data format and business logic, but are implemented inde
 web/src/
 ├── app/
 │   ├── page.tsx                  # Home — program cards, workout launch
-│   ├── history/page.tsx          # Session list + exercise PR board
-│   ├── settings/page.tsx         # Programs, rest time, sound, account
-│   ├── programs/[id]/page.tsx    # Program detail — browse/edit exercises per week
+│   ├── history/page.tsx          # Session list + exercise PR board + copy-logged-week
+│   ├── settings/
+│   │   ├── page.tsx               # Programs, rest time, sound, account, version footer
+│   │   └── equipment/page.tsx     # Owned-equipment inventory editor
+│   ├── programs/[id]/page.tsx    # Program detail — browse/edit exercises per week, copy-week
 │   ├── session/[id]/page.tsx     # Session detail — set-by-set breakdown
 │   └── exercise/[name]/page.tsx  # Exercise history chart
 ├── components/
@@ -52,13 +54,25 @@ web/src/
 │   │   ├── SetCompletionModal.tsx
 │   │   └── WorkoutComplete.tsx
 │   ├── programs/
-│   │   └── ExerciseEditor.tsx    # Add/edit exercise modal
+│   │   ├── ExerciseEditor.tsx        # Add/edit exercise modal (filters equipment options by owned inventory)
+│   │   └── EquipmentWeightInput.tsx  # Per-equipment-type weight inputs (barbell/PowerBlock/pullup-assist), clamped to owned inventory
+│   ├── settings/
+│   │   ├── BarbellSection.tsx
+│   │   ├── PlatesSection.tsx
+│   │   ├── PowerBlockSection.tsx
+│   │   ├── KettlebellsSection.tsx
+│   │   ├── BandsSection.tsx
+│   │   ├── LoopBandsSection.tsx
+│   │   ├── FixedDumbbellsSection.tsx
+│   │   ├── GripperSection.tsx
+│   │   └── AssistedPullupSection.tsx
 │   └── providers/
 │       └── AuthProvider.tsx
 ├── hooks/
 │   ├── useWorkout.ts             # Active workout state machine
 │   ├── usePrograms.ts            # Programs, settings, XLSX import
 │   ├── useHistory.ts             # Session history + exercise stats (useHistory, useExerciseHistory)
+│   ├── useEquipmentConfig.ts     # Loads/saves owned-equipment inventory, merged over defaults
 │   └── useSound.ts
 └── lib/
     ├── types.ts                  # All shared types + helper functions
@@ -66,8 +80,10 @@ web/src/
     ├── xlsx-parser.ts            # XLSX -> Program/Workout objects (primary import format)
     ├── csv-parser.ts             # CSV -> Program/Workout objects (daily_mobility.csv only; not exposed in UI)
     ├── progression-service.ts    # Planned weight resolution + equipment snapping
-    ├── equipment-calculator.ts   # Plate math, PowerBlock selector/rod config, display strings
-    └── pr-detector.ts            # PR detection (weight, 1RM, volume)
+    ├── equipment-calculator.ts   # Plate math, PowerBlock selector/rod config, display strings, owned-equipment defaults
+    ├── pr-detector.ts            # PR detection (weight, 1RM, volume)
+    ├── week-export.ts            # Formats a week (planned or logged) as clipboard-ready text
+    └── version.ts                # Re-exports package.json version for the Settings footer
 ```
 
 ---
@@ -143,8 +159,41 @@ interface UserSettings {
   defaultRestSeconds: number;   // 60/90/120/150/180, default 120
   soundEnabled: boolean;
   currentWeeks: Record<string, number>; // programName -> currentWeek
+  migratedProgramIds?: string[];
 }
 ```
+
+#### Equipment Inventory (`lib/types.ts` + `lib/equipment-calculator.ts`)
+
+The user's owned equipment (plates, PowerBlock range, bands, etc.) is configurable in both the web app and iOS, and is used to clamp/filter weight inputs and equipment options rather than assuming a fixed inventory.
+
+```typescript
+type BandColor = "Orange" | "Purple" | "Red" | "Blue" | "Green" | "Black";
+type LoopBandSize = "Ultra-light" | "Light" | "Medium" | "Heavy" | "X-heavy" | "XX-heavy";
+type CoCLevel = "T" | "0.5" | "1" | "1.5" | "2" | "2.5" | "3" | "3.5" | "4";
+
+interface UserEquipmentConfig {
+  barbells: { has45lb: boolean; has35lb: boolean; hasEZBar: boolean };
+  // totalOwned = total physical plates owned across both sides.
+  // Barbell per-side limit = floor(totalOwned/2); landmine per-side limit = totalOwned.
+  plates: { weight: number; totalOwned: number }[]; // ordered largest -> smallest
+  powerBlock: { owned: boolean; minLbs: number; maxLbs: number };
+  fixedDumbbells: number[];
+  kettlebells: number[];        // sorted ascending
+  bands: BandColor[];           // owned Serious Steel bands
+  loopBands: LoopBandSize[];    // owned loop bands
+  assistedPullupBands: number;  // max bands available for pullup assist (0 = none owned)
+  grippers: CoCLevel[];         // owned Captains of Crush levels
+}
+```
+
+`DEFAULT_EQUIPMENT_CONFIG` (in `equipment-calculator.ts`) seeds a new user with the full standard inventory documented in [Equipment Reference](#equipment-reference); a saved config is merged over these defaults so missing fields don't break older docs.
+
+**Stored at:** `/users/{userId}/settings/equipment` (separate Firestore doc from `settings/prefs`). Loaded/saved via `useEquipmentConfig(userId)`, which exposes `{ config, loading, saving, saveConfig }` with optimistic updates (reverted + `showError` on failure).
+
+**Consumed by:**
+- `ExerciseEditor.tsx` — filters the barbell `<select>` options by `barbells.has45lb/has35lb/hasEZBar` (still shows the currently selected type even if unowned, so an in-use value is never hidden)
+- `EquipmentWeightInput.tsx` — `calculateBarbell()` uses `getEffectivePlates(config)` instead of a hardcoded plate set; the PowerBlock input clamps to `powerBlock.minLbs`/`maxLbs`; the pullup-assist input's minimum drops to 0 when `assistedPullupBands === 0`
 
 #### Session / History Types
 
@@ -236,6 +285,7 @@ type EquipmentDisplay =
 ```
 /users/{userId}/
   settings/prefs          -> UserSettings
+  settings/equipment      -> UserEquipmentConfig
   programs/{programId}    -> { name, totalWeeks, createdAt, archived? }
   workouts/{workoutId}    -> Workout (exercises embedded as array)
   sessions/{sessionId}    -> WorkoutSessionDoc (sets embedded as array)
@@ -259,7 +309,7 @@ Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Used only
 
 #### Equipment Calculator (`lib/equipment-calculator.ts`)
 
-**Plate inventory (per side):**
+**Plate inventory (per side, default):**
 
 | Plate | Max count per side |
 |-------|-------------------|
@@ -273,11 +323,13 @@ Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Used only
 | 0.75  | 1 |
 | 0.5   | 1 |
 
-**`calculateBarbell(targetWeight, barWeight)`** — subtracts bar, divides by 2, builds greedy plate combination (largest plates first). If exact match impossible, rounds down in 0.25 lb increments to the nearest achievable weight.
+This is the default inventory (`DEFAULT_EQUIPMENT_CONFIG`), used when a user hasn't customized their [Equipment Inventory](#equipment-inventory-libtypests--libequipment-calculatorts). `getEffectivePlates(config)` derives the actual per-side plate limits from the user's `UserEquipmentConfig` — barbell = `floor(totalOwned/2)`, landmine = `totalOwned`.
 
-**`calculateLandmine(targetWeight, barWeight)`** — same but uses one-side loading (no ÷2). Triggered when exercise name contains "landmine".
+**`calculateBarbell(targetWeight, barWeight, config?)`** — subtracts bar, divides by 2, builds greedy plate combination from the effective plate set (largest plates first). If exact match impossible, rounds down in 0.25 lb increments to the nearest achievable weight.
 
-**`nearestPowerBlock(target)`** — clamps to 5–50 lbs, rounds to nearest 2.5 lbs.
+**`calculateLandmine(targetWeight, barWeight, config?)`** — same but uses one-side loading (no ÷2). Triggered when the exercise name contains "landmine" **or** "meadows" (case-insensitive substring match — e.g. "Meadows Row" loads one-sided even though it doesn't say "landmine").
+
+**`nearestPowerBlock(target, config?)`** — clamps to the configured `powerBlock.minLbs`–`maxLbs` range (default 5–50 lbs), rounds to nearest 2.5 lbs.
 
 **`getPowerBlockInstructions(weight)`** — returns `PowerBlockInstructions` with selector dial position and rod configuration for each valid PowerBlock weight (5–50 lbs in 2.5 lb steps).
 
@@ -285,7 +337,7 @@ Validates 16-column CSV, groups rows into `Program[]` and `Workout[]`. Used only
 - `equipmentType === "powerblock"` with `equipmentDetail` or weight < 5 lbs → `{ type: "dumbbell" }` instead
 - `equipmentType === "dumbbell"` → `{ type: "dumbbell" }` directly
 - `equipmentType === "gripper"` → `{ type: "gripper" }`
-- All barbell types check for "landmine" in exercise name → uses `calculateLandmine`
+- All barbell types check for "landmine" or "meadows" in exercise name → uses `calculateLandmine`
 
 **Band info:**
 
@@ -321,6 +373,38 @@ Three PR types checked after each workout:
 1. **Max weight** — highest `actualWeight` across all completed sets
 2. **Estimated 1RM** — Epley formula: `weight * (1 + reps/30)`; 1-rep sets use raw weight
 3. **Volume** — `sum(actualWeight * actualReps)` for all completed sets
+
+#### Week Export (`lib/week-export.ts`)
+
+Formats a week of workouts as clipboard-ready plain text. Two entry points:
+
+- **`formatWeekAsText(programName, week, workouts: Workout[])`** — the *planned* week. Sorts workouts by day-of-week, exercises by `order`, and prints one line per exercise (name, sets x rep range, weight, rest), grouped under an uppercase day header:
+  ```
+  {programName} — Week {week}
+
+  MONDAY
+  1. Bench Press — 3 x 8-10 @ 135 lb (rest 90s)
+  2. ...
+
+  TUESDAY
+  ...
+  ```
+  Triggered by the **"Copy Week"** button on the Program Editor (`/programs/[id]`), next to the week tabs. Shows "Copied!" for 2s after a successful copy.
+
+- **`formatSessionsWeekAsText(programName, week, sessions: WorkoutSessionDoc[])`** — the *actual logged* week. Groups each day's completed sets (`completed === true`) by exercise name and prints one line per exercise summarizing all sets:
+  ```
+  {programName} — Week {week} (completed)
+
+  MONDAY
+    Bench Press: 8 @ 135 lb, 8 @ 135 lb, 6 @ 135 lb
+    Plank: 0:45
+
+  TUESDAY
+    No completed sets
+  ```
+  Time-based exercises print duration (`formatTimeValue`); sets with `actualWeight === 0` print reps only (no "@ 0 lb"). Triggered by the **"Copy a Logged Week"** card on the History page (`/history`) — program + week selectors, fetches sessions via `getSessionsForWeek()`, then copies.
+
+Both call `navigator.clipboard.writeText()` and swallow clipboard errors silently (`// non-critical`, per the browser-API exception in the error-handling rules).
 
 ---
 
@@ -408,9 +492,10 @@ Active sessions are serialized to `localStorage` (key: `activeWorkout`) on every
 
 #### History (`/history`)
 
+- **Copy a Logged Week** card: program + week `<select>`s, "Copy Week" button — copies that week's actual completed sets to the clipboard via `formatSessionsWeekAsText`. Only shown when the user has programs.
 - **Exercise Progress** section: all exercises with a weight PR, sorted alphabetically. Tapping navigates to `/exercise/[name]`
 - **Recent Workouts** section: sessions (program, day, week, date, duration). Tapping navigates to `/session/[id]`
-- Both sections paginate at 10 items, expandable
+- Both list sections paginate at 10 items, expandable
 
 #### Session Detail (`/session/[id]`)
 
@@ -427,17 +512,25 @@ Active sessions are serialized to `localStorage` (key: `activeWorkout`) on every
 
 - Per-program week selector dropdown
 - Edit exercises -> `/programs/[id]`
-- Delete or archive program (keeps history)
+- Rename program (keeps history and progress; keyed on stable `programId`, not name)
+- Delete session, delete or archive program (keeps history)
 - Re-import XLSX to update exercise definitions
 - Default rest time: 60/90/120/150/180s
 - Timer sound toggle
+- "Manage Equipment" link -> `/settings/equipment`
 - Account info (email) + sign out
+- Version footer: "Workout Tracker v{APP_VERSION}" at the bottom of the page (see [Versioning](#versioning))
+
+#### Equipment Inventory (`/settings/equipment`)
+
+Editor for the user's owned equipment (`UserEquipmentConfig`), composed of one section component per equipment type (`BarbellSection`, `PlatesSection`, `PowerBlockSection`, `KettlebellsSection`, `BandsSection`, `LoopBandsSection`, `FixedDumbbellsSection`, `GripperSection`, `AssistedPullupSection`). Tracks a local `draft` against the loaded `config`, dirty-checked via `JSON.stringify` diff, with a sticky "Save Changes" button that calls `saveConfig(draft)`. Changes here affect plate math, PowerBlock range clamping, and which barbell types appear in `ExerciseEditor`.
 
 #### Program Editor (`/programs/[id]`)
 
 - Week tabs
+- "Copy Week" button — copies the week's planned exercises to the clipboard via `formatWeekAsText`
 - Exercises listed by day, sorted by exercise order
-- Add/Edit/Delete exercises via `ExerciseEditor` modal
+- Add/Edit/Delete exercises via `ExerciseEditor` modal (equipment options filtered by owned inventory)
 - Checklist toggle per workout day
 - Auto-heals duplicate order values on load
 
@@ -451,6 +544,7 @@ Active sessions are serialized to `localStorage` (key: `activeWorkout`) on every
 | `usePrograms(userId)` | Programs list, per-program workouts cache, week state, XLSX import, settings load/save |
 | `useHistory(userId)` | Recent sessions + per-exercise best-set stats (`ExerciseStat` — handles weight, time-based, bodyweight) |
 | `useExerciseHistory(userId, name)` | Time-series history for a single exercise; returns `isTimeBased` and `isBodyweight` flags |
+| `useEquipmentConfig(userId)` | Loads/saves `UserEquipmentConfig` (`{ config, loading, saving, saveConfig }`), merged over `DEFAULT_EQUIPMENT_CONFIG`; optimistic update with revert + `showError` on save failure |
 | `useSound()` | `playTimerComplete()`, `playSetComplete()`, `initAudio()` |
 
 **`ExerciseStat` interface (from `useHistory`):**
@@ -742,7 +836,15 @@ All target weights are snapped to achievable equipment values before being prese
 
 ### Landmine
 
-Exercises with "landmine" in the name use single-side plate loading (`calculateLandmine`). Plates are loaded on one end only; achieved weight = bar + plates (not bar + plates x 2).
+Exercises with "landmine" **or** "meadows" in the name (case-insensitive substring match — e.g. "Meadows Row") use single-side plate loading (`calculateLandmine`). Plates are loaded on one end only; achieved weight = bar + plates (not bar + plates x 2).
+
+---
+
+## Versioning
+
+- App version lives in `web/package.json` (`version`), re-exported by `web/src/lib/version.ts` (`APP_VERSION`), and shown at the bottom of the Settings page as "Workout Tracker v{APP_VERSION}".
+- `scripts/git-hooks/pre-commit` (enabled via `git config core.hooksPath scripts/git-hooks`) interactively prompts a human committer for a major/minor/patch bump on each commit, runs `npm version <bump> --no-git-tag-version` in `web/`, and stages the updated `package.json`/`package-lock.json` into the commit. It auto-skips when there's no interactive terminal (including commits made by Claude Code) or when `SKIP_VERSION_BUMP=1`.
+- Because the hook can't prompt Claude Code, proposed commits should state whether they warrant a major/minor/patch bump so a human (or Claude, with confirmation) can apply it manually.
 
 ---
 
@@ -763,7 +865,7 @@ Exercises with "landmine" in the name use single-side plate loading (`calculateL
 | Watch companion app | Planned | Not implemented |
 | Apple Health integration | Post-MVP | Not implemented |
 | Voice commands | Post-MVP | Not implemented |
-| Equipment inventory (web) | User configures missing plates | iOS only (`EquipmentInventoryView`); not yet in web |
+| Equipment inventory (web) | User configures missing plates | Implemented — `/settings/equipment`, `UserEquipmentConfig` stored per-user in Firestore, wired into `ExerciseEditor` and the barbell/PowerBlock/pullup-assist weight inputs |
 | Equipment types | barbell, powerblock, band, kettlebell, bodyweight, assisted_pullup | Added: `dumbbell` (distinct type), `gripper` |
 | Progression rules | add_5lb, add_2.5lb, reduce_assistance, maintain, deload, none | Added: `add_10lb`, `add_reps`, `add_time`, `progress_gripper`, `add_rounds`; `reduce_assistance` replaced by specific next-step strings (band color or band count) |
 | Auth (web) | Not specified | Google OAuth via Firebase; all data scoped per user |
@@ -774,6 +876,9 @@ Exercises with "landmine" in the name use single-side plate loading (`calculateL
 | AMRAP last set | rep_max: "failure" | Explicit `last_set_amrap` flag per exercise row; Monday/Wednesday/Friday/Tuesday primary lifts |
 | Import format (web) | Not specified | XLSX only (multi-sheet); CSV parser retained for `daily_mobility.csv` but not exposed in UI |
 | Active program file | reacher_build_workout.csv | Superseded by reacher_build_cycle2.xlsx (multi-sheet XLSX, one sheet per day) |
+| Landmine detection | Exercise name contains "landmine" | Also matches "meadows" (case-insensitive) — Meadows Row loads one-sided like a landmine attachment |
+| Week export | Not specified | Copy a week's planned exercises (Program Editor) or actual logged sets (History) to the clipboard as plain text |
+| App versioning | Not specified | `web/package.json` version shown in Settings footer; `pre-commit` git hook interactively prompts a human committer for a semver bump on each commit (auto-skipped for non-interactive commits, e.g. Claude Code) |
 
 ---
 
