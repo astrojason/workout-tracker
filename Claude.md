@@ -16,7 +16,7 @@ A task is **not done** until:
 1. The TypeScript build passes: `npm run build` (from `web/`).
 2. All unit tests pass: `npm test` (from `web/`, runs vitest).
 3. Any new behaviour has a corresponding Playwright test that was written **before** the implementation (see below).
-4. Any relevant TODO.md item is marked complete (`- [x]`).
+4. Any relevant TODO.md item is removed from TODO.md — the git log is the record.
 5. The specific behaviour was manually verified in the browser.
 
 Never report a task as complete without running `npm run build` and confirming it exits cleanly.
@@ -29,7 +29,7 @@ All bugs and feature work must follow this cycle:
 2. Implement the fix or feature.
 3. Repeat steps 1–2 until every test passes.
 4. Confirm the build succeeds (`npm run build` from `web/`).
-5. If the work corresponds to a TODO.md item, mark it complete (`- [x]`).
+5. If the work corresponds to a TODO.md item, remove it from TODO.md — the git log is the record.
 
 Before completing any task, ensure all user stories in `testing/user-stories/` still pass. Do not break existing behaviour described there.
 
@@ -57,7 +57,7 @@ Rules:
 
 Keep `TODO.md` up to date:
 
-- Mark items complete (`- [x]`) once the work, tests, and build all pass.
+- Remove items from TODO.md once the work has been committed — do not leave them checked off. The git log is the record.
 - Add new bugs or planned features as they are identified.
 
 ## Versioning

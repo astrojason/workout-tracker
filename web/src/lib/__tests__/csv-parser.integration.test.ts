@@ -1,13 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { parseCSV } from "../csv-parser";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// Mock crypto.randomUUID
-beforeEach(() => {
-  let counter = 0;
-  vi.spyOn(crypto, "randomUUID").mockImplementation(() => `uuid-${++counter}` as `${string}-${string}-${string}-${string}-${string}`);
-});
+// csv-parser.ts also exports resolveExerciseDefinitions, which pulls in firestore.ts
+// (and transitively firebase.ts). This file only exercises the synchronous parseCSV
+// path, but the module-level import still needs a working mock.
+vi.mock("@/lib/firebase", () => ({ db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(), doc: vi.fn(), getDoc: vi.fn(), getDocs: vi.fn(), addDoc: vi.fn(),
+  updateDoc: vi.fn(), setDoc: vi.fn(), deleteDoc: vi.fn(), query: vi.fn(), where: vi.fn(),
+  orderBy: vi.fn(), limit: vi.fn(), onSnapshot: vi.fn(), writeBatch: vi.fn(),
+  Timestamp: { now: () => ({ seconds: 0, nanoseconds: 0 }) },
+}));
+
+import { parseCSV } from "../csv-parser";
 
 const VALID_PHASES = new Set(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT = new Set([
@@ -77,12 +83,6 @@ describe("CSV integration - reacher_build_workout.csv (legacy, superseded by XLS
     }
   });
 
-  it("all exercise IDs are unique", () => {
-    if (!csv) return;
-    const result = parseCSV(csv);
-    const allIds = result.workouts.flatMap((w) => w.exercises.map((e) => e.id));
-    expect(new Set(allIds).size).toBe(allIds.length);
-  });
 });
 
 describe("CSV integration - daily_mobility.csv", () => {

@@ -1,17 +1,22 @@
 // e2e/fixtures/workout-fixtures.ts
-// Test data derived from reacher_build_cycle2.xlsx.
-// Mirrors the shape of Workout/Exercise objects produced by xlsx-parser.ts.
+// Test data seeded directly into localStorage as an ActiveSession (see how these
+// fixtures are consumed in e2e/tests/*.spec.ts), so exercises here use the
+// RESOLVED shape (occurrence + definition merged) that ActiveSession.workout
+// requires — the same shape resolveWorkout()/resolveExercise() produce at runtime.
 
-import type { Workout, Exercise } from "@/lib/types";
+import type { ResolvedWorkout, ResolvedExercise } from "@/lib/types";
 
-const makeExercise = (overrides: Partial<Exercise>): Exercise => ({
+const makeExercise = (overrides: Partial<ResolvedExercise>): ResolvedExercise => ({
   id: crypto.randomUUID(),
+  definitionId: crypto.randomUUID(),
   order: 1,
   name: "Test Exercise",
   phase: "main",
   equipmentType: "barbell_45",
   equipmentDetail: null,
-  baseWeight: { type: "fixed", value: 0 },
+  muscleGroups: [],
+  currentWeight: 0,
+  hardStreak: 0,
   sets: 3,
   repMin: 8,
   repMax: { type: "count", value: 10 },
@@ -24,35 +29,35 @@ const makeExercise = (overrides: Partial<Exercise>): Exercise => ({
 });
 
 // ── Landmine Press (Monday main) ─────────────────────────────────────────────
-export const landminePress: Exercise = makeExercise({
+export const landminePress: ResolvedExercise = makeExercise({
   name: "Landmine Press",
   equipmentType: "barbell_45",
   sets: 3,
   repMin: 8,
   repMax: { type: "count", value: 10 },
   lastSetAmrap: true,
-  totalWeight: 90,
+  currentWeight: 90,
   restSeconds: 120,
   progressionRule: "add_5lb",
   notes: null,
 });
 
 // ── Meadows Row (one-sided landmine-style loading, no "landmine" in name) ────
-export const meadowsRow: Exercise = makeExercise({
+export const meadowsRow: ResolvedExercise = makeExercise({
   name: "Meadows Row",
   equipmentType: "barbell_45",
   sets: 3,
   repMin: 8,
   repMax: { type: "count", value: 10 },
   lastSetAmrap: true,
-  totalWeight: 90,
+  currentWeight: 90,
   restSeconds: 120,
   progressionRule: "add_5lb",
   notes: null,
 });
 
 // ── Assisted Pull-ups (Friday main) ──────────────────────────────────────────
-export const assistedPullups: Exercise = makeExercise({
+export const assistedPullups: ResolvedExercise = makeExercise({
   name: "Assisted Pull-ups",
   equipmentType: "assisted_pullup",
   equipmentDetail: "3_bands",
@@ -61,10 +66,10 @@ export const assistedPullups: Exercise = makeExercise({
   repMax: { type: "count", value: 5 },
   restSeconds: 120,
   progressionRule: "2 bands",
-  totalWeight: 0,
+  currentWeight: 0,
 });
 
-export const assistedPullupsAmrap: Exercise = makeExercise({
+export const assistedPullupsAmrap: ResolvedExercise = makeExercise({
   name: "Assisted Pull-ups",
   equipmentType: "assisted_pullup",
   equipmentDetail: "3_bands",
@@ -74,11 +79,11 @@ export const assistedPullupsAmrap: Exercise = makeExercise({
   lastSetAmrap: true,
   restSeconds: 120,
   progressionRule: "2 bands",
-  totalWeight: 0,
+  currentWeight: 0,
 });
 
 // ── Scapular Hangs (Friday/Saturday main) ────────────────────────────────────
-export const scapularHangs: Exercise = makeExercise({
+export const scapularHangs: ResolvedExercise = makeExercise({
   name: "Scapular Hangs",
   equipmentType: "assisted_pullup",
   equipmentDetail: "3_bands",
@@ -88,11 +93,11 @@ export const scapularHangs: Exercise = makeExercise({
   restSeconds: 30,
   progressionRule: "none",
   isTimeBased: true,
-  totalWeight: 0,
+  currentWeight: 0,
 });
 
 // ── Dips (Monday main) ───────────────────────────────────────────────────────
-export const dips: Exercise = makeExercise({
+export const dips: ResolvedExercise = makeExercise({
   name: "Dips",
   equipmentType: "band",
   equipmentDetail: "Green",
@@ -101,11 +106,11 @@ export const dips: Exercise = makeExercise({
   repMax: { type: "count", value: 15 },
   restSeconds: 120,
   progressionRule: "Blue",
-  totalWeight: 0,
+  currentWeight: 0,
 });
 
 // ── PowerBlock Curl (Wednesday main) ─────────────────────────────────────────
-export const powerblockCurl: Exercise = makeExercise({
+export const powerblockCurl: ResolvedExercise = makeExercise({
   name: "PowerBlock Curl",
   equipmentType: "powerblock",
   equipmentDetail: null,
@@ -114,11 +119,11 @@ export const powerblockCurl: Exercise = makeExercise({
   repMax: { type: "count", value: 10 },
   restSeconds: 90,
   progressionRule: "add_2.5lb",
-  totalWeight: 20,
+  currentWeight: 20,
 });
 
 // ── External Rotations warmup ────────────────────────────────────────────────
-export const externalRotations: Exercise = makeExercise({
+export const externalRotations: ResolvedExercise = makeExercise({
   name: "External Rotations",
   phase: "warmup",
   equipmentType: "band",
@@ -130,12 +135,12 @@ export const externalRotations: Exercise = makeExercise({
   restAfter: false,
   progressionRule: "none",
   isUnilateral: true,
-  totalWeight: 0,
+  currentWeight: 0,
 });
 
 // ── Workout fixtures ─────────────────────────────────────────────────────────
 
-export const landminePressWorkout: Workout = {
+export const landminePressWorkout: ResolvedWorkout = {
   id: "reacher-build_1_monday",
   programId: "reacher-build",
   programName: "Reacher Build",
@@ -147,7 +152,7 @@ export const landminePressWorkout: Workout = {
   isChecklist: false,
 };
 
-export const meadowsRowWorkout: Workout = {
+export const meadowsRowWorkout: ResolvedWorkout = {
   id: "reacher-build_1_monday",
   programId: "reacher-build",
   programName: "Reacher Build",
@@ -159,7 +164,7 @@ export const meadowsRowWorkout: Workout = {
   isChecklist: false,
 };
 
-export const pullUpWorkout: Workout = {
+export const pullUpWorkout: ResolvedWorkout = {
   id: "reacher-build_1_friday",
   programId: "reacher-build",
   programName: "Reacher Build",
@@ -173,7 +178,7 @@ export const pullUpWorkout: Workout = {
   isChecklist: false,
 };
 
-export const powerblockCurlWorkout: Workout = {
+export const powerblockCurlWorkout: ResolvedWorkout = {
   id: "reacher-build_1_wednesday",
   programId: "reacher-build",
   programName: "Reacher Build",
@@ -185,7 +190,7 @@ export const powerblockCurlWorkout: Workout = {
   isChecklist: false,
 };
 
-export const warmupWorkout: Workout = {
+export const warmupWorkout: ResolvedWorkout = {
   id: "reacher-build_1_tuesday",
   programId: "reacher-build",
   programName: "Reacher Build",

@@ -7,8 +7,10 @@ import {
   formatRestTime,
   formatDuration,
   isChecklistWorkout,
+  exerciseWeightDisplay,
+  resolveExercise,
 } from "../types";
-import type { EquipmentType, RepTarget, Exercise, Workout } from "../types";
+import type { EquipmentType, Exercise, ExerciseDefinition, Workout, ResolvedExercise } from "../types";
 
 describe("barWeight", () => {
   it("returns 45 for barbell_45", () => {
@@ -31,6 +33,63 @@ describe("barWeight", () => {
     "assisted_pullup",
   ] as EquipmentType[])("returns null for %s", (type) => {
     expect(barWeight(type)).toBeNull();
+  });
+});
+
+// ── fixtures ─────────────────────────────────────────────────────────────────
+
+function makeDefinition(overrides: Partial<ExerciseDefinition> = {}): ExerciseDefinition {
+  return {
+    id: "def-1",
+    name: "Bench Press",
+    muscleGroups: [],
+    equipmentType: "barbell_45",
+    equipmentDetail: null,
+    progressionRule: "add_5lb",
+    isUnilateral: false,
+    isTimeBased: false,
+    currentWeight: 135,
+    hardStreak: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
+  return {
+    id: "ex-1",
+    definitionId: "def-1",
+    order: 1,
+    phase: "main",
+    sets: 3,
+    repMin: 8,
+    repMax: { type: "count", value: 12 },
+    restSeconds: 120,
+    notes: null,
+    ...overrides,
+  };
+}
+
+function makeResolved(overrides: Partial<ResolvedExercise> = {}): ResolvedExercise {
+  const { id: _id, ...defRest } = makeDefinition();
+  return { ...makeExercise(), ...defRest, ...overrides };
+}
+
+describe("resolveExercise", () => {
+  it("merges an occurrence with its definition", () => {
+    const def = makeDefinition({ id: "def-1", name: "Squat", currentWeight: 225 });
+    const ex = makeExercise({ definitionId: "def-1", sets: 5 });
+    const resolved = resolveExercise(ex, { "def-1": def });
+    expect(resolved.name).toBe("Squat");
+    expect(resolved.currentWeight).toBe(225);
+    expect(resolved.sets).toBe(5);
+    expect(resolved.id).toBe("ex-1"); // occurrence id wins, not the definition's id
+  });
+
+  it("throws when the definition is missing", () => {
+    const ex = makeExercise({ definitionId: "missing" });
+    expect(() => resolveExercise(ex, {})).toThrow(/missing/);
   });
 });
 
@@ -57,46 +116,22 @@ describe("repTargetDisplay", () => {
   });
 
   it("shows time for mobility exercises with high reps", () => {
-    const mobilityExercise: Exercise = {
-      id: "test", order: 1, name: "Sleeper Stretch", phase: "mobility",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 120,
-      repMax: { type: "count", value: 120 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, isTimeBased: true, notes: null,
-    };
-    expect(repTargetDisplay(120, { type: "count", value: 120 }, mobilityExercise)).toBe("2 min");
+    const exercise = makeResolved({ repMin: 120, isTimeBased: true });
+    expect(repTargetDisplay(120, { type: "count", value: 120 }, exercise)).toBe("2 min");
   });
 
   it("shows time range for mobility exercises with different min/max", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Pec Release", phase: "mobility",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 120,
-      repMax: { type: "count", value: 180 }, restSeconds: 0,
-      progressionRule: "none", isUnilateral: false, isTimeBased: true, notes: null,
-    };
+    const exercise = makeResolved({ repMin: 120, isTimeBased: true });
     expect(repTargetDisplay(120, { type: "count", value: 180 }, exercise)).toBe("2 min-3 min");
   });
 
   it("shows seconds for time-based exercises under 60s", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Short Hold", phase: "mobility",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 1, repMin: 30,
-      repMax: { type: "count", value: 30 }, restSeconds: 0,
-      progressionRule: "add_time", isUnilateral: false, isTimeBased: true, notes: null,
-    };
+    const exercise = makeResolved({ repMin: 30, isTimeBased: true });
     expect(repTargetDisplay(30, { type: "count", value: 30 }, exercise)).toBe("30s");
   });
 
   it("shows reps (not time) for non-mobility exercises with normal reps", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Bench Press", phase: "main",
-      equipmentType: "barbell_45", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 135 }, sets: 3, repMin: 8,
-      repMax: { type: "count", value: 12 }, restSeconds: 120,
-      progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
-    };
+    const exercise = makeResolved({ isTimeBased: false });
     expect(repTargetDisplay(8, { type: "count", value: 12 }, exercise)).toBe("8–12 reps");
   });
 
@@ -107,25 +142,32 @@ describe("repTargetDisplay", () => {
 
 describe("isTimeBased", () => {
   it("returns true when isTimeBased field is true", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Plank", phase: "main",
-      equipmentType: "bodyweight", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 0 }, sets: 3, repMin: 30,
-      repMax: { type: "count", value: 30 }, restSeconds: 60,
-      progressionRule: "add_time", isUnilateral: false, isTimeBased: true, notes: null,
-    };
-    expect(isTimeBased(exercise)).toBe(true);
+    expect(isTimeBased(makeResolved({ isTimeBased: true }))).toBe(true);
   });
 
   it("returns false when isTimeBased field is false", () => {
-    const exercise: Exercise = {
-      id: "test", order: 1, name: "Squat", phase: "main",
-      equipmentType: "barbell_45", equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 135 }, sets: 3, repMin: 8,
-      repMax: { type: "count", value: 12 }, restSeconds: 120,
-      progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
-    };
-    expect(isTimeBased(exercise)).toBe(false);
+    expect(isTimeBased(makeResolved({ isTimeBased: false }))).toBe(false);
+  });
+});
+
+describe("exerciseWeightDisplay", () => {
+  it("shows the definition's current weight in lbs", () => {
+    expect(exerciseWeightDisplay(makeResolved({ currentWeight: 185 }))).toBe("185 lbs");
+  });
+
+  it("shows BW for bodyweight exercises with no weight", () => {
+    expect(
+      exerciseWeightDisplay(makeResolved({ currentWeight: 0, equipmentType: "bodyweight" }))
+    ).toBe("BW");
+  });
+
+  it("falls back to equipment detail or type when weight is 0", () => {
+    expect(
+      exerciseWeightDisplay(makeResolved({ currentWeight: 0, equipmentType: "band", equipmentDetail: "Blue" }))
+    ).toBe("Blue");
+    expect(
+      exerciseWeightDisplay(makeResolved({ currentWeight: 0, equipmentType: "assisted_pullup", equipmentDetail: null }))
+    ).toBe("assisted pullup");
   });
 });
 
@@ -152,7 +194,6 @@ describe("cleanWeight", () => {
 
   it("handles floating point precision issues", () => {
     const result = cleanWeight(0.1 + 0.2);
-    // Should not show 0.30000000000000004
     expect(result).toBe("0.3");
   });
 
@@ -222,22 +263,10 @@ describe("formatDuration", () => {
 
 // ── checklist-workout user story ──────────────────────────────────────────────
 
-function makeChecklistExercise(overrides: Partial<Exercise> = {}): Exercise {
-  return {
-    id: "ex-1", order: 1, name: "Dead Bug", phase: "mobility",
-    equipmentType: "bodyweight", equipmentDetail: null,
-    baseWeight: { type: "fixed", value: 0 }, sets: 1,
-    repMin: 10, repMax: { type: "count", value: 10 },
-    restSeconds: 0, progressionRule: "none",
-    isUnilateral: false, isTimeBased: false, notes: null,
-    ...overrides,
-  };
-}
-
 function makeWorkout(overrides: Partial<Workout> = {}): Workout {
   return {
     id: "w-1", programId: "test", programName: "Test", week: 1, dayOfWeek: "Monday",
-    exercises: [makeChecklistExercise()],
+    exercises: [makeExercise({ restSeconds: 0 })],
     ...overrides,
   };
 }
@@ -252,50 +281,17 @@ describe("isChecklistWorkout", () => {
     expect(isChecklistWorkout(makeWorkout({ isChecklist: false }))).toBe(false);
   });
 
-  it("heuristic: returns true when all exercises have restSeconds=0 and allowed progression rules", () => {
+  it("heuristic: returns true when all exercises have restSeconds=0 and no explicit flag", () => {
     const workout = makeWorkout({
-      exercises: [
-        makeChecklistExercise({ progressionRule: "none" }),
-        makeChecklistExercise({ progressionRule: "maintain" }),
-        makeChecklistExercise({ progressionRule: "add_time" }),
-        makeChecklistExercise({ progressionRule: "add_reps" }),
-      ],
+      exercises: [makeExercise({ restSeconds: 0 }), makeExercise({ id: "ex-2", restSeconds: 0 })],
     });
     expect(isChecklistWorkout(workout)).toBe(true);
   });
 
   it("heuristic: returns false when any exercise has restSeconds > 0", () => {
     const workout = makeWorkout({
-      exercises: [
-        makeChecklistExercise({ restSeconds: 0 }),
-        makeChecklistExercise({ restSeconds: 60 }),
-      ],
+      exercises: [makeExercise({ restSeconds: 0 }), makeExercise({ id: "ex-2", restSeconds: 60 })],
     });
-    expect(isChecklistWorkout(workout)).toBe(false);
-  });
-
-  it("heuristic: returns false when any exercise has a non-checklist progression rule", () => {
-    const workout = makeWorkout({
-      exercises: [
-        makeChecklistExercise({ progressionRule: "none" }),
-        makeChecklistExercise({ progressionRule: "add_5lb" }),
-      ],
-    });
-    expect(isChecklistWorkout(workout)).toBe(false);
-  });
-
-  it("heuristic: 'add_reps' is an allowed checklist progression rule", () => {
-    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_reps" })] });
-    expect(isChecklistWorkout(workout)).toBe(true);
-  });
-
-  it("heuristic: 'add_time' is an allowed checklist progression rule", () => {
-    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_time" })] });
-    expect(isChecklistWorkout(workout)).toBe(true);
-  });
-
-  it("heuristic: 'add_5lb' is not an allowed checklist progression rule", () => {
-    const workout = makeWorkout({ exercises: [makeChecklistExercise({ progressionRule: "add_5lb" })] });
     expect(isChecklistWorkout(workout)).toBe(false);
   });
 });

@@ -1,9 +1,10 @@
 import * as XLSX from "xlsx";
-import type {
-  Exercise, Program, Workout, Phase, EquipmentType,
-  ProgressionRule, RepTarget,
-} from "./types";
+import type { Program, Phase, EquipmentType, ProgressionRule, RepTarget } from "./types";
 import { PHASE_ORDER } from "./types";
+import type { ParsedExercise, ParsedWorkout } from "./exercise-import";
+
+export type { ParsedExercise, ParsedWorkout } from "./exercise-import";
+export { resolveExerciseDefinitions } from "./exercise-import";
 
 // Sheet names that map to days of the week
 const DAY_OF_WEEK_NAMES = [
@@ -87,11 +88,16 @@ function phaseIndex(phase: Phase): number {
 }
 
 // ── Row parser ───────────────────────────────────────────────────────────────
+//
+// parseXLSX stays synchronous/pure, producing ParsedExercise/ParsedWorkout rows
+// (see exercise-import.ts). resolveExerciseDefinitions() is the async step that
+// splits each row into an Exercise occurrence + ExerciseDefinition, matching
+// against the user's existing exercise library.
 
 interface ParsedRow {
   week: number;
   day: string;
-  exercise: Exercise;
+  exercise: ParsedExercise;
 }
 
 function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string): ParsedRow {
@@ -114,10 +120,11 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
 
   const equipmentDetail = parseString(row["Equip Detail"]) || null;
 
-  // Total Weight: used as totalWeight field to seed progressive starting weight.
-  // All exercises use progressive weight resolution (history-based).
+  // Total Weight: seeds a brand-new exercise definition's starting currentWeight.
+  // Ignored when the exercise already exists in the library — re-importing never
+  // clobbers weight the user has already progressed in-app.
   const totalWeightRaw = parseNumber(row["Total Weight"]);
-  const totalWeight = totalWeightRaw !== null && totalWeightRaw > 0 ? totalWeightRaw : undefined;
+  const seedWeight = totalWeightRaw !== null && totalWeightRaw > 0 ? totalWeightRaw : undefined;
 
   const sets = parseNumber(row["Sets"]) ?? 0;
   const repMin = parseNumber(row["Rep Min"]) ?? 0;
@@ -144,14 +151,12 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
   const isTimeBased = parseBool(row["Is Timed"]) || progressionRule === "add_time" || repMin >= 30;
   const notes = parseString(row["Notes"]) || null;
 
-  const exercise: Exercise = {
-    id: crypto.randomUUID(),
+  const exercise: ParsedExercise = {
     order: orderRaw,
     name,
     phase: phaseStr,
     equipmentType,
     equipmentDetail,
-    baseWeight: { type: "progressive" },
     sets,
     repMin,
     repMax,
@@ -160,7 +165,7 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
     isUnilateral,
     isTimeBased,
     notes,
-    ...(totalWeight !== undefined ? { totalWeight } : {}),
+    ...(seedWeight !== undefined ? { seedWeight } : {}),
     ...(lastSetAmrap ? { lastSetAmrap: true } : {}),
     ...(restAfter !== undefined ? { restAfter } : {}),
   };
@@ -173,11 +178,11 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
 export function parseXLSX(
   data: ArrayBuffer | Uint8Array | Buffer,
   programName = "Reacher Build"
-): { programs: Omit<Program, "createdAt">[]; workouts: Workout[] } {
+): { programs: Omit<Program, "createdAt">[]; workouts: ParsedWorkout[] } {
   const workbook = XLSX.read(data, { type: "array" });
 
   let maxWeek = 0;
-  const workoutMap = new Map<string, { week: number; day: string; exercises: Exercise[] }>();
+  const workoutMap = new Map<string, { week: number; day: string; exercises: ParsedExercise[] }>();
 
   for (const sheetName of workbook.SheetNames) {
     if (!DAY_OF_WEEK_NAMES.includes(sheetName)) continue;
@@ -223,7 +228,7 @@ export function parseXLSX(
     },
   ];
 
-  const workouts: Workout[] = [];
+  const workouts: ParsedWorkout[] = [];
   for (const [key, data] of workoutMap) {
     // Sort: phase order (warmup → main → finisher), then exercise Order within phase.
     data.exercises.sort((a, b) => {

@@ -1,7 +1,7 @@
-import type { Workout, WorkoutSessionDoc, CompletedSet } from "./types";
+import type { ResolvedWorkout, WorkoutSessionDoc, CompletedSet } from "./types";
 import { DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, cleanWeight, formatTimeValue } from "./types";
 
-export function formatWeekAsText(programName: string, week: number, workouts: Workout[]): string {
+export function formatWeekAsText(programName: string, week: number, workouts: ResolvedWorkout[]): string {
   const sorted = [...workouts].sort(
     (a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek)
   );

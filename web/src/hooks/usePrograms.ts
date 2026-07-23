@@ -7,10 +7,11 @@ import {
   getWorkoutsForProgram,
   getCompletedDays, saveProgram, saveWorkout,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
-  renameProgram as renameProgramDoc, migrateProgramIds,
+  renameProgram as renameProgramDoc, migrateProgramIds, migrateToExerciseLibrary,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { parseXLSX } from "@/lib/xlsx-parser";
+import { resolveExerciseDefinitions } from "@/lib/exercise-import";
 import { DAY_ORDER } from "@/lib/types";
 
 export function usePrograms(userId: string | null) {
@@ -43,6 +44,17 @@ export function usePrograms(userId: string | null) {
         await migrateProgramIds(userId!, progs);
         await updateSettings(userId!, { migratedProgramIds: true });
         sett.migratedProgramIds = true;
+      }
+
+      // One-time backfill: legacy embedded exercise metadata (name, equipment,
+      // progression rule, weight) is replaced with a definitionId reference into
+      // the global exercise library, unifying same-named exercises across every
+      // program. Must run before workouts are loaded below so the cache picks up
+      // the migrated (definitionId-bearing) shape.
+      if (!sett.exerciseLibraryMigrated) {
+        await migrateToExerciseLibrary(userId!);
+        await updateSettings(userId!, { exerciseLibraryMigrated: true });
+        sett.exerciseLibraryMigrated = true;
       }
 
       setPrograms(progs);
@@ -133,11 +145,14 @@ export function usePrograms(userId: string | null) {
     // parseXLSX always returns exactly one program per parse; its id is stable
     // regardless of nameOverride and is what workouts must be keyed by.
     const programId = finalPrograms[0].id;
-    const finalWorkouts = parsed.workouts.map((w) => ({
+    const finalParsedWorkouts = parsed.workouts.map((w) => ({
       ...w,
       programId,
       programName: nameOverride ?? w.programName,
     }));
+    // Matches each exercise name against the user's global exercise library
+    // (creating or updating definitions as needed) before anything is saved.
+    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
     for (const prog of finalPrograms) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
@@ -167,7 +182,8 @@ export function usePrograms(userId: string | null) {
     const existing = programs.find((p) => p.id === programId);
     const parsed = parseXLSX(data, programName);
 
-    const finalWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
+    const finalParsedWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
+    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
 
     // Update the program doc (totalWeeks may change) but preserve createdAt.
     for (const prog of parsed.programs) {

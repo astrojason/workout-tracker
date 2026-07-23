@@ -1,15 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { parseXLSX } from "../xlsx-parser";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// Mock crypto.randomUUID
-beforeEach(() => {
-  let counter = 0;
-  vi.spyOn(crypto, "randomUUID").mockImplementation(
-    () => `uuid-${++counter}` as `${string}-${string}-${string}-${string}-${string}`
-  );
-});
+// xlsx-parser.ts also exports resolveExerciseDefinitions, which pulls in firestore.ts
+// (and transitively firebase.ts). This file only exercises the synchronous parseXLSX
+// path, but the module-level import still needs a working mock.
+vi.mock("@/lib/firebase", () => ({ db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(), doc: vi.fn(), getDoc: vi.fn(), getDocs: vi.fn(), addDoc: vi.fn(),
+  updateDoc: vi.fn(), setDoc: vi.fn(), deleteDoc: vi.fn(), query: vi.fn(), where: vi.fn(),
+  orderBy: vi.fn(), limit: vi.fn(), onSnapshot: vi.fn(), writeBatch: vi.fn(),
+  Timestamp: { now: () => ({ seconds: 0, nanoseconds: 0 }) },
+}));
+
+import { parseXLSX } from "../xlsx-parser";
 
 const VALID_PHASES = new Set(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT = new Set([
@@ -56,13 +60,6 @@ describe("XLSX integration - reacher_build_cycle2.xlsx", () => {
         expect(VALID_EQUIPMENT.has(exercise.equipmentType), `Invalid equipment '${exercise.equipmentType}' on '${exercise.name}'`).toBe(true);
       }
     }
-  });
-
-  it("all exercise IDs are unique", () => {
-    if (!xlsxData) return;
-    const result = parseXLSX(xlsxData, "Reacher Build");
-    const allIds = result.workouts.flatMap((w) => w.exercises.map((e) => e.id));
-    expect(new Set(allIds).size).toBe(allIds.length);
   });
 
   it("exercises within each workout are sorted warmup→main→finisher then by order", () => {

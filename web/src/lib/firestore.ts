@@ -6,7 +6,8 @@ import {
 import { db } from "./firebase";
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
-  CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig,
+  CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig, ExerciseDefinition,
+  EquipmentType, ProgressionRule,
 } from "./types";
 
 // ── Path helpers ──
@@ -31,6 +32,9 @@ function sessionsCol(userId: string) {
 }
 function prsCol(userId: string) {
   return collection(db, "users", userId, "personalRecords");
+}
+function exerciseDefinitionsCol(userId: string) {
+  return collection(db, "users", userId, "exerciseDefinitions");
 }
 
 // ── Settings ──
@@ -139,6 +143,119 @@ async function backfillProgramId(col: CollectionReference, idByName: Map<string,
   const updates = snap.docs
     .filter((d) => !d.data().programId && idByName.has(d.data().programName))
     .map((d) => ({ ref: d.ref, data: { programId: idByName.get(d.data().programName)! } }));
+  await commitBatchUpdates(updates);
+}
+
+// One-time, idempotent migration: replaces each workout's embedded exercise metadata
+// (name, equipment, progression rule, weight) with a definitionId reference into the
+// global exercise library. Unifies same-named exercises across EVERY one of the
+// user's programs (not just within one program), so a weight change or progression
+// update propagates everywhere that exercise appears — including days/weeks/programs
+// that predate the exercise library.
+//
+// Legacy exercises are matched to a definition by name (first occurrence encountered
+// wins for equipment/progression-rule metadata). currentWeight is seeded from the most
+// recent COMPLETED set logged for that name across all session history, falling back to
+// whatever that occurrence's planned weight was if nothing has been logged yet.
+interface LegacyExercise {
+  id: string;
+  definitionId?: string;
+  order: number;
+  phase: string;
+  name?: string;
+  equipmentType?: EquipmentType;
+  equipmentDetail?: string | null;
+  baseWeight?: { type: "fixed"; value: number } | { type: "progressive" };
+  totalWeight?: number;
+  sets: number;
+  repMin: number;
+  repMax: unknown;
+  restSeconds: number;
+  progressionRule?: ProgressionRule;
+  isUnilateral?: boolean;
+  isTimeBased?: boolean;
+  notes: string | null;
+  lastSetAmrap?: boolean;
+  restAfter?: false | number;
+}
+
+function legacyPlannedWeight(e: LegacyExercise): number {
+  if (!e.baseWeight) return e.totalWeight ?? 0;
+  return e.baseWeight.type === "fixed" ? e.baseWeight.value : (e.totalWeight ?? 0);
+}
+
+export async function migrateToExerciseLibrary(userId: string): Promise<void> {
+  const workoutsSnap = await getDocs(workoutsCol(userId));
+  const workoutDocs = workoutsSnap.docs.map((d) => ({
+    ref: d.ref,
+    exercises: (d.data().exercises || []) as LegacyExercise[],
+  }));
+
+  const needsMigration = workoutDocs.some((w) => w.exercises.some((e) => !e.definitionId));
+  if (!needsMigration) return;
+
+  // Most recent completed weight logged for each exercise name, across all history.
+  const sessionsSnap = await getDocs(query(sessionsCol(userId), orderBy("date", "desc")));
+  const lastWeightByName = new Map<string, number>();
+  for (const d of sessionsSnap.docs) {
+    const session = d.data() as WorkoutSessionDoc;
+    for (const set of session.sets || []) {
+      if (!set.completed) continue;
+      const key = set.exerciseName.trim().toLowerCase();
+      if (!lastWeightByName.has(key)) lastWeightByName.set(key, set.actualWeight);
+    }
+  }
+
+  const existingDefs = await getExerciseDefinitions(userId);
+  const defByName = new Map(existingDefs.map((d) => [d.name.trim().toLowerCase(), d.id]));
+
+  // First pass: create/find one definition per unique legacy exercise name.
+  for (const { exercises } of workoutDocs) {
+    for (const e of exercises) {
+      if (e.definitionId || !e.name) continue;
+      const key = e.name.trim().toLowerCase();
+      if (defByName.has(key)) continue;
+      const seedWeight = lastWeightByName.get(key) ?? legacyPlannedWeight(e);
+      const id = await createExerciseDefinition(userId, {
+        name: e.name,
+        muscleGroups: [],
+        equipmentType: e.equipmentType ?? "bodyweight",
+        equipmentDetail: e.equipmentDetail ?? null,
+        progressionRule: e.progressionRule ?? "none",
+        isUnilateral: e.isUnilateral ?? false,
+        isTimeBased: e.isTimeBased ?? false,
+        currentWeight: seedWeight,
+        hardStreak: 0,
+      });
+      defByName.set(key, id);
+    }
+  }
+
+  // Second pass: rewrite each workout doc's exercises to slim occurrences.
+  const updates: { ref: DocumentReference; data: Record<string, unknown> }[] = [];
+  for (const { ref, exercises } of workoutDocs) {
+    if (!exercises.some((e) => !e.definitionId)) continue; // already fully migrated
+    const rewritten = exercises.map((e) => {
+      if (e.definitionId) return e;
+      const key = (e.name || "").trim().toLowerCase();
+      const definitionId = defByName.get(key)!;
+      const occurrence: Exercise = {
+        id: e.id,
+        definitionId,
+        order: e.order,
+        phase: e.phase as Exercise["phase"],
+        sets: e.sets,
+        repMin: e.repMin,
+        repMax: e.repMax as Exercise["repMax"],
+        restSeconds: e.restSeconds,
+        notes: e.notes,
+        ...(e.lastSetAmrap ? { lastSetAmrap: true } : {}),
+        ...(e.restAfter !== undefined ? { restAfter: e.restAfter } : {}),
+      };
+      return occurrence;
+    });
+    updates.push({ ref, data: { exercises: rewritten } });
+  }
   await commitBatchUpdates(updates);
 }
 
@@ -314,41 +431,17 @@ export async function getSessionsForWeek(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc));
 }
 
-export async function getLastSetsForExercise(
-  userId: string, exerciseName: string
-): Promise<CompletedSet[]> {
-  // Get most recent session containing this exercise
-  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(20));
-  const snap = await getDocs(q);
-
-  for (const d of snap.docs) {
-    const session = d.data() as WorkoutSessionDoc;
-    const sets = (session.sets || []).filter((s) => s.exerciseName === exerciseName);
-    if (sets.length > 0) return sets;
-  }
-  return [];
-}
-
-export async function getLastTwoSessionSets(
-  userId: string, exerciseName: string
-): Promise<CompletedSet[][]> {
-  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(30));
-  const snap = await getDocs(q);
-
-  const result: CompletedSet[][] = [];
-  for (const d of snap.docs) {
-    const session = d.data() as WorkoutSessionDoc;
-    const sets = (session.sets || []).filter((s) => s.exerciseName === exerciseName);
-    if (sets.length > 0) {
-      result.push(sets);
-      if (result.length === 2) break;
-    }
-  }
-  return result;
+// Matches by definitionId when a set has one — reliable across exercise renames,
+// since the id never changes even when the definition's display name does.
+// Legacy sets logged before CompletedSet carried a definitionId fall back to a
+// name match; those can't be rename-proofed retroactively without a backfill.
+function matchesExercise(set: CompletedSet, exerciseName: string, definitionId: string | null): boolean {
+  if (definitionId && set.definitionId) return set.definitionId === definitionId;
+  return set.exerciseName === exerciseName;
 }
 
 export async function getExerciseHistory(
-  userId: string, exerciseName: string, limitCount: number = 50
+  userId: string, exerciseName: string, definitionId: string | null = null, limitCount: number = 50
 ): Promise<{ date: Date; weight: number; reps: number; volume: number; isTimeBased?: boolean; isBodyweight?: boolean }[]> {
   const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
   const snap = await getDocs(q);
@@ -359,7 +452,7 @@ export async function getExerciseHistory(
     const session = d.data() as WorkoutSessionDoc;
     const date = session.date instanceof Timestamp ? session.date.toDate() : new Date(session.date as unknown as string);
     const sets = (session.sets || []).filter(
-      (s) => s.exerciseName === exerciseName && s.completed
+      (s) => matchesExercise(s, exerciseName, definitionId) && s.completed
     );
     if (sets.length === 0) continue;
 
@@ -382,17 +475,6 @@ export async function getExerciseHistory(
   }
 
   return results.reverse();
-}
-
-async function getAllExerciseNames(userId: string): Promise<string[]> {
-  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(100));
-  const snap = await getDocs(q);
-  const names = new Set<string>();
-  snap.docs.forEach((d) => {
-    const session = d.data() as WorkoutSessionDoc;
-    (session.sets || []).forEach((s) => names.add(s.exerciseName));
-  });
-  return Array.from(names).sort();
 }
 
 // ── Personal Records ──
@@ -418,4 +500,72 @@ export async function savePR(
     value,
     date: Timestamp.now(),
   });
+}
+
+// ── Exercise Definitions (global per-user exercise library) ──
+
+export async function getExerciseDefinitions(userId: string): Promise<ExerciseDefinition[]> {
+  const snap = await getDocs(exerciseDefinitionsCol(userId));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ExerciseDefinition));
+}
+
+export async function getExerciseDefinition(
+  userId: string, definitionId: string
+): Promise<ExerciseDefinition | null> {
+  const snap = await getDoc(doc(exerciseDefinitionsCol(userId), definitionId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as ExerciseDefinition;
+}
+
+// Case-insensitive/trimmed match against existing definitions by display name.
+// No normalized-name field is stored — comparison happens live so the join key
+// everywhere else stays the Firestore-generated id, which is always distinct.
+export async function findExerciseDefinitionByName(
+  userId: string, name: string
+): Promise<ExerciseDefinition | null> {
+  const target = name.trim().toLowerCase();
+  const all = await getExerciseDefinitions(userId);
+  return all.find((d) => d.name.trim().toLowerCase() === target) ?? null;
+}
+
+export async function createExerciseDefinition(
+  userId: string, definition: Omit<ExerciseDefinition, "id" | "createdAt" | "updatedAt">
+): Promise<string> {
+  const now = Timestamp.now();
+  const ref = await addDoc(exerciseDefinitionsCol(userId), {
+    ...definition,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+// Metadata-only update (name, muscle groups, equipment, progression rule) — never touches
+// currentWeight/hardStreak so re-imports and library edits can't clobber in-progress weight.
+export async function updateExerciseDefinitionMeta(
+  userId: string,
+  definitionId: string,
+  updates: Partial<Pick<ExerciseDefinition, "name" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
+): Promise<void> {
+  await updateDoc(doc(exerciseDefinitionsCol(userId), definitionId), {
+    ...updates,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+export async function updateExerciseDefinitionWeight(
+  userId: string,
+  definitionId: string,
+  currentWeight: number,
+  hardStreak: number
+): Promise<void> {
+  await updateDoc(doc(exerciseDefinitionsCol(userId), definitionId), {
+    currentWeight,
+    hardStreak,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+export async function deleteExerciseDefinition(userId: string, definitionId: string): Promise<void> {
+  await deleteDoc(doc(exerciseDefinitionsCol(userId), definitionId));
 }

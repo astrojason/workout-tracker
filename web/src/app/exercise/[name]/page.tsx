@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseHistory } from "@/hooks/useHistory";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { cleanWeight, formatTimeValue } from "@/lib/types";
 import Link from "next/link";
 import {
@@ -14,7 +15,14 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
   const { name } = use(params);
   const exerciseName = decodeURIComponent(name);
   const { user } = useAuth();
-  const { history, isTimeBased, isBodyweight, loading } = useExerciseHistory(user?.uid ?? null, exerciseName);
+  const { definitions } = useExerciseDefinitions(user?.uid ?? null);
+  // Current name -> definitionId, so history stays correct even if this exercise
+  // gets renamed later (matched by id, not the name in the URL).
+  const definitionId = useMemo(() => {
+    const target = exerciseName.trim().toLowerCase();
+    return Object.values(definitions).find((d) => d.name.trim().toLowerCase() === target)?.id ?? null;
+  }, [definitions, exerciseName]);
+  const { history, isTimeBased, isBodyweight, loading } = useExerciseHistory(user?.uid ?? null, exerciseName, definitionId);
   const [mode, setMode] = useState<"weight" | "volume">("weight");
 
   const chartData = history.map((h) => ({

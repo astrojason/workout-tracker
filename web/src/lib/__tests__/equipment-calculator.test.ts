@@ -12,18 +12,21 @@ import {
   FIXED_DUMBBELLS,
   KETTLEBELL_WEIGHTS,
 } from "../equipment-calculator";
-import type { Exercise, PlateConfiguration } from "../types";
+import type { ResolvedExercise, PlateConfiguration } from "../types";
 
-// Helper to create a minimal exercise for getEquipmentDisplay tests
-function makeExercise(overrides: Partial<Exercise>): Exercise {
+// Helper to create a minimal resolved exercise (occurrence + definition merged) for getEquipmentDisplay tests
+function makeExercise(overrides: Partial<ResolvedExercise>): ResolvedExercise {
   return {
     id: "test-id",
+    definitionId: "def-test-id",
     order: 1,
     name: "Test Exercise",
     phase: "main",
     equipmentType: "barbell_45",
     equipmentDetail: null,
-    baseWeight: { type: "fixed", value: 100 },
+    muscleGroups: [],
+    currentWeight: 100,
+    hardStreak: 0,
     sets: 3,
     repMin: 8,
     repMax: { type: "count", value: 12 },
@@ -235,6 +238,23 @@ describe("nearestPowerBlock", () => {
 
   it("handles negative values by clamping to minimum", () => {
     expect(nearestPowerBlock(-5)).toBe(5);
+  });
+
+  describe("roundDown", () => {
+    it("floors to the nearest 2.5 increment instead of rounding", () => {
+      expect(nearestPowerBlock(28, undefined, true)).toBe(27.5);
+      expect(nearestPowerBlock(26, undefined, true)).toBe(25);
+      expect(nearestPowerBlock(29.9, undefined, true)).toBe(27.5);
+    });
+
+    it("still clamps to the configured min/max", () => {
+      expect(nearestPowerBlock(3, undefined, true)).toBe(5);
+      expect(nearestPowerBlock(60, undefined, true)).toBe(50);
+    });
+
+    it("leaves an exact increment unchanged", () => {
+      expect(nearestPowerBlock(25, undefined, true)).toBe(25);
+    });
   });
 });
 

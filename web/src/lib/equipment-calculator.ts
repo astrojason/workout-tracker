@@ -1,4 +1,4 @@
-import type { Exercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions, UserEquipmentConfig } from "./types";
+import type { ResolvedExercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions, UserEquipmentConfig } from "./types";
 import { barWeight, cleanWeight, ALL_BAND_COLORS, ALL_LOOP_BAND_SIZES, ALL_COC_LEVELS } from "./types";
 
 export const FIXED_DUMBBELLS: number[] = [2];
@@ -80,7 +80,7 @@ function findPlates(
 
 // Exercises loaded one-sided (like a landmine attachment), even when the
 // name doesn't literally say "landmine" — e.g. Meadows Row.
-function isLandmineExercise(exercise: Exercise): boolean {
+function isLandmineExercise(exercise: ResolvedExercise): boolean {
   const name = exercise.name.toLowerCase();
   return name.includes("landmine") || name.includes("meadows");
 }
@@ -167,11 +167,16 @@ export function calculateLandmine(targetWeight: number, bWeight: number, config?
 
 // ── PowerBlock ──
 
-export function nearestPowerBlock(target: number, config?: UserEquipmentConfig): number {
+// roundDown: display/manual-entry snapping rounds to the NEAREST 2.5lb step (default).
+// The progression engine always rounds DOWN to the nearest achievable step instead —
+// pass roundDown: true there so a computed weight never exceeds what's actually loadable.
+export function nearestPowerBlock(target: number, config?: UserEquipmentConfig, roundDown = false): number {
   const min = config?.powerBlock?.minLbs ?? 5;
   const max = config?.powerBlock?.maxLbs ?? 50;
   const step = 2.5;
-  const snapped = Math.round(target / step) * step;
+  const snapped = roundDown
+    ? Math.floor((target + 1e-9) / step) * step
+    : Math.round(target / step) * step;
   return Math.max(min, Math.min(max, snapped));
 }
 
@@ -242,7 +247,7 @@ function parseWeightFromDetail(detail: string): number | null {
   return isNaN(num) ? null : num;
 }
 
-export function getEquipmentDisplay(exercise: Exercise, weight: number, config?: UserEquipmentConfig): EquipmentDisplay {
+export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, config?: UserEquipmentConfig): EquipmentDisplay {
   switch (exercise.equipmentType) {
     case "barbell_45": {
       const landmine = isLandmineExercise(exercise);

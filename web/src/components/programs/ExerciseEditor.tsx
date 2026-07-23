@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Exercise, Phase, EquipmentType, ProgressionRule, WeightSpec, RepTarget, UserEquipmentConfig } from "@/lib/types";
+import type {
+  Exercise, ExerciseDefinition, Phase, EquipmentType, ProgressionRule, RepTarget, UserEquipmentConfig,
+} from "@/lib/types";
 import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
 import { EquipmentWeightInput, defaultWeightForType } from "./EquipmentWeightInput";
+import Link from "next/link";
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: "warmup", label: "Warmup" },
@@ -26,51 +29,60 @@ const PROGRESSION_RULES: { value: ProgressionRule; label: string }[] = [
   { value: "progress_gripper", label: "Progress Gripper" },
 ];
 
+// Result handed back to the parent, which owns all Firestore persistence (this
+// component stays a pure form). "existing" reuses a definition already in the
+// library — only the occurrence and (optionally) the shared weight change.
+// "new" creates a brand-new definition; the parent fills in its id afterward.
+export type ExerciseEditorResult =
+  | { kind: "existing"; definitionId: string; occurrence: Exercise; weight: number }
+  | { kind: "new"; definition: Omit<ExerciseDefinition, "id" | "createdAt" | "updatedAt">; occurrence: Omit<Exercise, "definitionId"> };
+
 interface ExerciseEditorProps {
-  exercise: Exercise | null;
+  exercise: (Exercise & { definitionName?: string }) | null;
   maxOrder: number;
-  onSave: (exercise: Exercise) => void;
+  definitions: ExerciseDefinition[];
+  onSave: (result: ExerciseEditorResult) => void;
   onCancel: () => void;
   equipmentConfig?: UserEquipmentConfig;
 }
 
-export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipmentConfig }: ExerciseEditorProps) {
-  const isNew = !exercise;
+const NEW_SENTINEL = "__new__";
 
-  const [name, setName] = useState(exercise?.name ?? "");
-  const [phase, setPhase] = useState<Phase>(exercise?.phase ?? "main");
-  const [order, setOrder] = useState(exercise?.order ?? maxOrder + 1);
+export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig }: ExerciseEditorProps) {
+  const isNewOccurrence = !exercise;
+  const sortedDefinitions = [...definitions].sort((a, b) => a.name.localeCompare(b.name));
 
-  const initEquipType = exercise?.equipmentType ?? "barbell_45";
-  const [equipmentType, setEquipmentType] = useState<EquipmentType>(initEquipType);
+  const [selectedId, setSelectedId] = useState<string>(exercise?.definitionId ?? NEW_SENTINEL);
+  const selectedDef = selectedId === NEW_SENTINEL ? null : sortedDefinitions.find((d) => d.id === selectedId) ?? null;
+  const creatingNew = selectedId === NEW_SENTINEL;
 
-  // equipmentDetail is only used for band color
-  const [equipmentDetail, setEquipmentDetail] = useState(
-    exercise?.equipmentType === "band" ? (exercise.equipmentDetail ?? "Orange") : "Orange"
-  );
+  // Fields for a brand-new definition (only used when creatingNew)
+  const [name, setName] = useState(exercise?.definitionName ?? "");
+  const [muscleGroupsText, setMuscleGroupsText] = useState("");
+  const [equipmentType, setEquipmentType] = useState<EquipmentType>("barbell_45");
+  const [equipmentDetail, setEquipmentDetail] = useState("Orange");
+  const [progressionRule, setProgressionRule] = useState<ProgressionRule>("none");
+  const [timeBased, setTimeBased] = useState(false);
+  const [isUnilateral, setIsUnilateral] = useState(false);
+
+  const effectiveEquipmentType = selectedDef?.equipmentType ?? equipmentType;
+  const effectiveTimeBased = selectedDef?.isTimeBased ?? timeBased;
 
   const [weightValue, setWeightValue] = useState(
-    exercise?.baseWeight.type === "fixed"
-      ? String(exercise.baseWeight.value)
-      : isNew
-        ? defaultWeightForType(initEquipType)
-        : String(exercise?.totalWeight ?? 0)
+    selectedDef ? String(selectedDef.currentWeight) : defaultWeightForType(effectiveEquipmentType)
   );
-
   const [barbellError, setBarbellError] = useState<string | null>(null);
 
-  const [sets, setSets] = useState(exercise?.sets ?? 3);
-  const [repMin, setRepMin] = useState(exercise?.repMin ?? 8);
-  const [repMaxType, setRepMaxType] = useState<"count" | "failure">(exercise?.repMax.type ?? "count");
-  const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
-  const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
-  const [progressionRule, setProgressionRule] = useState<ProgressionRule>(exercise?.progressionRule ?? "none");
-  const [timeBased, setTimeBased] = useState(exercise?.isTimeBased ?? false);
-  const [isUnilateral, setIsUnilateral] = useState(exercise?.isUnilateral ?? false);
-  const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
-  const [notes, setNotes] = useState(exercise?.notes ?? "");
-
-  const isBarbellType = equipmentType === "barbell_45" || equipmentType === "barbell_35" || equipmentType === "barbell_ez";
+  function handleSelectDefinition(id: string) {
+    setSelectedId(id);
+    setBarbellError(null);
+    if (id === NEW_SENTINEL) {
+      setWeightValue(defaultWeightForType(equipmentType));
+    } else {
+      const def = sortedDefinitions.find((d) => d.id === id);
+      setWeightValue(String(def?.currentWeight ?? 0));
+    }
+  }
 
   function handleEquipmentChange(newType: EquipmentType) {
     setEquipmentType(newType);
@@ -78,60 +90,101 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
     setWeightValue(defaultWeightForType(newType));
   }
 
+  // Occurrence (scheduling) fields — always editable, regardless of picker mode
+  const [phase, setPhase] = useState<Phase>(exercise?.phase ?? "main");
+  const [order, setOrder] = useState(exercise?.order ?? maxOrder + 1);
+  const [sets, setSets] = useState(exercise?.sets ?? 3);
+  const [repMin, setRepMin] = useState(exercise?.repMin ?? 8);
+  const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
+  const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
+  const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
+  const [notes, setNotes] = useState(exercise?.notes ?? "");
+
+  const isBarbellType = effectiveEquipmentType === "barbell_45" || effectiveEquipmentType === "barbell_35" || effectiveEquipmentType === "barbell_ez";
   const powerBlockMin = equipmentConfig?.powerBlock?.minLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.minLbs;
   const powerBlockMax = equipmentConfig?.powerBlock?.maxLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.maxLbs;
 
   function handleSave() {
-    if (!name.trim()) return;
+    if (creatingNew && !name.trim()) return;
     if (isBarbellType && barbellError) return;
-
-    const baseWeight: WeightSpec = (() => {
-      if (equipmentType === "band" || equipmentType === "bodyweight") return { type: "fixed", value: 0 };
-      return { type: "fixed", value: parseFloat(weightValue) || 0 };
-    })();
 
     const repMax: RepTarget = finalSetAmrap
       ? { type: "failure" }
       : { type: "count", value: repMaxValue };
 
-    const result: Exercise = {
+    const occurrenceBase = {
       id: exercise?.id ?? crypto.randomUUID(),
       order,
-      name: name.trim(),
       phase,
-      equipmentType,
-      equipmentDetail: equipmentType === "band" ? (equipmentDetail || "Orange") : null,
-      baseWeight,
       sets,
       repMin,
       repMax,
       restSeconds,
-      progressionRule,
-      isUnilateral,
-      isTimeBased: timeBased,
       notes: notes.trim() || null,
+      ...(finalSetAmrap ? { lastSetAmrap: true as const } : {}),
     };
 
-    onSave(result);
+    if (creatingNew) {
+      onSave({
+        kind: "new",
+        definition: {
+          name: name.trim(),
+          muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
+          equipmentType,
+          equipmentDetail: equipmentType === "band" ? (equipmentDetail || "Orange") : null,
+          progressionRule,
+          isUnilateral,
+          isTimeBased: timeBased,
+          currentWeight: parseFloat(weightValue) || 0,
+          hardStreak: 0,
+        },
+        occurrence: occurrenceBase,
+      });
+    } else if (selectedDef) {
+      onSave({
+        kind: "existing",
+        definitionId: selectedDef.id,
+        occurrence: { ...occurrenceBase, definitionId: selectedDef.id },
+        weight: parseFloat(weightValue) || 0,
+      });
+    }
   }
 
   const hasBlockingError = isBarbellType && !!barbellError;
+  const canSave = creatingNew ? !!name.trim() && !hasBlockingError : !!selectedDef && !hasBlockingError;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
       <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-gray-800 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-bold mb-5">{isNew ? "Add Exercise" : "Edit Exercise"}</h3>
+        <h3 className="text-lg font-bold mb-5">{isNewOccurrence ? "Add Exercise" : "Edit Exercise"}</h3>
 
-        {/* Name */}
-        <Field label="Exercise Name">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Bench Press"
-            className="input-field"
-          />
+        {/* Exercise picker */}
+        <Field label="Exercise">
+          <select value={selectedId} onChange={(e) => handleSelectDefinition(e.target.value)} className="input-field">
+            <option value={NEW_SENTINEL}>+ New Exercise</option>
+            {sortedDefinitions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
         </Field>
+
+        {creatingNew ? (
+          <Field label="Exercise Name">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Bench Press"
+              className="input-field"
+            />
+          </Field>
+        ) : selectedDef ? (
+          <div className="mb-4 bg-gray-800/50 rounded-xl p-3 text-xs text-gray-400 space-y-1">
+            <div>{selectedDef.equipmentType.replace(/_/g, " ")}{selectedDef.equipmentDetail ? ` · ${selectedDef.equipmentDetail}` : ""} · {selectedDef.progressionRule.replace(/_/g, " ")}</div>
+            {selectedDef.muscleGroups.length > 0 && <div>{selectedDef.muscleGroups.join(", ")}</div>}
+            <Link href="/settings/exercises" className="text-indigo-400 hover:text-indigo-300 inline-block">
+              Edit in Exercise Library →
+            </Link>
+          </div>
+        ) : null}
 
         {/* Phase & Order */}
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -145,10 +198,9 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
           </Field>
         </div>
 
-        {/* Equipment + Weight */}
-        <Field label="Equipment + Weight">
-          <div className="space-y-2">
-            {/* Equipment selector */}
+        {/* Equipment (new only) */}
+        {creatingNew && (
+          <Field label="Equipment">
             <select
               value={equipmentType}
               onChange={(e) => handleEquipmentChange(e.target.value as EquipmentType)}
@@ -171,18 +223,21 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
               <option value="bodyweight">Bodyweight</option>
               <option value="gripper">Gripper</option>
             </select>
+          </Field>
+        )}
 
-            {/* Equipment-specific weight input */}
-            <EquipmentWeightInput
-              equipmentType={equipmentType}
-              weightValue={weightValue}
-              onWeightValueChange={setWeightValue}
-              equipmentDetail={equipmentDetail}
-              onEquipmentDetailChange={setEquipmentDetail}
-              equipmentConfig={equipmentConfig}
-              onBarbellErrorChange={setBarbellError}
-            />
-          </div>
+        {/* Weight — always editable; for an existing exercise this is the shared
+            currentWeight, so the change affects every occurrence in every program. */}
+        <Field label={selectedDef ? "Weight (updates every occurrence of this exercise)" : "Starting Weight"}>
+          <EquipmentWeightInput
+            equipmentType={effectiveEquipmentType}
+            weightValue={weightValue}
+            onWeightValueChange={setWeightValue}
+            equipmentDetail={creatingNew ? equipmentDetail : (selectedDef?.equipmentDetail ?? "")}
+            onEquipmentDetailChange={setEquipmentDetail}
+            equipmentConfig={equipmentConfig}
+            onBarbellErrorChange={setBarbellError}
+          />
         </Field>
 
         {/* Sets */}
@@ -194,32 +249,34 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
           </div>
         </Field>
 
-        {/* Time Based toggle */}
-        <div className="mb-4 flex items-center justify-between">
-          <span className="text-sm text-gray-400">Time Based (seconds)</span>
-          <button
-            onClick={() => {
-              const next = !timeBased;
-              setTimeBased(next);
-              if (next && progressionRule !== "add_time") {
-                setProgressionRule("add_time");
-              } else if (!next && progressionRule === "add_time") {
-                setProgressionRule("none");
-              }
-            }}
-            className={`w-12 h-7 rounded-full transition relative ${timeBased ? "bg-indigo-600" : "bg-gray-700"}`}
-          >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${timeBased ? "translate-x-6" : "translate-x-1"}`} />
-          </button>
-        </div>
+        {/* Time Based toggle (new only — otherwise inherited from the definition) */}
+        {creatingNew && (
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-sm text-gray-400">Time Based (seconds)</span>
+            <button
+              onClick={() => {
+                const next = !timeBased;
+                setTimeBased(next);
+                if (next && progressionRule !== "add_time") {
+                  setProgressionRule("add_time");
+                } else if (!next && progressionRule === "add_time") {
+                  setProgressionRule("none");
+                }
+              }}
+              className={`w-12 h-7 rounded-full transition relative ${timeBased ? "bg-indigo-600" : "bg-gray-700"}`}
+            >
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${timeBased ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+        )}
 
         {/* Reps / Duration */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Field label={timeBased ? "Duration Min (s)" : "Rep Min"} noMargin>
-            <input type="number" value={repMin} onChange={(e) => setRepMin(parseInt(e.target.value) || 0)} min={0} step={timeBased ? 5 : 1} className="input-field" />
+          <Field label={effectiveTimeBased ? "Duration Min (s)" : "Rep Min"} noMargin>
+            <input type="number" value={repMin} onChange={(e) => setRepMin(parseInt(e.target.value) || 0)} min={0} step={effectiveTimeBased ? 5 : 1} className="input-field" />
           </Field>
-          <Field label={timeBased ? "Duration Max (s)" : "Rep Max"} noMargin>
-            <input type="number" value={repMaxValue} onChange={(e) => setRepMaxValue(parseInt(e.target.value) || 0)} min={0} step={timeBased ? 5 : 1} className="input-field" />
+          <Field label={effectiveTimeBased ? "Duration Max (s)" : "Rep Max"} noMargin>
+            <input type="number" value={repMaxValue} onChange={(e) => setRepMaxValue(parseInt(e.target.value) || 0)} min={0} step={effectiveTimeBased ? 5 : 1} className="input-field" />
           </Field>
         </div>
 
@@ -246,23 +303,36 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
           />
         </Field>
 
-        {/* Progression */}
-        <Field label="Progression Rule">
-          <select value={progressionRule} onChange={(e) => setProgressionRule(e.target.value as ProgressionRule)} className="input-field">
-            {PROGRESSION_RULES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-        </Field>
+        {/* Progression + Muscle Groups + Unilateral (new only) */}
+        {creatingNew && (
+          <>
+            <Field label="Progression Rule">
+              <select value={progressionRule} onChange={(e) => setProgressionRule(e.target.value as ProgressionRule)} className="input-field">
+                {PROGRESSION_RULES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </Field>
 
-        {/* Unilateral */}
-        <div className="mb-4 flex items-center justify-between">
-          <span className="text-sm text-gray-400">Each Side (Unilateral)</span>
-          <button
-            onClick={() => setIsUnilateral(!isUnilateral)}
-            className={`w-12 h-7 rounded-full transition relative ${isUnilateral ? "bg-indigo-600" : "bg-gray-700"}`}
-          >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${isUnilateral ? "translate-x-6" : "translate-x-1"}`} />
-          </button>
-        </div>
+            <Field label="Muscle Groups (comma-separated)">
+              <input
+                type="text"
+                value={muscleGroupsText}
+                onChange={(e) => setMuscleGroupsText(e.target.value)}
+                placeholder="e.g. Chest, Triceps"
+                className="input-field"
+              />
+            </Field>
+
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-gray-400">Each Side (Unilateral)</span>
+              <button
+                onClick={() => setIsUnilateral(!isUnilateral)}
+                className={`w-12 h-7 rounded-full transition relative ${isUnilateral ? "bg-indigo-600" : "bg-gray-700"}`}
+              >
+                <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${isUnilateral ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Notes */}
         <Field label="Notes">
@@ -282,49 +352,13 @@ export function ExerciseEditor({ exercise, maxOrder, onSave, onCancel, equipment
           </button>
           <button
             onClick={handleSave}
-            disabled={!name.trim() || hasBlockingError}
+            disabled={!canSave}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isNew ? "Add" : "Save"}
+            {isNewOccurrence ? "Add" : "Save"}
           </button>
         </div>
       </div>
-
-      <style jsx global>{`
-        .input-field {
-          width: 100%;
-          background: rgb(31 41 55);
-          border-radius: 0.75rem;
-          padding: 0.5rem 0.75rem;
-          font-size: 0.875rem;
-          border: 1px solid rgb(55 65 81);
-          outline: none;
-          color: white;
-        }
-        .input-field:focus {
-          border-color: rgb(99 102 241);
-        }
-        select.input-field {
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 0.5rem center;
-          background-size: 1.25rem;
-          padding-right: 2rem;
-        }
-        .btn-stepper {
-          width: 2.5rem;
-          height: 2.5rem;
-          border-radius: 0.75rem;
-          background: rgb(31 41 55);
-          font-size: 1.125rem;
-          font-weight: 700;
-          transition: background 0.15s;
-        }
-        .btn-stepper:hover {
-          background: rgb(55 65 81);
-        }
-      `}</style>
     </div>
   );
 }

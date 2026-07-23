@@ -10,17 +10,20 @@ import {
   KETTLEBELL_WEIGHTS,
 } from "../equipment-calculator";
 import { ALL_BAND_COLORS, ALL_LOOP_BAND_SIZES, ALL_COC_LEVELS } from "../types";
-import type { Exercise, UserEquipmentConfig } from "../types";
+import type { ResolvedExercise, UserEquipmentConfig } from "../types";
 
-function makeExercise(overrides: Partial<Exercise>): Exercise {
+function makeExercise(overrides: Partial<ResolvedExercise>): ResolvedExercise {
   return {
     id: "test-id",
+    definitionId: "def-test-id",
     order: 1,
     name: "Test Exercise",
     phase: "main",
     equipmentType: "barbell_45",
     equipmentDetail: null,
-    baseWeight: { type: "fixed", value: 100 },
+    muscleGroups: [],
+    currentWeight: 100,
+    hardStreak: 0,
     sets: 3,
     repMin: 8,
     repMax: { type: "count", value: 12 },

@@ -1,27 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { applyProgression, resolveWeight } from "../progression-service";
-import type { Exercise, CompletedSet } from "../types";
+import { describe, it, expect } from "vitest";
+import { computeNextWeight, liveEasyBump } from "../progression-service";
+import type { ResolvedExercise, CompletedSet } from "../types";
 import { Timestamp } from "firebase/firestore";
 
-// Mock firestore module
-vi.mock("../firestore", () => ({
-  getLastSetsForExercise: vi.fn(),
-  getLastTwoSessionSets: vi.fn(),
-}));
-
-import { getLastSetsForExercise, getLastTwoSessionSets } from "../firestore";
-const mockGetLastSets = vi.mocked(getLastSetsForExercise);
-const mockGetLastTwoSessions = vi.mocked(getLastTwoSessionSets);
-
-function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
+function makeExercise(overrides: Partial<ResolvedExercise> = {}): ResolvedExercise {
   return {
-    id: "test-id",
+    id: "ex-1",
+    definitionId: "def-1",
     order: 1,
     name: "Bench Press",
     phase: "main",
-    equipmentType: "barbell_45",
+    equipmentType: "kettlebell", // no equipment snapping by default — isolates the math
     equipmentDetail: null,
-    baseWeight: { type: "fixed", value: 135 },
+    muscleGroups: [],
     sets: 3,
     repMin: 8,
     repMax: { type: "count", value: 12 },
@@ -30,232 +21,206 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     isUnilateral: false,
     isTimeBased: false,
     notes: null,
+    currentWeight: 100,
+    hardStreak: 0,
     ...overrides,
   };
 }
 
-function makeCompletedSet(overrides: Partial<CompletedSet> = {}): CompletedSet {
+function makeSet(overrides: Partial<CompletedSet> = {}): CompletedSet {
   return {
     id: "set-1",
     exerciseName: "Bench Press",
+    definitionId: "def-1",
     exerciseOrder: 1,
-    setNumber: 1,
-    targetWeight: 135,
-    actualWeight: 135,
-    targetReps: 12,
-    actualReps: 12,
+    setNumber: 3,
+    targetWeight: 100,
+    actualWeight: 100,
+    targetReps: 10,
+    actualReps: 10,
     completed: true,
     timestamp: Timestamp.now(),
     notes: null,
+    rating: "normal",
     ...overrides,
   };
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  mockGetLastTwoSessions.mockResolvedValue([]);
-});
-
-describe("applyProgression", () => {
-  it("adds 5lbs for add_5lb rule", () => {
-    const exercise = makeExercise({ progressionRule: "add_5lb" });
-    expect(applyProgression(100, exercise)).toBe(105);
-  });
-
-  it("adds 2.5lbs for add_2.5lb rule (kettlebell, no equipment adjustment)", () => {
-    const exercise = makeExercise({ progressionRule: "add_2.5lb", equipmentType: "kettlebell" });
-    expect(applyProgression(50, exercise)).toBe(52.5);
-  });
-
-  it("adds 2.5lbs with barbell equipment adjustment", () => {
-    // 50 + 2.5 = 52.5 on 45lb bar → per side = 3.75 → rounds DOWN to nearest achievable
-    const exercise = makeExercise({ progressionRule: "add_2.5lb", equipmentType: "barbell_45" });
-    const result = applyProgression(50, exercise);
-    // 52.5 isn't exactly achievable; nearest below is 52 (per side = 3.5 = 2.5+1)
-    expect(result).toBe(52);
-  });
-
-  it("adds 10lbs for add_10lb rule", () => {
-    const exercise = makeExercise({ progressionRule: "add_10lb" });
-    expect(applyProgression(200, exercise)).toBe(210);
-  });
-
-  it.each([
-    "maintain",
-    "none",
-    "deload",
-    "add_reps",
-    "add_time",
-    "add_rounds",
-    "progress_gripper",
-  ])("returns same weight for %s rule", (rule) => {
-    const exercise = makeExercise({ progressionRule: rule });
-    expect(applyProgression(100, exercise)).toBe(100);
-  });
-
-  it("applies landmine (one-sided) equipment adjustment for Meadows Row", () => {
-    // 79 + 5 = 84 target on 45lb bar.
-    // Bilateral (wrong): perSide=19.5, not exactly achievable, rounds down to 83.5.
-    // Landmine (correct, one-sided): 39 lbs on one side = 35+2.5+1+0.5, achievedWeight=84 exactly.
-    const exercise = makeExercise({ name: "Meadows Row", progressionRule: "add_5lb", equipmentType: "barbell_45" });
-    expect(applyProgression(79, exercise)).toBe(84);
-  });
-
-  it("returns same weight for free-form band color rule (e.g. 'Blue')", () => {
-    const exercise = makeExercise({ progressionRule: "Blue" });
-    expect(applyProgression(100, exercise)).toBe(100);
-  });
-
-  it("returns same weight for free-form band count rule (e.g. '2 bands')", () => {
-    const exercise = makeExercise({ progressionRule: "2 bands" });
-    expect(applyProgression(100, exercise)).toBe(100);
-  });
-
-  it("adjusts result for barbell equipment (rounds to achievable plate config)", () => {
-    // 100 + 5 = 105 on 45lb bar → per side = 30 = 25 + 5
-    const exercise = makeExercise({
-      progressionRule: "add_5lb",
-      equipmentType: "barbell_45",
-    });
-    const result = applyProgression(100, exercise);
-    expect(result).toBe(105);
-  });
-
-  it("adjusts result for PowerBlock (rounds to nearest 2.5)", () => {
-    const exercise = makeExercise({
-      progressionRule: "add_5lb",
-      equipmentType: "powerblock",
-    });
-    // 20 + 5 = 25 → already valid PowerBlock weight
-    expect(applyProgression(20, exercise)).toBe(25);
-  });
-
-  it("adjusts PowerBlock result that would exceed max", () => {
-    const exercise = makeExercise({
-      progressionRule: "add_5lb",
-      equipmentType: "powerblock",
-    });
-    // 47.5 + 5 = 52.5 → clamped to 50
-    expect(applyProgression(47.5, exercise)).toBe(50);
-  });
-
-  it("doesn't adjust for non-barbell/non-powerblock equipment", () => {
-    const exercise = makeExercise({
-      progressionRule: "add_5lb",
-      equipmentType: "kettlebell",
-    });
-    expect(applyProgression(30, exercise)).toBe(35);
-  });
-
-  it("handles add_5lb from zero weight", () => {
-    const exercise = makeExercise({ progressionRule: "add_5lb" });
-    const result = applyProgression(0, exercise);
-    // 0 + 5 = 5, on barbell that's less than bar weight
-    expect(result).toBeGreaterThanOrEqual(0);
-  });
-});
-
-// ── resistance-reduction-progression user story ───────────────────────────────
-
-describe("resistance-reduction-progression", () => {
-  it("'2 bands' progression rule returns unchanged weight for assisted_pullup", () => {
-    const exercise = makeExercise({ equipmentType: "assisted_pullup", progressionRule: "2 bands" });
-    expect(applyProgression(3, exercise)).toBe(3);
-  });
-
-  it("band color 'Blue' progression rule returns unchanged weight", () => {
-    const exercise = makeExercise({ equipmentType: "band", progressionRule: "Blue" });
-    expect(applyProgression(0, exercise)).toBe(0);
-  });
-
-  it("band color 'Green' progression rule returns unchanged weight", () => {
-    const exercise = makeExercise({ equipmentType: "band", progressionRule: "Green" });
-    expect(applyProgression(0, exercise)).toBe(0);
-  });
-
-  it("free-form progression rule strings never throw", () => {
-    const rules = ["2 bands", "3 bands", "Blue", "Green", "Red", "Purple", "Black"];
-    for (const rule of rules) {
-      const exercise = makeExercise({ progressionRule: rule });
-      expect(() => applyProgression(0, exercise)).not.toThrow();
+describe("computeNextWeight — non-numeric progression rules", () => {
+  it.each(["maintain", "none", "deload", "add_reps", "add_time", "add_rounds", "progress_gripper", "Blue", "2 bands"])(
+    "leaves currentWeight and hardStreak untouched for %s",
+    (rule) => {
+      const exercise = makeExercise({ progressionRule: rule, currentWeight: 100, hardStreak: 1 });
+      const result = computeNextWeight(exercise, makeSet({ rating: "easy" }));
+      expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
     }
+  );
+});
+
+describe("computeNextWeight — normal rating", () => {
+  it("increases by 1x the increment and resets hardStreak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result).toEqual({ currentWeight: 105, hardStreak: 0 });
+  });
+
+  it("uses the 2.5lb increment for add_2.5lb", () => {
+    const exercise = makeExercise({ progressionRule: "add_2.5lb", currentWeight: 50 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(52.5);
+  });
+
+  it("uses the 10lb increment for add_10lb", () => {
+    const exercise = makeExercise({ progressionRule: "add_10lb", currentWeight: 200 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(210);
   });
 });
 
-describe("resolveWeight", () => {
-  it("returns baseWeight value as seed when no history (fixed)", async () => {
-    const exercise = makeExercise({ baseWeight: { type: "fixed", value: 185 } });
-    mockGetLastSets.mockResolvedValue([]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(185);
+describe("computeNextWeight — easy rating", () => {
+  it("increases by 2x the increment (final set) and resets hardStreak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 1 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "easy" }));
+    expect(result).toEqual({ currentWeight: 110, hardStreak: 0 });
+  });
+});
+
+describe("computeNextWeight — hard rating streak", () => {
+  it("1st consecutive hard: weight holds, streak becomes 1", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
   });
 
-  it("returns 0 for progressive weight with no history and no totalWeight", async () => {
-    const exercise = makeExercise({ baseWeight: { type: "progressive" } });
-    mockGetLastSets.mockResolvedValue([]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(0);
+  it("2nd consecutive hard: weight still holds, streak becomes 2", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 1 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 2 });
   });
 
-  it("returns totalWeight as starting weight when no history and totalWeight is set", async () => {
-    const exercise = makeExercise({ baseWeight: { type: "progressive" }, totalWeight: 185 });
-    mockGetLastSets.mockResolvedValue([]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(185);
+  it("3rd consecutive hard: drops by 1x increment, streak resets to 0", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 95, hardStreak: 0 });
   });
 
-  it("returns same weight when last sets have a failed set", async () => {
+  it("a normal rating after hard ratings breaks the streak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result).toEqual({ currentWeight: 105, hardStreak: 0 });
+  });
+});
+
+describe("computeNextWeight — skipped/failed final set", () => {
+  it("treats an incomplete final set the same as a hard rating", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
+    const result = computeNextWeight(exercise, makeSet({ completed: false, rating: undefined, actualReps: 0, actualWeight: 0 }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
+  });
+
+  it("a 3rd consecutive skip drops the weight like a 3rd hard", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ completed: false, rating: undefined }));
+    expect(result).toEqual({ currentWeight: 95, hardStreak: 0 });
+  });
+});
+
+describe("computeNextWeight — AMRAP final set (Epley projection)", () => {
+  it("ignores the subjective rating and projects from reps/weight instead", () => {
     const exercise = makeExercise({
-      baseWeight: { type: "progressive" },
       progressionRule: "add_5lb",
+      currentWeight: 100, // irrelevant to the AMRAP calculation
+      repMax: { type: "failure" },
+      sets: 3,
     });
-    mockGetLastSets.mockResolvedValue([
-      makeCompletedSet({ actualWeight: 135, actualReps: 12, completed: true }),
-      makeCompletedSet({ actualWeight: 135, actualReps: 8, completed: false }),
-    ]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(135);
+    // estimated1RM = 135 * (1 + 10/30) = 180; nextWeight = 180 * 30/38 ≈ 142.105
+    const result = computeNextWeight(
+      exercise,
+      makeSet({ rating: "hard", setNumber: 3, actualWeight: 135, actualReps: 10, targetReps: 8, completed: true })
+    );
+    expect(result.currentWeight).toBeCloseTo(142.105, 2);
+    expect(result.hardStreak).toBe(0);
   });
 
-  it("returns same weight when reps below target", async () => {
+  it("also triggers via lastSetAmrap flag on a count-type repMax, only on the final set", () => {
     const exercise = makeExercise({
-      baseWeight: { type: "progressive" },
-      repMin: 8,
       progressionRule: "add_5lb",
+      repMax: { type: "count", value: 12 },
+      lastSetAmrap: true,
+      sets: 3,
     });
-    mockGetLastSets.mockResolvedValue([
-      makeCompletedSet({ actualWeight: 135, actualReps: 6, completed: true }),
-    ]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(135);
+    const result = computeNextWeight(
+      exercise,
+      makeSet({ setNumber: 3, actualWeight: 100, actualReps: 12, targetReps: 8, completed: true })
+    );
+    // estimated1RM = 100 * (1 + 12/30) = 140; nextWeight = 140 * 30/38 ≈ 110.526
+    expect(result.currentWeight).toBeCloseTo(110.526, 2);
   });
 
-  it("applies progression when all sets completed at target reps", async () => {
+  it("does not treat a non-final set as AMRAP even with lastSetAmrap set", () => {
     const exercise = makeExercise({
-      baseWeight: { type: "progressive" },
-      repMin: 8,
       progressionRule: "add_5lb",
-      equipmentType: "barbell_45",
+      repMax: { type: "count", value: 12 },
+      lastSetAmrap: true,
+      sets: 3,
+      currentWeight: 100,
     });
-    mockGetLastSets.mockResolvedValue([
-      makeCompletedSet({ actualWeight: 135, actualReps: 12, completed: true }),
-      makeCompletedSet({ actualWeight: 135, actualReps: 10, completed: true }),
-      makeCompletedSet({ actualWeight: 135, actualReps: 8, completed: true }),
-    ]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(140);
+    const result = computeNextWeight(
+      exercise,
+      makeSet({ setNumber: 1, rating: "normal", actualWeight: 100, actualReps: 10 })
+    );
+    expect(result.currentWeight).toBe(105); // normal +1x increment, not an Epley projection
   });
 
-  it("uses actualWeight from first set as base weight", async () => {
+  it("falls back to hard-streak handling when the AMRAP set was skipped", () => {
     const exercise = makeExercise({
-      baseWeight: { type: "progressive" },
-      repMin: 8,
       progressionRule: "add_5lb",
+      currentWeight: 100,
+      repMax: { type: "failure" },
+      hardStreak: 0,
     });
-    mockGetLastSets.mockResolvedValue([
-      makeCompletedSet({ actualWeight: 200, actualReps: 10, completed: true }),
-    ]);
-    const result = await resolveWeight("user-1", exercise);
-    expect(result).toBe(205);
+    const result = computeNextWeight(exercise, makeSet({ completed: false, actualReps: 0, actualWeight: 0 }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
+  });
+});
+
+describe("computeNextWeight — equipment rounding", () => {
+  it("floors to the nearest achievable barbell plate combination", () => {
+    // 50 + 2.5 = 52.5 on 45lb bar → per side = 3.75 → not exact, rounds down to 52 (2.5+1)
+    const exercise = makeExercise({ progressionRule: "add_2.5lb", equipmentType: "barbell_45", currentWeight: 50 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(52);
+  });
+
+  it("applies one-sided landmine loading for Meadows Row", () => {
+    // 79 + 5 = 84 on 45lb bar, landmine (one-sided): 39 = 35+2.5+1+0.5 → achieves 84 exactly
+    const exercise = makeExercise({ name: "Meadows Row", progressionRule: "add_5lb", equipmentType: "barbell_45", currentWeight: 79 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(84);
+  });
+
+  it("floors PowerBlock to the nearest 2.5lb step instead of rounding", () => {
+    // 47.5 + 5 = 52.5 → clamped down to max 50 (not rounded to 52.5)
+    const exercise = makeExercise({ progressionRule: "add_5lb", equipmentType: "powerblock", currentWeight: 47.5 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(50);
+  });
+
+  it("doesn't adjust weight for equipment with no snap function (kettlebell)", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", equipmentType: "kettlebell", currentWeight: 30 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(35);
+  });
+});
+
+describe("liveEasyBump", () => {
+  it("bumps by 1x the increment for a numeric progression rule", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb" });
+    expect(liveEasyBump(100, exercise)).toBe(105);
+  });
+
+  it("leaves weight unchanged for non-numeric progression rules", () => {
+    const exercise = makeExercise({ progressionRule: "maintain" });
+    expect(liveEasyBump(100, exercise)).toBe(100);
   });
 });

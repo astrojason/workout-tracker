@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useWorkout } from "@/hooks/useWorkout";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
-import { isChecklistWorkout } from "@/lib/types";
+import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
 import type { Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
 
@@ -18,7 +19,19 @@ export default function HomePage() {
   const { activePrograms, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
+  const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
+
+  // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
+  // On a user's first load after the exercise-library migration ships, the
+  // definitions read can resolve (with stale/empty data) before usePrograms
+  // finishes running the one-time migration that creates those very definitions.
+  // Re-fetch once usePrograms settles so definitions reflects the post-migration
+  // state before anything tries to resolve a workout against it.
+  useEffect(() => {
+    if (!loading) reloadDefinitions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // Active workout — show regardless of auth so a session restored from localStorage
   // is never blocked by the sign-in screen.
@@ -123,7 +136,7 @@ export default function HomePage() {
   if (checklistWorkout && user) {
     return (
       <ChecklistWorkout
-        workout={checklistWorkout}
+        workout={resolveWorkout(checklistWorkout, definitions)}
         userId={user.uid}
         onClose={() => {
           setChecklistWorkout(null);
@@ -199,7 +212,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   setChecklistWorkout(w);
                 } else {
-                  workout.startWorkout(w, equipmentConfig ?? undefined);
+                  workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
                 }
               }}
               onSelectDay={(day) => {
@@ -208,7 +221,7 @@ export default function HomePage() {
                   if (isChecklistWorkout(w)) {
                     setChecklistWorkout(w);
                   } else {
-                    workout.startWorkout(w, equipmentConfig ?? undefined);
+                    workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
                   }
                 }
               }}

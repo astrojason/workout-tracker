@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Exercise } from "@/lib/types";
+import type { ResolvedExercise } from "@/lib/types";
 import { isTimeBased } from "@/lib/types";
 import { getPowerBlockInstructions, nearestPowerBlock } from "@/lib/equipment-calculator";
 
 interface SetCompletionModalProps {
-  exercise: Exercise;
+  exercise: ResolvedExercise;
   setNumber: number;
   targetWeight: number;
   onSave: (actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => void;

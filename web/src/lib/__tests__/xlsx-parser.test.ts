@@ -1,13 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as XLSX from "xlsx";
-import { parseXLSX } from "../xlsx-parser";
 
-beforeEach(() => {
-  let counter = 0;
-  vi.spyOn(crypto, "randomUUID").mockImplementation(
-    () => `uuid-${++counter}` as `${string}-${string}-${string}-${string}-${string}`
-  );
-});
+// xlsx-parser.ts also exports resolveExerciseDefinitions, which pulls in firestore.ts
+// (and transitively firebase.ts). This file only exercises the synchronous parseXLSX
+// path, but the module-level import still needs a working mock to avoid initializing
+// a real Firebase app during unit tests.
+vi.mock("@/lib/firebase", () => ({ db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(),
+  doc: vi.fn(),
+  getDoc: vi.fn(),
+  getDocs: vi.fn(),
+  addDoc: vi.fn(),
+  updateDoc: vi.fn(),
+  setDoc: vi.fn(),
+  deleteDoc: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  orderBy: vi.fn(),
+  limit: vi.fn(),
+  onSnapshot: vi.fn(),
+  writeBatch: vi.fn(),
+  Timestamp: { now: () => ({ seconds: 0, nanoseconds: 0 }) },
+}));
+
+import { parseXLSX } from "../xlsx-parser";
 
 // ── Helper: build an ArrayBuffer from plain JS objects using actual XLSX column names ──
 
@@ -99,37 +116,22 @@ describe("parseXLSX - basic parsing", () => {
     expect(result.workouts[0].exercises).toHaveLength(1);
   });
 
-  it("generates unique exercise IDs", () => {
-    const buf = buildXLSX({
-      Monday: [makeRow({ Order: 1 }), makeRow({ Order: 2 }), makeRow({ Order: 3 })],
-    });
-    const result = parseXLSX(buf);
-    const ids = result.workouts[0].exercises.map((e) => e.id);
-    expect(new Set(ids).size).toBe(3);
-  });
-
-  it("all exercises use progressive baseWeight", () => {
-    const buf = buildXLSX({ Monday: [makeRow()] });
-    const result = parseXLSX(buf);
-    expect(result.workouts[0].exercises[0].baseWeight).toEqual({ type: "progressive" });
-  });
-
   it("parses 'failure' Rep Max as failure RepTarget", () => {
     const buf = buildXLSX({ Monday: [makeRow({ "Rep Max": "failure" })] });
     const result = parseXLSX(buf);
     expect(result.workouts[0].exercises[0].repMax).toEqual({ type: "failure" });
   });
 
-  it("stores Total Weight > 0 as totalWeight", () => {
+  it("stores Total Weight > 0 as seedWeight", () => {
     const buf = buildXLSX({ Monday: [makeRow({ "Total Weight": 185 })] });
     const result = parseXLSX(buf);
-    expect(result.workouts[0].exercises[0].totalWeight).toBe(185);
+    expect(result.workouts[0].exercises[0].seedWeight).toBe(185);
   });
 
-  it("leaves totalWeight undefined when Total Weight is 0", () => {
+  it("leaves seedWeight undefined when Total Weight is 0", () => {
     const buf = buildXLSX({ Monday: [makeRow({ "Total Weight": 0 })] });
     const result = parseXLSX(buf);
-    expect(result.workouts[0].exercises[0].totalWeight).toBeUndefined();
+    expect(result.workouts[0].exercises[0].seedWeight).toBeUndefined();
   });
 });
 

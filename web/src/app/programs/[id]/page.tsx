@@ -4,9 +4,11 @@ import { useState, useEffect, use } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
-import { ExerciseEditor } from "@/components/programs/ExerciseEditor";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
+import { createExerciseDefinition, updateExerciseDefinitionWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
-import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout } from "@/lib/types";
+import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
@@ -15,8 +17,18 @@ import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: programId } = use(params);
   const { user } = useAuth();
-  const { programs, loadWorkoutsForWeek, updateWorkout } = usePrograms(user?.uid ?? null);
+  const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout } = usePrograms(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
+  const { definitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+
+  // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
+  // Re-fetch definitions once usePrograms settles (including its one-time exercise-
+  // library migration), so a definitions read that resolved before migration
+  // finished doesn't leave this page working from stale/empty data.
+  useEffect(() => {
+    if (!programsLoading) reloadDefinitions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programsLoading]);
 
   const program = programs.find((p) => p.id === programId);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -68,10 +80,23 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
     (a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek)
   );
 
-  async function handleSaveExercise(exercise: Exercise) {
-    if (!editingExercise) return;
+  async function handleSaveExercise(result: ExerciseEditorResult) {
+    if (!editingExercise || !user) return;
     const workout = editingExercise.workout;
     const isNew = !editingExercise.exercise;
+
+    let exercise: Exercise;
+    if (result.kind === "new") {
+      const definitionId = await createExerciseDefinition(user.uid, result.definition);
+      exercise = { ...result.occurrence, definitionId };
+    } else {
+      exercise = result.occurrence;
+      const def = definitions[result.definitionId];
+      if (def && result.weight !== def.currentWeight) {
+        await updateExerciseDefinitionWeight(user.uid, result.definitionId, result.weight, def.hardStreak);
+      }
+    }
+    await reloadDefinitions();
 
     let updatedExercises: Exercise[];
     if (isNew) {
@@ -102,7 +127,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function handleCopyWeek() {
-    const text = formatWeekAsText(program!.name, selectedWeek, sortedWorkouts);
+    const text = formatWeekAsText(program!.name, selectedWeek, sortedWorkouts.map((w) => resolveWorkout(w, definitions)));
     try {
       await navigator.clipboard.writeText(text);
       setWeekCopied(true);
@@ -159,18 +184,18 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Loading */}
-      {loadingWorkouts && (
+      {(loadingWorkouts || definitionsLoading) && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
         </div>
       )}
 
       {/* Workouts by Day */}
-      {!loadingWorkouts && sortedWorkouts.length === 0 && (
+      {!loadingWorkouts && !definitionsLoading && sortedWorkouts.length === 0 && (
         <p className="text-gray-500 text-center py-8">No workouts for this week.</p>
       )}
 
-      {!loadingWorkouts && sortedWorkouts.map((workout) => (
+      {!loadingWorkouts && !definitionsLoading && sortedWorkouts.map((workout) => (
         <div key={workout.id} className="mb-6">
           {/* Day Header */}
           <div className="flex items-center justify-between mb-3">
@@ -198,7 +223,8 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             {workout.exercises
               .slice()
               .sort((a, b) => a.order - b.order)
-              .map((exercise) => {
+              .map((rawExercise) => {
+                const exercise = resolveExercise(rawExercise, definitions);
                 const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
                 const weightDisplay = exerciseWeightDisplay(exercise);
 
@@ -268,6 +294,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
         <ExerciseEditor
           exercise={editingExercise.exercise}
           maxOrder={Math.max(0, ...editingExercise.workout.exercises.map((e) => e.order))}
+          definitions={Object.values(definitions)}
           onSave={handleSaveExercise}
           onCancel={() => setEditingExercise(null)}
           equipmentConfig={equipmentConfig}
@@ -277,13 +304,14 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       {/* Delete Exercise Modal */}
       {confirmDelete && (() => {
         const workout = workouts.find((w) => w.id === confirmDelete.workoutId);
-        const exercise = workout?.exercises.find((e) => e.id === confirmDelete.exerciseId);
-        return exercise && workout ? (
+        const rawExercise = workout?.exercises.find((e) => e.id === confirmDelete.exerciseId);
+        const exerciseName = rawExercise ? definitions[rawExercise.definitionId]?.name : undefined;
+        return rawExercise && workout ? (
           <ConfirmDeleteModal
             title="Delete Exercise"
-            message={`Remove "${exercise.name}" from this workout?`}
+            message={`Remove "${exerciseName ?? "this exercise"}" from this workout?`}
             onCancel={() => setConfirmDelete(null)}
-            onConfirm={() => handleDeleteExercise(workout, exercise.id)}
+            onConfirm={() => handleDeleteExercise(workout, rawExercise.id)}
           />
         ) : null;
       })()}

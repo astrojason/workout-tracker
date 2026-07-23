@@ -32,36 +32,69 @@ export type ProgressionRule =
 
 // ── Structured types (Firestore-compatible) ──
 
-export type WeightSpec =
-  | { type: "fixed"; value: number }
-  | { type: "progressive" };
-
 export type RepTarget =
   | { type: "count"; value: number }
   | { type: "failure" };
 
+// Numeric-increment progression rules the auto-progression engine understands.
+// Rules not listed here (band colors, add_reps, maintain, etc.) don't drive currentWeight automatically.
+export const WEIGHT_INCREMENTS: Partial<Record<ProgressionRule, number>> = {
+  "add_5lb": 5,
+  "add_2.5lb": 2.5,
+  "add_10lb": 10,
+};
+
 // ── Core models ──
 
-export interface Exercise {
+// The canonical, global-per-user definition of an exercise: what it is, not when you're doing it.
+// Referenced by Exercise occurrences across every program so metadata and working weight
+// never need to be re-entered, and stay in sync everywhere the exercise appears.
+export interface ExerciseDefinition {
   id: string;
-  order: number;
   name: string;
-  phase: Phase;
+  muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
-  baseWeight: WeightSpec;
+  progressionRule: ProgressionRule;
+  isUnilateral: boolean;
+  isTimeBased: boolean;
+  currentWeight: number;
+  hardStreak: number;          // consecutive sessions whose final set was rated "hard"; resets on any other outcome
+  createdAt: Timestamp | Date;
+  updatedAt: Timestamp | Date;
+}
+
+// A single occurrence of an exercise within one workout day — scheduling only.
+// Everything about what the exercise IS lives on the referenced ExerciseDefinition.
+export interface Exercise {
+  id: string;
+  definitionId: string;
+  order: number;
+  phase: Phase;
   sets: number;
   repMin: number;
   repMax: RepTarget;
   restSeconds: number;
-  progressionRule: ProgressionRule;
-  isUnilateral: boolean;
-  isTimeBased: boolean;
   notes: string | null;
-  // XLSX-only fields
-  totalWeight?: number;          // pre-calculated total weight; seeds progressive starting weight if no history
   lastSetAmrap?: boolean;        // when true, the final set is AMRAP regardless of repMax
   restAfter?: false | number;    // false = no rest timer; number = rest seconds (overrides restSeconds)
+}
+
+// An Exercise occurrence merged with its definition — the shape the workout UI actually works with.
+export type ResolvedExercise = Exercise & Omit<ExerciseDefinition, "id" | "createdAt" | "updatedAt"> & {
+  definitionId: string;
+};
+
+export function resolveExercise(
+  exercise: Exercise,
+  definitions: Record<string, ExerciseDefinition>
+): ResolvedExercise {
+  const def = definitions[exercise.definitionId];
+  if (!def) {
+    throw new Error(`Exercise definition ${exercise.definitionId} not found for exercise ${exercise.id}`);
+  }
+  const { id: _defId, createdAt: _createdAt, updatedAt: _updatedAt, ...defRest } = def;
+  return { ...exercise, ...defRest };
 }
 
 export interface Workout {
@@ -72,6 +105,17 @@ export interface Workout {
   dayOfWeek: string;
   exercises: Exercise[];
   isChecklist?: boolean;
+}
+
+// A Workout with every exercise occurrence merged with its definition — the shape
+// the workout UI, active session, and week-export text actually work with.
+export type ResolvedWorkout = Omit<Workout, "exercises"> & { exercises: ResolvedExercise[] };
+
+export function resolveWorkout(
+  workout: Workout,
+  definitions: Record<string, ExerciseDefinition>
+): ResolvedWorkout {
+  return { ...workout, exercises: workout.exercises.map((e) => resolveExercise(e, definitions)) };
 }
 
 export interface Program {
@@ -87,6 +131,7 @@ export interface UserSettings {
   soundEnabled: boolean;
   currentWeeks: Record<string, number>; // programId -> currentWeek
   migratedProgramIds?: boolean; // one-time backfill of programId onto legacy Workout/WorkoutSessionDoc docs
+  exerciseLibraryMigrated?: boolean; // one-time backfill: embedded exercises -> global ExerciseDefinition + definitionId refs
 }
 
 // ── Equipment config ──
@@ -127,6 +172,7 @@ export interface UserEquipmentConfig {
 export interface CompletedSet {
   id: string;
   exerciseName: string;
+  definitionId?: string;         // optional: legacy sets logged before the exercise library existed
   exerciseOrder: number;
   setNumber: number;
   targetWeight: number;
@@ -189,7 +235,7 @@ export type EquipmentDisplay =
 // ── Active workout state ──
 
 export interface ActiveSession {
-  workout: Workout;
+  workout: ResolvedWorkout;
   resolvedWeights: Record<string, number>; // exerciseId -> weight
   currentExerciseIndex: number;
   currentSetNumber: number;
@@ -232,18 +278,15 @@ export function barWeight(type: EquipmentType): number | null {
   }
 }
 
-const CHECKLIST_RULES: ProgressionRule[] = ["none", "maintain", "add_time", "add_reps"];
-
 export function isChecklistWorkout(workout: Workout): boolean {
   // Explicit flag takes priority (set via editor or CSV import)
   if (workout.isChecklist !== undefined) return workout.isChecklist;
-  // Fallback heuristic for legacy workouts without the flag
-  return workout.exercises.every(
-    (ex) => ex.restSeconds === 0 && CHECKLIST_RULES.includes(ex.progressionRule)
-  );
+  // Fallback heuristic for legacy workouts without the flag. Progression rule now lives on the
+  // exercise definition, not the occurrence, so this only checks what's still available here.
+  return workout.exercises.every((ex) => ex.restSeconds === 0);
 }
 
-export function isTimeBased(exercise: Exercise): boolean {
+export function isTimeBased(exercise: ResolvedExercise): boolean {
   return exercise.isTimeBased;
 }
 
@@ -257,7 +300,7 @@ export function formatTimeValue(seconds: number): string {
   return `${seconds}s`;
 }
 
-export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: Exercise, setNumber?: number): string {
+export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: ResolvedExercise, setNumber?: number): string {
   if (repMax.type === "failure") return "AMRAP";
   // lastSetAmrap: only the final set is AMRAP; earlier sets show normal rep range
   if (exercise?.lastSetAmrap && setNumber !== undefined && setNumber === exercise.sets) return "AMRAP";
@@ -283,11 +326,8 @@ export function formatRestTime(seconds: number): string {
   return `${seconds}s`;
 }
 
-export function exerciseWeightDisplay(exercise: Exercise): string {
-  const resolvedWeight = exercise.baseWeight.type === "progressive"
-    ? (exercise.totalWeight ?? 0)
-    : exercise.baseWeight.value;
-  if (resolvedWeight > 0) return `${cleanWeight(resolvedWeight)} lbs`;
+export function exerciseWeightDisplay(exercise: ResolvedExercise): string {
+  if (exercise.currentWeight > 0) return `${cleanWeight(exercise.currentWeight)} lbs`;
   if (exercise.equipmentType === "bodyweight") return "BW";
   return exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
 }
