@@ -13,3 +13,9 @@ test-results/
 # one if it ends up here anyway.
 *serviceAccount*.json
 *service-account*.json
+
+# Firebase emulator suite (npm run emulators)
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+.firebase/

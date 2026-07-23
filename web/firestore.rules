@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Emulator-only rules — not deployed anywhere. Mirrors the per-user scoping
+// pattern this app relies on (every read/write happens under a signed-in
+// user's own /users/{userId}/ subtree) so the emulator exercises the same
+// permission shape as production, without needing the real project's rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

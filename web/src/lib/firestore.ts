@@ -41,12 +41,16 @@ function exerciseDefinitionsCol(userId: string) {
 
 export async function getSettings(userId: string): Promise<UserSettings> {
   const snap = await getDoc(settingsRef(userId));
-  if (snap.exists()) return snap.data() as UserSettings;
   const defaults: UserSettings = {
     defaultRestSeconds: 120,
     soundEnabled: true,
     currentWeeks: {},
   };
+  // Merge over defaults rather than trusting the doc as fully-formed — a
+  // partial write (e.g. an early updateSettings() merge call before the doc
+  // ever existed) would otherwise return an object missing required fields
+  // like currentWeeks, crashing anything that indexes into it.
+  if (snap.exists()) return { ...defaults, ...snap.data() } as UserSettings;
   await setDoc(settingsRef(userId), defaults);
   return defaults;
 }

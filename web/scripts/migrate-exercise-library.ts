@@ -14,7 +14,12 @@
 // Once deployed, the app assumes migration has already happened — it will
 // throw trying to resolve any exercise that still uses the old embedded shape.
 //
-// Setup:
+// Against the Firestore EMULATOR (recommended dry run first): with `npm run
+// emulators` running in another terminal, use `npm run migrate:exercise-library:emulator
+// -- <uid>` — no service account needed; see scripts/seed-emulator.ts for
+// representative test data and its printed test uid.
+//
+// Against PRODUCTION, setup:
 //   1. Firebase Console -> Project Settings -> Service Accounts -> Generate new
 //      private key. Save the JSON somewhere OUTSIDE this repo.
 //   2. export GOOGLE_APPLICATION_CREDENTIALS=/path/to/that-file.json
@@ -27,8 +32,10 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { initializeApp as initializeAdminApp, cert, applicationDefault } from "firebase-admin/app";
+import { initializeApp as initializeAdminApp, applicationDefault } from "firebase-admin/app";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
+
+const EMULATOR_PROJECT_ID = "demo-workout-tracker-emulator";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -58,26 +65,45 @@ async function main() {
     process.exit(1);
   }
 
-  loadEnvLocal();
+  // FIRESTORE_EMULATOR_HOST is the standard signal the Admin SDK itself already
+  // watches for — reusing it here means one flag switches both the Admin SDK
+  // (below) and the client SDK (src/lib/firebase.ts) into emulator mode.
+  const useEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+  if (useEmulator) {
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR = "true";
+    console.log(`Emulator mode (FIRESTORE_EMULATOR_HOST=${process.env.FIRESTORE_EMULATOR_HOST}) — no real credentials needed.`);
+  } else {
+    loadEnvLocal();
+  }
 
   // Admin SDK is used ONLY to mint a short-lived custom token for this one uid —
   // everything else runs through the normal client SDK (src/lib/firebase.ts,
   // src/lib/firestore.ts) under that user's own Firestore security rules, the
   // exact same code path and permissions as the signed-in app. This keeps the
   // migration's blast radius identical to what the app itself is allowed to do.
-  const credential = process.env.GOOGLE_APPLICATION_CREDENTIALS
-    ? applicationDefault()
-    : (() => { throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS to a Firebase service account JSON key path (see this file's header comment)."); })();
-  initializeAdminApp({ credential });
+  if (useEmulator) {
+    initializeAdminApp({ projectId: EMULATOR_PROJECT_ID });
+  } else {
+    const credential = process.env.GOOGLE_APPLICATION_CREDENTIALS
+      ? applicationDefault()
+      : (() => { throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS to a Firebase service account JSON key path (see this file's header comment)."); })();
+    initializeAdminApp({ credential });
+  }
   const customToken = await getAdminAuth().createCustomToken(uid);
 
-  const { auth, } = await import("../src/lib/firebase.js");
+  const { auth } = await import("../src/lib/firebase.js");
   const { signInWithCustomToken } = await import("firebase/auth");
-  const { migrateToExerciseLibrary } = await import("../src/lib/firestore.js");
-  const { updateSettings } = await import("../src/lib/firestore.js");
+  const { migrateToExerciseLibrary, updateSettings, getSettings } = await import("../src/lib/firestore.js");
 
   console.log(`Signing in as ${uid}...`);
   await signInWithCustomToken(auth, customToken);
+
+  // Ensures the settings doc exists with full defaults before this script
+  // touches it below — getSettings() creates it on first read if missing.
+  // Skipping this and going straight to a merge-write would, for an account
+  // that had never opened the app, create a doc containing ONLY
+  // exerciseLibraryMigrated, missing currentWeeks/etc. and crashing the app.
+  await getSettings(uid);
 
   console.log("Running migration (this may take a moment for large libraries)...");
   await migrateToExerciseLibrary(uid);

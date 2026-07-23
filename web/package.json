@@ -9,7 +9,12 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate:exercise-library": "tsx scripts/migrate-exercise-library.ts"
+    "migrate:exercise-library": "tsx scripts/migrate-exercise-library.ts",
+    "emulators": "firebase emulators:start --only auth,firestore",
+    "dev:emulator": "NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true next dev",
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 tsx scripts/seed-emulator.ts",
+    "migrate:exercise-library:emulator": "FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 tsx scripts/migrate-exercise-library.ts",
+    "mint-token:emulator": "FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 tsx scripts/mint-emulator-token.ts"
   },
   "dependencies": {
     "firebase": "^11.1.0",
