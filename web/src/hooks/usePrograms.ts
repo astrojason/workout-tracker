@@ -7,7 +7,7 @@ import {
   getWorkoutsForProgram,
   getCompletedDays, saveProgram, saveWorkout,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
-  renameProgram as renameProgramDoc, migrateProgramIds, migrateToExerciseLibrary,
+  renameProgram as renameProgramDoc, migrateProgramIds,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { parseXLSX } from "@/lib/xlsx-parser";
@@ -46,16 +46,13 @@ export function usePrograms(userId: string | null) {
         sett.migratedProgramIds = true;
       }
 
-      // One-time backfill: legacy embedded exercise metadata (name, equipment,
-      // progression rule, weight) is replaced with a definitionId reference into
-      // the global exercise library, unifying same-named exercises across every
-      // program. Must run before workouts are loaded below so the cache picks up
-      // the migrated (definitionId-bearing) shape.
-      if (!sett.exerciseLibraryMigrated) {
-        await migrateToExerciseLibrary(userId!);
-        await updateSettings(userId!, { exerciseLibraryMigrated: true });
-        sett.exerciseLibraryMigrated = true;
-      }
+      // NOTE: the exercise-library migration (embedded exercise metadata ->
+      // definitionId references) is NOT run automatically here. It rewrites
+      // existing Workout documents, and this app's code requires every exercise
+      // to already have a definitionId — running it from within the app risked
+      // a preview deployment migrating production data before main was ready for
+      // it. Run `npm run migrate:exercise-library -- <uid>` manually before
+      // deploying code that expects the new schema. See scripts/migrate-exercise-library.ts.
 
       setPrograms(progs);
       setSettingsState(sett);

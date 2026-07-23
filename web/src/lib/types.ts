@@ -131,7 +131,7 @@ export interface UserSettings {
   soundEnabled: boolean;
   currentWeeks: Record<string, number>; // programId -> currentWeek
   migratedProgramIds?: boolean; // one-time backfill of programId onto legacy Workout/WorkoutSessionDoc docs
-  exerciseLibraryMigrated?: boolean; // one-time backfill: embedded exercises -> global ExerciseDefinition + definitionId refs
+  exerciseLibraryMigrated?: boolean; // set by scripts/migrate-exercise-library.ts (manual, not run automatically by the app)
 }
 
 // ── Equipment config ──
