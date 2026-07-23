@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { getDocsMock, addDocMock, batchUpdateMock, batchCommitMock } = vi.hoisted(() => ({
+const { getDocsMock, addDocMock, batchUpdateMock, batchCommitMock, updateDocMock, setDocMock, deleteDocMock } = vi.hoisted(() => ({
   getDocsMock: vi.fn(),
   addDocMock: vi.fn(),
   batchUpdateMock: vi.fn(),
   batchCommitMock: vi.fn().mockResolvedValue(undefined),
+  updateDocMock: vi.fn(),
+  setDocMock: vi.fn(),
+  deleteDocMock: vi.fn(),
 }));
 
 vi.mock("@/lib/firebase", () => ({ db: {} }));
@@ -17,10 +20,10 @@ vi.mock("firebase/firestore", () => ({
   orderBy: vi.fn((field: string, dir: string) => ({ field, dir })),
   getDoc: vi.fn(),
   getDocs: getDocsMock,
-  updateDoc: vi.fn(),
-  setDoc: vi.fn(),
+  updateDoc: updateDocMock,
+  setDoc: setDocMock,
   addDoc: addDocMock,
-  deleteDoc: vi.fn(),
+  deleteDoc: deleteDocMock,
   onSnapshot: vi.fn(),
   limit: vi.fn(),
   writeBatch: vi.fn(() => ({ update: batchUpdateMock, commit: batchCommitMock })),
@@ -241,5 +244,65 @@ describe("migrateToExerciseLibrary — partial migration idempotency", () => {
     expect(writtenExercises).toHaveLength(2);
     expect(writtenExercises[0]).toEqual({ id: "ex-1", definitionId: "already-migrated", order: 1 });
     expect(writtenExercises[1]).toEqual(expect.objectContaining({ id: "ex-2", definitionId: "def-curl" }));
+  });
+});
+
+describe("migrateToExerciseLibrary — never touches logged history", () => {
+  it("only ever reads sessions (for weight-seeding), never writes to them", async () => {
+    getDocsMock
+      .mockResolvedValueOnce({ // workouts
+        docs: [fakeDoc("w1", {
+          exercises: [{
+            id: "ex-1", order: 1, phase: "main", name: "Bench Press",
+            equipmentType: "barbell_45", equipmentDetail: null,
+            baseWeight: { type: "fixed", value: 135 }, sets: 3, repMin: 8,
+            repMax: { type: "count", value: 10 }, restSeconds: 90,
+            progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
+          }],
+        })],
+      })
+      .mockResolvedValueOnce({ // sessions — the actual logged history
+        docs: [fakeDoc("session-1", { date: { toDate: () => new Date() }, sets: [
+          { exerciseName: "Bench Press", completed: true, actualWeight: 140 },
+        ] })],
+      })
+      .mockResolvedValueOnce({ docs: [] }); // existing defs
+
+    addDocMock.mockResolvedValue({ id: "def-bench" });
+
+    await migrateToExerciseLibrary("user-1");
+
+    // The workout doc is the only thing rewritten...
+    expect(batchUpdateMock).toHaveBeenCalledWith({ __ref: "w1" }, expect.anything());
+    expect(batchUpdateMock).toHaveBeenCalledTimes(1);
+    // ...the session doc is never touched by any write path.
+    expect(batchUpdateMock).not.toHaveBeenCalledWith({ __ref: "session-1" }, expect.anything());
+    expect(updateDocMock).not.toHaveBeenCalled();
+    expect(setDocMock).not.toHaveBeenCalled();
+    expect(deleteDocMock).not.toHaveBeenCalled();
+  });
+
+  it("never reads or writes personalRecords at all", async () => {
+    getDocsMock
+      .mockResolvedValueOnce({ docs: [fakeDoc("w1", {
+        exercises: [{
+          id: "ex-1", order: 1, phase: "main", name: "Squat",
+          equipmentType: "barbell_45", equipmentDetail: null,
+          baseWeight: { type: "fixed", value: 225 }, sets: 3, repMin: 5,
+          repMax: { type: "count", value: 5 }, restSeconds: 120,
+          progressionRule: "add_5lb", isUnilateral: false, isTimeBased: false, notes: null,
+        }],
+      })] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] });
+
+    addDocMock.mockResolvedValue({ id: "def-squat" });
+
+    const { collection } = await import("firebase/firestore");
+    await migrateToExerciseLibrary("user-1");
+
+    const collectionCalls = (collection as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const touchedPersonalRecords = collectionCalls.some((args) => args.includes("personalRecords"));
+    expect(touchedPersonalRecords).toBe(false);
   });
 });
