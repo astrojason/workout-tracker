@@ -214,33 +214,46 @@ export function useWorkout(userId: string | null) {
     };
   }, []);
 
+  // Returns whether the workout actually started, so callers (the Start
+  // Workout button) can tell a real failure apart from success and release
+  // their own loading state instead of getting stuck. definitions can still be
+  // stale/incomplete when this runs (usePrograms and useExerciseDefinitions
+  // fetch in parallel — see page.tsx), so resolveWorkout can throw; without
+  // this try/catch that throw propagated straight out of the onClick handler
+  // and the button silently did nothing.
   const startWorkout = useCallback((
     workout: Workout,
     definitions: Record<string, ExerciseDefinition>,
     equipmentConfig?: UserEquipmentConfig
-  ) => {
-    if (!userId) return;
-    initAudio();
-    equipmentConfigRef.current = equipmentConfig;
+  ): boolean => {
+    if (!userId) return false;
+    try {
+      initAudio();
+      equipmentConfigRef.current = equipmentConfig;
 
-    const resolvedWorkout = resolveWorkout(workout, definitions);
-    const resolvedWeights: Record<string, number> = {};
-    for (const exercise of resolvedWorkout.exercises) {
-      resolvedWeights[exercise.id] = exercise.currentWeight;
+      const resolvedWorkout = resolveWorkout(workout, definitions);
+      const resolvedWeights: Record<string, number> = {};
+      for (const exercise of resolvedWorkout.exercises) {
+        resolvedWeights[exercise.id] = exercise.currentWeight;
+      }
+
+      setSession({
+        workout: resolvedWorkout,
+        resolvedWeights,
+        currentExerciseIndex: 0,
+        currentSetNumber: 1,
+        completedSets: [],
+        isResting: false,
+        restTimeRemaining: 0,
+        startTime: new Date(),
+        prsAchieved: [],
+      });
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
     }
-
-    setSession({
-      workout: resolvedWorkout,
-      resolvedWeights,
-      currentExerciseIndex: 0,
-      currentSetNumber: 1,
-      completedSets: [],
-      isResting: false,
-      restTimeRemaining: 0,
-      startTime: new Date(),
-      prsAchieved: [],
-    });
-  }, [userId, initAudio]);
+  }, [userId, initAudio, showError]);
 
   const currentExercise = session?.workout.exercises[session.currentExerciseIndex] ?? null;
   const currentWeight = currentExercise ? (session?.resolvedWeights[currentExercise.id] ?? 0) : 0;

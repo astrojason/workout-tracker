@@ -31,6 +31,12 @@ vi.mock("../useSound", () => ({
   }),
 }));
 
+const showErrorMock = vi.fn();
+
+vi.mock("@/components/providers/ErrorProvider", () => ({
+  useError: () => ({ showError: showErrorMock }),
+}));
+
 // Mock crypto.randomUUID
 let uuidCounter = 0;
 vi.spyOn(crypto, "randomUUID").mockImplementation(() => `uuid-${++uuidCounter}` as `${string}-${string}-${string}-${string}-${string}`);
@@ -153,6 +159,29 @@ describe("useWorkout", () => {
       await result.current.startWorkout(makeWorkout(), getDefinitions());
     });
     expect(result.current.session).toBeNull();
+  });
+
+  // Regression: usePrograms() and useExerciseDefinitions() fetch in parallel
+  // (see page.tsx), so definitions can still be stale/incomplete — missing an
+  // id resolveExercise() needs — when the user clicks Start. That throw used
+  // to propagate straight out of the onClick handler with no try/catch
+  // anywhere in the chain: the button click would silently do nothing instead
+  // of starting the workout or telling the user why.
+  it("surfaces a startWorkout failure via showError instead of failing silently", () => {
+    const workout = makeWorkout();
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    let returned: boolean | undefined;
+    act(() => {
+      // Empty definitions map: the workout's exercise references a
+      // definitionId resolveExercise() won't find.
+      returned = result.current.startWorkout(workout, {});
+    });
+
+    expect(result.current.session).toBeNull();
+    expect(showErrorMock).toHaveBeenCalledTimes(1);
+    expect(showErrorMock.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(returned).toBe(false);
   });
 
   it("creates session with correct initial state on startWorkout", async () => {

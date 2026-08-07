@@ -67,9 +67,17 @@ export function useSound() {
     }
   }, [getContext]);
 
-  // Must be called from a user gesture to enable audio
+  // Must be called from a user gesture to enable audio. Construction can throw
+  // (e.g. a browser's concurrent-AudioContext cap), and this is called
+  // synchronously from startWorkout with nothing downstream to catch it —
+  // audio is a best-effort enhancement, so it must never block starting a
+  // workout. non-critical: swallow and let the workout start silently muted.
   const initAudio = useCallback(() => {
-    getContext();
+    try {
+      getContext();
+    } catch {
+      // non-critical
+    }
   }, [getContext]);
 
   return { playTimerComplete, playSetComplete, initAudio };

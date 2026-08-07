@@ -11,8 +11,9 @@ import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
 import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
-import type { Workout } from "@/lib/types";
+import type { ResolvedWorkout, Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { useError } from "@/components/providers/ErrorProvider";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -20,7 +21,21 @@ export default function HomePage() {
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
-  const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
+  const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
+  const { showError } = useError();
+
+  // Resolves before committing to checklistWorkout state, so a stale/incomplete
+  // definitions map (see the effect above) surfaces via the error modal instead
+  // of throwing straight out of render the moment this screen mounts.
+  function startChecklistWorkout(w: Workout): boolean {
+    try {
+      setChecklistWorkout(resolveWorkout(w, definitions));
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
+    }
+  }
 
   // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
   // On a user's first load after the exercise-library migration ships, the
@@ -136,7 +151,7 @@ export default function HomePage() {
   if (checklistWorkout && user) {
     return (
       <ChecklistWorkout
-        workout={resolveWorkout(checklistWorkout, definitions)}
+        workout={checklistWorkout}
         userId={user.uid}
         onClose={() => {
           setChecklistWorkout(null);
@@ -210,20 +225,17 @@ export default function HomePage() {
               completedDays={getCompletedDaysForProgram(program.id)}
               onStartWorkout={(w) => {
                 if (isChecklistWorkout(w)) {
-                  setChecklistWorkout(w);
-                } else {
-                  workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
+                  return startChecklistWorkout(w);
                 }
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
               }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.id, day);
-                if (w) {
-                  if (isChecklistWorkout(w)) {
-                    setChecklistWorkout(w);
-                  } else {
-                    workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
-                  }
+                if (!w) return false;
+                if (isChecklistWorkout(w)) {
+                  return startChecklistWorkout(w);
                 }
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
               }}
             />
           ))}

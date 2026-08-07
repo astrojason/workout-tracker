@@ -104,4 +104,23 @@ describe("useSound", () => {
 
     await expect(result.current.playSetComplete()).resolves.toBeUndefined();
   });
+
+  // Browsers cap the number of concurrent AudioContext instances (notably iOS
+  // Safari); construction can throw once that cap is hit. initAudio() is called
+  // synchronously from startWorkout with no surrounding try/catch, so an
+  // uncaught throw here used to abort the whole "start workout" click handler
+  // before it ever reached setSession — the button would silently do nothing.
+  it("does not throw when constructing the AudioContext fails", () => {
+    (globalThis as unknown as { AudioContext: unknown }).AudioContext = vi.fn(function AudioContext() {
+      throw new Error("audio context limit reached");
+    });
+
+    const { result } = renderHook(() => useSound());
+
+    expect(() => {
+      act(() => {
+        result.current.initAudio();
+      });
+    }).not.toThrow();
+  });
 });
