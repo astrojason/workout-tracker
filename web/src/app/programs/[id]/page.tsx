@@ -13,6 +13,7 @@ import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { useError } from "@/components/providers/ErrorProvider";
 
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: programId } = use(params);
@@ -20,6 +21,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout } = usePrograms(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const { showError } = useError();
 
   // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
   // Re-fetch definitions once usePrograms settles (including its one-time exercise-
@@ -127,7 +129,13 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function handleCopyWeek() {
-    const text = formatWeekAsText(program!.name, selectedWeek, sortedWorkouts.map((w) => resolveWorkout(w, definitions)));
+    let text: string;
+    try {
+      text = formatWeekAsText(program!.name, selectedWeek, sortedWorkouts.map((w) => resolveWorkout(w, definitions)));
+    } catch (err) {
+      showError(err);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       setWeekCopied(true);
@@ -224,7 +232,36 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
               .slice()
               .sort((a, b) => a.order - b.order)
               .map((rawExercise) => {
-                const exercise = resolveExercise(rawExercise, definitions);
+                // A definitionId with no matching definition (e.g. pre-exercise-library
+                // data that hasn't been through the migration script) must not crash
+                // this whole list — show it as a row the user can still delete.
+                let exercise;
+                try {
+                  exercise = resolveExercise(rawExercise, definitions);
+                } catch (err) {
+                  return (
+                    <div key={rawExercise.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-red-600" />
+                          <span className="font-semibold text-red-400">Unresolved exercise</span>
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {err instanceof Error ? err.message : String(err)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setConfirmDelete({ workoutId: workout.id, exerciseId: rawExercise.id })}
+                        className="text-gray-600 hover:text-red-400 transition p-1 shrink-0"
+                        title="Delete exercise"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                }
                 const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
                 const weightDisplay = exerciseWeightDisplay(exercise);
 
