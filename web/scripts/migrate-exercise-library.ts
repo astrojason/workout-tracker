@@ -32,7 +32,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { initializeApp as initializeAdminApp, applicationDefault } from "firebase-admin/app";
+import { initializeApp as initializeAdminApp, cert } from "firebase-admin/app";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
 
 const EMULATOR_PROJECT_ID = "demo-workout-tracker-emulator";
@@ -84,10 +84,16 @@ async function main() {
   if (useEmulator) {
     initializeAdminApp({ projectId: EMULATOR_PROJECT_ID });
   } else {
-    const credential = process.env.GOOGLE_APPLICATION_CREDENTIALS
-      ? applicationDefault()
-      : (() => { throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS to a Firebase service account JSON key path (see this file's header comment)."); })();
-    initializeAdminApp({ credential });
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS to a Firebase service account JSON key path (see this file's header comment).");
+    }
+    // cert() (loading the key file directly), not applicationDefault() — createCustomToken()
+    // needs to sign locally with the key's own private key. applicationDefault() instead routes
+    // signing through the IAM Service Account Credentials API, which most projects have never
+    // enabled and which additionally requires the service account to hold the "Service Account
+    // Token Creator" role on itself. Signing locally sidesteps both requirements.
+    const serviceAccount = JSON.parse(readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf-8"));
+    initializeAdminApp({ credential: cert(serviceAccount) });
   }
   const customToken = await getAdminAuth().createCustomToken(uid);
 
