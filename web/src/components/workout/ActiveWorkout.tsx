@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { ActiveSession, Exercise, UserEquipmentConfig } from "@/lib/types";
+import type { ActiveSession, ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
 import { isTimeBased, formatTimeValue } from "@/lib/types";
 import { getEquipmentDisplay, nearestPowerBlock } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
@@ -73,7 +73,7 @@ function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
 
 function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCancel }: {
   currentWeight: number;
-  exercise: Exercise;
+  exercise: ResolvedExercise;
   equipmentConfig?: UserEquipmentConfig;
   onSave: (weight: number) => void;
   onCancel: () => void;

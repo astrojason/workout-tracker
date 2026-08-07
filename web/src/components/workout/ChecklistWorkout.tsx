@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Workout, CompletedSet, WorkoutSessionDoc, Exercise } from "@/lib/types";
+import type { ResolvedWorkout, CompletedSet, WorkoutSessionDoc, ResolvedExercise } from "@/lib/types";
 import { repTargetDisplay, isTimeBased, formatTimeValue } from "@/lib/types";
 import { getTodayChecklistSession, upsertChecklistSession } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -9,7 +9,7 @@ import { useSound } from "@/hooks/useSound";
 import { useError } from "@/components/providers/ErrorProvider";
 
 interface ChecklistWorkoutProps {
-  workout: Workout;
+  workout: ResolvedWorkout;
   userId: string;
   onClose: () => void;
 }
@@ -18,7 +18,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
   const [completedOrders, setCompletedOrders] = useState<Set<number>>(new Set());
   const [firestoreId, setFirestoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTimer, setActiveTimer] = useState<Exercise | null>(null);
+  const [activeTimer, setActiveTimer] = useState<ResolvedExercise | null>(null);
   const [timerRemaining, setTimerRemaining] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerTotal, setTimerTotal] = useState(0);
@@ -64,6 +64,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
         sets.push({
           id: `${exercise.id}-${s}`,
           exerciseName: exercise.name,
+          definitionId: exercise.definitionId,
           exerciseOrder: exercise.order,
           setNumber: s,
           targetWeight: 0,
@@ -131,7 +132,7 @@ export function ChecklistWorkout({ workout, userId, onClose }: ChecklistWorkoutP
     }
   }, [timerRemaining, timerRunning, activeTimer, timerCompleteRef]);
 
-  const handleExerciseTap = useCallback((exercise: Exercise) => {
+  const handleExerciseTap = useCallback((exercise: ResolvedExercise) => {
     const isChecked = completedOrders.has(exercise.order);
     if (isChecked || !isTimeBased(exercise) || exercise.repMin <= 0) {
       toggleExercise(exercise.order);

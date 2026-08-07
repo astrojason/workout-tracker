@@ -1,24 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useWorkout } from "@/hooks/useWorkout";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
-import { isChecklistWorkout } from "@/lib/types";
-import type { Workout } from "@/lib/types";
+import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
+import type { ResolvedWorkout, Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { useError } from "@/components/providers/ErrorProvider";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { activePrograms, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
-  const [checklistWorkout, setChecklistWorkout] = useState<Workout | null>(null);
+  const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
+  const { showError } = useError();
+
+  // Resolves before committing to checklistWorkout state, so a stale/incomplete
+  // definitions map (see the effect above) surfaces via the error modal instead
+  // of throwing straight out of render the moment this screen mounts.
+  function startChecklistWorkout(w: Workout): boolean {
+    try {
+      setChecklistWorkout(resolveWorkout(w, definitions));
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
+    }
+  }
+
+  // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
+  // On a user's first load after the exercise-library migration ships, the
+  // definitions read can resolve (with stale/empty data) before usePrograms
+  // finishes running the one-time migration that creates those very definitions.
+  // Re-fetch once usePrograms settles so definitions reflects the post-migration
+  // state before anything tries to resolve a workout against it.
+  useEffect(() => {
+    if (!loading) reloadDefinitions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // Active workout — show regardless of auth so a session restored from localStorage
   // is never blocked by the sign-in screen.
@@ -197,20 +225,17 @@ export default function HomePage() {
               completedDays={getCompletedDaysForProgram(program.id)}
               onStartWorkout={(w) => {
                 if (isChecklistWorkout(w)) {
-                  setChecklistWorkout(w);
-                } else {
-                  workout.startWorkout(w, equipmentConfig ?? undefined);
+                  return startChecklistWorkout(w);
                 }
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
               }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.id, day);
-                if (w) {
-                  if (isChecklistWorkout(w)) {
-                    setChecklistWorkout(w);
-                  } else {
-                    workout.startWorkout(w, equipmentConfig ?? undefined);
-                  }
+                if (!w) return false;
+                if (isChecklistWorkout(w)) {
+                  return startChecklistWorkout(w);
                 }
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
               }}
             />
           ))}

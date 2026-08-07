@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Workout, ActiveSession, CompletedSet, PRResult, UserEquipmentConfig } from "@/lib/types";
-import { resolveWeightWithMeta } from "@/lib/progression-service";
+import type {
+  Workout, ActiveSession, CompletedSet, PRResult, UserEquipmentConfig, ExerciseDefinition,
+} from "@/lib/types";
+import { resolveWorkout } from "@/lib/types";
+import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
-import { saveSession } from "@/lib/firestore";
+import { saveSession, updateExerciseDefinitionWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
@@ -91,6 +94,8 @@ export function useWorkout(userId: string | null) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restEndRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  // Captured at startWorkout, read again at endWorkout for progression's equipment rounding.
+  const equipmentConfigRef = useRef<UserEquipmentConfig | undefined>(undefined);
   const { playTimerComplete, playSetComplete, initAudio } = useSound();
 
   // Restore session from localStorage on mount
@@ -209,28 +214,46 @@ export function useWorkout(userId: string | null) {
     };
   }, []);
 
-  const startWorkout = useCallback(async (workout: Workout, equipmentConfig?: UserEquipmentConfig) => {
-    if (!userId) return;
-    initAudio();
+  // Returns whether the workout actually started, so callers (the Start
+  // Workout button) can tell a real failure apart from success and release
+  // their own loading state instead of getting stuck. definitions can still be
+  // stale/incomplete when this runs (usePrograms and useExerciseDefinitions
+  // fetch in parallel — see page.tsx), so resolveWorkout can throw; without
+  // this try/catch that throw propagated straight out of the onClick handler
+  // and the button silently did nothing.
+  const startWorkout = useCallback((
+    workout: Workout,
+    definitions: Record<string, ExerciseDefinition>,
+    equipmentConfig?: UserEquipmentConfig
+  ): boolean => {
+    if (!userId) return false;
+    try {
+      initAudio();
+      equipmentConfigRef.current = equipmentConfig;
 
-    const resolvedWeights: Record<string, number> = {};
-    for (const exercise of workout.exercises) {
-      const { weight } = await resolveWeightWithMeta(userId, exercise, equipmentConfig);
-      resolvedWeights[exercise.id] = weight;
+      const resolvedWorkout = resolveWorkout(workout, definitions);
+      const resolvedWeights: Record<string, number> = {};
+      for (const exercise of resolvedWorkout.exercises) {
+        resolvedWeights[exercise.id] = exercise.currentWeight;
+      }
+
+      setSession({
+        workout: resolvedWorkout,
+        resolvedWeights,
+        currentExerciseIndex: 0,
+        currentSetNumber: 1,
+        completedSets: [],
+        isResting: false,
+        restTimeRemaining: 0,
+        startTime: new Date(),
+        prsAchieved: [],
+      });
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
     }
-
-    setSession({
-      workout,
-      resolvedWeights,
-      currentExerciseIndex: 0,
-      currentSetNumber: 1,
-      completedSets: [],
-      isResting: false,
-      restTimeRemaining: 0,
-      startTime: new Date(),
-      prsAchieved: [],
-    });
-  }, [userId, initAudio]);
+  }, [userId, initAudio, showError]);
 
   const currentExercise = session?.workout.exercises[session.currentExerciseIndex] ?? null;
   const currentWeight = currentExercise ? (session?.resolvedWeights[currentExercise.id] ?? 0) : 0;
@@ -300,6 +323,7 @@ export function useWorkout(userId: string | null) {
     const completedSet: CompletedSet = {
       id: crypto.randomUUID(),
       exerciseName: currentExercise.name,
+      definitionId: currentExercise.definitionId,
       exerciseOrder: currentExercise.order,
       setNumber: session.currentSetNumber,
       targetWeight: currentWeight,
@@ -322,17 +346,24 @@ export function useWorkout(userId: string | null) {
 
     const updatedSession = { ...session, completedSets: newSets };
 
-    // restAfter controls only the between-exercise rest (after the final set).
-    // restAfter === false suppresses it; a number overrides the duration.
-    // Between-set rest always uses restSeconds regardless of restAfter.
+    // restAfter === false suppresses both between-set and between-exercise
+    // rest (used for warmup exercises that flow through without pausing).
+    // A numeric restAfter overrides only the between-exercise duration;
+    // between-set rest still uses restSeconds in that case.
     // IMPORTANT: always advance the position in state FIRST, then start the
     // rest timer. The timer only flips isResting → false; it never moves
     // currentSetNumber or currentExerciseIndex. This prevents double-advance
     // bugs caused by stale closures or rapid state updates.
-    const betweenSetRest = currentExercise.restSeconds;
+    const betweenSetRest = currentExercise.restAfter === false ? 0 : currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
-      const nextSession = { ...updatedSession, currentSetNumber: session.currentSetNumber + 1 };
+      // Live autoregulation: an "easy" set bumps the weight for the very next
+      // set of this same exercise, right now — separate from (and in addition
+      // to) the end-of-session progression write-back below.
+      const bumpedWeights = rating === "easy"
+        ? { ...updatedSession.resolvedWeights, [currentExercise.id]: liveEasyBump(currentWeight, currentExercise) }
+        : updatedSession.resolvedWeights;
+      const nextSession = { ...updatedSession, resolvedWeights: bumpedWeights, currentSetNumber: session.currentSetNumber + 1 };
       if (betweenSetRest > 0) {
         setSession(nextSession);
         startRestTimer(betweenSetRest);
@@ -360,6 +391,7 @@ export function useWorkout(userId: string | null) {
     const skipped: CompletedSet = {
       id: crypto.randomUUID(),
       exerciseName: currentExercise.name,
+      definitionId: currentExercise.definitionId,
       exerciseOrder: currentExercise.order,
       setNumber: session.currentSetNumber,
       targetWeight: currentWeight,
@@ -419,6 +451,24 @@ export function useWorkout(userId: string | null) {
       }
     } catch (err) {
       showError(err); // Show but proceed — PR failure must not block the save
+    }
+
+    // Progression is best-effort too — for each exercise occurrence, run the
+    // rating/AMRAP-driven engine against the LAST set logged for it this session
+    // and write the result back to its shared definition (every occurrence of
+    // that exercise, in every program, resolves to the new weight going forward).
+    // Historical CompletedSet records above are never touched.
+    try {
+      for (const exercise of session.workout.exercises) {
+        const setsForExercise = sets.filter((s) => s.exerciseOrder === exercise.order);
+        if (setsForExercise.length === 0) continue;
+        const finalSet = setsForExercise.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
+        const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current);
+        if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak) continue;
+        await updateExerciseDefinitionWeight(userId, exercise.definitionId, result.currentWeight, result.hardStreak);
+      }
+    } catch (err) {
+      showError(err); // Show but proceed — progression failure must not block the save
     }
 
     const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);

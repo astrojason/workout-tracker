@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ExerciseEditor } from "../ExerciseEditor";
-import type { Exercise } from "@/lib/types";
+import { ExerciseEditor, type ExerciseEditorResult } from "../ExerciseEditor";
+import type { Exercise, ExerciseDefinition } from "@/lib/types";
 
-// crypto.randomUUID is used to mint a new exercise id on save
+// crypto.randomUUID is used to mint a new occurrence id on save
 vi.spyOn(crypto, "randomUUID").mockReturnValue("new-exercise-id" as `${string}-${string}-${string}-${string}-${string}`);
 
 function selects(container: HTMLElement): HTMLSelectElement[] {
@@ -22,21 +22,30 @@ function toggleButtons(container: HTMLElement): HTMLButtonElement[] {
   );
 }
 
-const existingExercise: Exercise = {
-  id: "ex-1",
-  order: 2,
+const benchDefinition: ExerciseDefinition = {
+  id: "def-bench",
   name: "Bench Press",
-  phase: "main",
+  muscleGroups: ["chest"],
   equipmentType: "barbell_45",
   equipmentDetail: null,
-  baseWeight: { type: "fixed", value: 135 },
+  progressionRule: "add_5lb",
+  isUnilateral: false,
+  isTimeBased: false,
+  currentWeight: 135,
+  hardStreak: 0,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const existingOccurrence: Exercise = {
+  id: "ex-1",
+  definitionId: "def-bench",
+  order: 2,
+  phase: "main",
   sets: 4,
   repMin: 6,
   repMax: { type: "count", value: 10 },
   restSeconds: 90,
-  progressionRule: "add_5lb",
-  isUnilateral: false,
-  isTimeBased: false,
   notes: "Pause at bottom",
 };
 
@@ -49,170 +58,249 @@ describe("ExerciseEditor", () => {
     onCancel = vi.fn();
   });
 
-  it("disables Save until a name is entered, then saves a new exercise with barbell defaults", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={3} onSave={onSave} onCancel={onCancel} />
-    );
+  // ── new exercise (creating a definition) ─────────────────────────────────
 
-    const saveButton = screen.getByRole("button", { name: "Add" });
-    expect(saveButton).toBeDisabled();
+  describe("creating a new exercise", () => {
+    it("disables Save until a name is entered, then saves with barbell defaults", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
 
-    fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Squat" } });
-    expect(saveButton).not.toBeDisabled();
+      const saveButton = screen.getByRole("button", { name: "Add" });
+      expect(saveButton).toBeDisabled();
 
-    fireEvent.click(saveButton);
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Squat" } });
+      expect(saveButton).not.toBeDisabled();
 
-    expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as Exercise;
-    expect(saved).toMatchObject({
-      id: "new-exercise-id",
-      order: 4,
-      name: "Squat",
-      phase: "main",
-      equipmentType: "barbell_45",
-      equipmentDetail: null,
-      baseWeight: { type: "fixed", value: 45 },
-      sets: 3,
-      repMin: 8,
-      repMax: { type: "count", value: 12 },
-      restSeconds: 120,
-      progressionRule: "none",
-      isUnilateral: false,
-      isTimeBased: false,
-      notes: null,
+      fireEvent.click(saveButton);
+
+      expect(onSave).toHaveBeenCalledTimes(1);
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      expect(result.kind).toBe("new");
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition).toMatchObject({
+        name: "Squat",
+        equipmentType: "barbell_45",
+        equipmentDetail: null,
+        progressionRule: "none",
+        isUnilateral: false,
+        isTimeBased: false,
+        currentWeight: 45,
+        hardStreak: 0,
+      });
+      expect(result.occurrence).toMatchObject({
+        id: "new-exercise-id",
+        order: 4,
+        phase: "main",
+        sets: 3,
+        repMin: 8,
+        repMax: { type: "count", value: 12 },
+        restSeconds: 120,
+        notes: null,
+      });
     });
-    void container;
+
+    it("resets the weight field to the new type's default when equipment type changes", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      // select order: [Exercise picker, Phase, Equipment]
+      const equipmentSelect = selects(container)[2];
+      fireEvent.change(equipmentSelect, { target: { value: "powerblock" } });
+
+      const weightInput = numberInputs(container)[1];
+      expect(weightInput.value).toBe("25");
+    });
+
+    it("shows an error and blocks Save when barbell weight is below the bar minimum", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Squat" } });
+      const weightInput = numberInputs(container)[1];
+      fireEvent.change(weightInput, { target: { value: "20" } });
+      fireEvent.blur(weightInput);
+
+      expect(screen.getByText(/Minimum weight for this bar is 45 lbs/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    });
+
+    it("adjusts barbell weight to the nearest achievable plate combination and warns", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      const weightInput = numberInputs(container)[1];
+      // 100.3 lbs isn't reachable with any combination of the default plate set.
+      fireEvent.change(weightInput, { target: { value: "100.3" } });
+      fireEvent.blur(weightInput);
+
+      expect(screen.getByText(/isn't possible with available plates/i)).toBeInTheDocument();
+      expect(weightInput.value).not.toBe("100.3");
+    });
+
+    it("snaps PowerBlock weight to the nearest 2.5lb increment and warns when clamped", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(selects(container)[2], { target: { value: "powerblock" } });
+      const weightInput = numberInputs(container)[1];
+      fireEvent.change(weightInput, { target: { value: "23" } });
+      fireEvent.blur(weightInput);
+
+      expect(weightInput.value).toBe("22.5");
+      expect(screen.getByText(/Clamped to 22.5 lbs/i)).toBeInTheDocument();
+    });
+
+    it("saves the selected band color as equipmentDetail with zero starting weight", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Face Pull" } });
+      fireEvent.change(selects(container)[2], { target: { value: "band" } });
+
+      const bandSelect = selects(container)[3];
+      fireEvent.change(bandSelect, { target: { value: "Blue" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition.equipmentType).toBe("band");
+      expect(result.definition.equipmentDetail).toBe("Blue");
+      expect(result.definition.currentWeight).toBe(0);
+    });
+
+    it("sets repMax to failure when Final Set AMRAP is toggled on", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pull-Up" } });
+      const [, amrapToggle] = toggleButtons(container);
+      fireEvent.click(amrapToggle);
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.occurrence.repMax).toEqual({ type: "failure" });
+    });
+
+    it("switches progression rule to add_time when Time Based is toggled on", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Plank" } });
+      const [timeBasedToggle] = toggleButtons(container);
+      fireEvent.click(timeBasedToggle);
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition.isTimeBased).toBe(true);
+      expect(result.definition.progressionRule).toBe("add_time");
+    });
+
+    it("calls onCancel and does not save when Cancel is clicked", () => {
+      render(<ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      expect(onSave).not.toHaveBeenCalled();
+    });
   });
 
-  it("pre-fills fields from an existing exercise and preserves its id and order on save", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={existingExercise} maxOrder={9} onSave={onSave} onCancel={onCancel} />
-    );
+  // ── editing an occurrence of an existing definition ──────────────────────
 
-    expect(screen.getByDisplayValue("Bench Press")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  describe("editing an occurrence of an existing exercise", () => {
+    it("pre-fills the picker and weight from the definition, and preserves the occurrence id/order on save", () => {
+      const { container } = render(
+        <ExerciseEditor
+          exercise={existingOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+      const weightInput = numberInputs(container)[1];
+      expect(weightInput.value).toBe("135");
 
-    expect(onSave).toHaveBeenCalledTimes(1);
-    const saved = onSave.mock.calls[0][0] as Exercise;
-    expect(saved.id).toBe("ex-1");
-    expect(saved.order).toBe(2);
-    expect(saved.baseWeight).toEqual({ type: "fixed", value: 135 });
-    expect(saved.progressionRule).toBe("add_5lb");
-    void container;
-  });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-  it("resets the weight field to the new type's default when equipment type changes", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
+      expect(onSave).toHaveBeenCalledTimes(1);
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      expect(result.kind).toBe("existing");
+      if (result.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(result.definitionId).toBe("def-bench");
+      expect(result.occurrence.id).toBe("ex-1");
+      expect(result.occurrence.order).toBe(2);
+      expect(result.weight).toBe(135);
+    });
 
-    const equipmentSelect = selects(container)[1];
-    fireEvent.change(equipmentSelect, { target: { value: "powerblock" } });
+    it("does not show metadata fields (equipment/progression) for an existing definition", () => {
+      render(
+        <ExerciseEditor
+          exercise={existingOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
 
-    const weightInput = numberInputs(container)[1];
-    expect(weightInput.value).toBe("25");
-  });
+      // Definition metadata is shown read-only, not as editable equipment/progression selects
+      expect(screen.getByText(/barbell 45.*add 5lb/i)).toBeInTheDocument();
+      expect(screen.getByText("Edit in Exercise Library →")).toBeInTheDocument();
+    });
 
-  it("shows an error and blocks Save when barbell weight is below the bar minimum", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
+    it("editing the weight field produces a kind 'existing' result carrying the new shared weight", () => {
+      const { container } = render(
+        <ExerciseEditor
+          exercise={existingOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
 
-    fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Squat" } });
-    const weightInput = numberInputs(container)[1];
-    fireEvent.change(weightInput, { target: { value: "20" } });
-    fireEvent.blur(weightInput);
+      const weightInput = numberInputs(container)[1];
+      fireEvent.change(weightInput, { target: { value: "140" } });
+      fireEvent.blur(weightInput);
 
-    expect(screen.getByText(/Minimum weight for this bar is 45 lbs/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
-  });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-  it("adjusts barbell weight to the nearest achievable plate combination and warns", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(result.weight).toBe(140);
+    });
 
-    const weightInput = numberInputs(container)[1];
-    // 100.3 lbs isn't reachable with any combination of the default plate set.
-    fireEvent.change(weightInput, { target: { value: "100.3" } });
-    fireEvent.blur(weightInput);
+    it("switching the picker to '+ New Exercise' reveals the name and metadata fields again", () => {
+      const { container } = render(
+        <ExerciseEditor
+          exercise={existingOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
 
-    expect(screen.getByText(/isn't possible with available plates/i)).toBeInTheDocument();
-    expect(weightInput.value).not.toBe("100.3");
-  });
+      const picker = selects(container)[0];
+      fireEvent.change(picker, { target: { value: "__new__" } });
 
-  it("snaps PowerBlock weight to the nearest 2.5lb increment and warns when clamped", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
-
-    fireEvent.change(selects(container)[1], { target: { value: "powerblock" } });
-    const weightInput = numberInputs(container)[1];
-    fireEvent.change(weightInput, { target: { value: "23" } });
-    fireEvent.blur(weightInput);
-
-    expect(weightInput.value).toBe("22.5");
-    expect(screen.getByText(/Clamped to 22.5 lbs/i)).toBeInTheDocument();
-  });
-
-  it("saves the selected band color as equipmentDetail with zero base weight", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Face Pull" } });
-    fireEvent.change(selects(container)[1], { target: { value: "band" } });
-
-    const bandSelect = selects(container)[2];
-    fireEvent.change(bandSelect, { target: { value: "Blue" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
-
-    const saved = onSave.mock.calls[0][0] as Exercise;
-    expect(saved.equipmentType).toBe("band");
-    expect(saved.equipmentDetail).toBe("Blue");
-    expect(saved.baseWeight).toEqual({ type: "fixed", value: 0 });
-  });
-
-  it("sets repMax to failure when Final Set AMRAP is toggled on", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pull-Up" } });
-    const [, amrapToggle] = toggleButtons(container);
-    fireEvent.click(amrapToggle);
-
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
-
-    const saved = onSave.mock.calls[0][0] as Exercise;
-    expect(saved.repMax).toEqual({ type: "failure" });
-  });
-
-  it("switches progression rule to add_time when Time Based is toggled on", () => {
-    const { container } = render(
-      <ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Plank" } });
-    const [timeBasedToggle] = toggleButtons(container);
-    fireEvent.click(timeBasedToggle);
-
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
-
-    const saved = onSave.mock.calls[0][0] as Exercise;
-    expect(saved.isTimeBased).toBe(true);
-    expect(saved.progressionRule).toBe("add_time");
-  });
-
-  it("calls onCancel and does not save when Cancel is clicked", () => {
-    render(<ExerciseEditor exercise={null} maxOrder={0} onSave={onSave} onCancel={onCancel} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(onSave).not.toHaveBeenCalled();
+      expect(screen.getByPlaceholderText("e.g. Bench Press")).toBeInTheDocument();
+    });
   });
 });

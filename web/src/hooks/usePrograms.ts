@@ -11,6 +11,7 @@ import {
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { parseXLSX } from "@/lib/xlsx-parser";
+import { resolveExerciseDefinitions } from "@/lib/exercise-import";
 import { DAY_ORDER } from "@/lib/types";
 
 export function usePrograms(userId: string | null) {
@@ -44,6 +45,14 @@ export function usePrograms(userId: string | null) {
         await updateSettings(userId!, { migratedProgramIds: true });
         sett.migratedProgramIds = true;
       }
+
+      // NOTE: the exercise-library migration (embedded exercise metadata ->
+      // definitionId references) is NOT run automatically here. It rewrites
+      // existing Workout documents, and this app's code requires every exercise
+      // to already have a definitionId — running it from within the app risked
+      // a preview deployment migrating production data before main was ready for
+      // it. Run `npm run migrate:exercise-library -- <uid>` manually before
+      // deploying code that expects the new schema. See scripts/migrate-exercise-library.ts.
 
       setPrograms(progs);
       setSettingsState(sett);
@@ -133,11 +142,14 @@ export function usePrograms(userId: string | null) {
     // parseXLSX always returns exactly one program per parse; its id is stable
     // regardless of nameOverride and is what workouts must be keyed by.
     const programId = finalPrograms[0].id;
-    const finalWorkouts = parsed.workouts.map((w) => ({
+    const finalParsedWorkouts = parsed.workouts.map((w) => ({
       ...w,
       programId,
       programName: nameOverride ?? w.programName,
     }));
+    // Matches each exercise name against the user's global exercise library
+    // (creating or updating definitions as needed) before anything is saved.
+    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
     for (const prog of finalPrograms) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
@@ -167,7 +179,8 @@ export function usePrograms(userId: string | null) {
     const existing = programs.find((p) => p.id === programId);
     const parsed = parseXLSX(data, programName);
 
-    const finalWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
+    const finalParsedWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
+    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
 
     // Update the program doc (totalWeeks may change) but preserve createdAt.
     for (const prog of parsed.programs) {

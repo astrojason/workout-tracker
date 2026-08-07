@@ -1,11 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { parseCSV } from "../csv-parser";
+import { describe, it, expect, vi } from "vitest";
 
-// Mock crypto.randomUUID for deterministic tests
-beforeEach(() => {
-  let counter = 0;
-  vi.spyOn(crypto, "randomUUID").mockImplementation(() => `uuid-${++counter}` as `${string}-${string}-${string}-${string}-${string}`);
-});
+// csv-parser.ts also exports resolveExerciseDefinitions, which pulls in firestore.ts
+// (and transitively firebase.ts). This file only exercises the synchronous parseCSV
+// path, but the module-level import still needs a working mock.
+vi.mock("@/lib/firebase", () => ({ db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(), doc: vi.fn(), getDoc: vi.fn(), getDocs: vi.fn(), addDoc: vi.fn(),
+  updateDoc: vi.fn(), setDoc: vi.fn(), deleteDoc: vi.fn(), query: vi.fn(), where: vi.fn(),
+  orderBy: vi.fn(), limit: vi.fn(), onSnapshot: vi.fn(), writeBatch: vi.fn(),
+  Timestamp: { now: () => ({ seconds: 0, nanoseconds: 0 }) },
+}));
+
+import { parseCSV } from "../csv-parser";
 
 const VALID_HEADER = "program_name,week,day_of_week,phase,exercise_order,exercise_name,equipment_type,equipment_detail,base_weight,sets,rep_min,rep_max,rest_seconds,progression_rule,unilateral,notes";
 
@@ -86,22 +92,22 @@ describe("parseCSV - valid parsing", () => {
     expect(result.programs[0].totalWeeks).toBe(4);
   });
 
-  it("parses 'progressive' base_weight correctly", () => {
+  it("parses 'progressive' base_weight as no seed weight", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ base_weight: "progressive" })}`;
     const result = parseCSV(csv);
-    expect(result.workouts[0].exercises[0].baseWeight).toEqual({ type: "progressive" });
+    expect(result.workouts[0].exercises[0].seedWeight).toBeUndefined();
   });
 
-  it("parses 'Progressive' (case-insensitive) base_weight", () => {
+  it("parses 'Progressive' (case-insensitive) base_weight as no seed weight", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ base_weight: "Progressive" })}`;
     const result = parseCSV(csv);
-    expect(result.workouts[0].exercises[0].baseWeight).toEqual({ type: "progressive" });
+    expect(result.workouts[0].exercises[0].seedWeight).toBeUndefined();
   });
 
-  it("parses numeric base_weight as fixed", () => {
+  it("parses numeric base_weight as a seed weight", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ base_weight: "185" })}`;
     const result = parseCSV(csv);
-    expect(result.workouts[0].exercises[0].baseWeight).toEqual({ type: "fixed", value: 185 });
+    expect(result.workouts[0].exercises[0].seedWeight).toBe(185);
   });
 
   it("parses 'failure' rep_max correctly", () => {
@@ -172,10 +178,10 @@ describe("parseCSV - valid parsing", () => {
     expect(result.workouts[0].exercises).toHaveLength(1);
   });
 
-  it("parses base_weight 0 as fixed with value 0", () => {
+  it("parses base_weight 0 as no seed weight", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ base_weight: "0" })}`;
     const result = parseCSV(csv);
-    expect(result.workouts[0].exercises[0].baseWeight).toEqual({ type: "fixed", value: 0 });
+    expect(result.workouts[0].exercises[0].seedWeight).toBeUndefined();
   });
 
   it("sorts programs alphabetically", () => {
@@ -284,20 +290,6 @@ describe("parseCSV - grouping logic", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ program_name: "Test Program", week: "2", day_of_week: "Monday" })}`;
     const result = parseCSV(csv);
     expect(result.workouts[0].id).toBe("test-program_2_monday");
-  });
-
-  it("generates unique exercise IDs", () => {
-    const csv = [
-      VALID_HEADER,
-      makeRow({ exercise_order: "1" }),
-      makeRow({ exercise_order: "2" }),
-      makeRow({ exercise_order: "3" }),
-    ].join("\n");
-
-    const result = parseCSV(csv);
-    const ids = result.workouts[0].exercises.map((e) => e.id);
-    const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(3);
   });
 
   it("passes through free-form progression_rule strings (band colors, band counts)", () => {

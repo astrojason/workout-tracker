@@ -1,19 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useWorkout } from "../useWorkout";
-import type { Workout, Exercise } from "@/lib/types";
+import type { Workout, Exercise, ExerciseDefinition, EquipmentType, ProgressionRule } from "@/lib/types";
 
-// Mock all external dependencies
-vi.mock("@/lib/firestore", () => ({
-  saveSession: vi.fn().mockResolvedValue("session-id"),
-  getLastSetsForExercise: vi.fn().mockResolvedValue([]),
+const { updateExerciseDefinitionWeightMock } = vi.hoisted(() => ({
+  updateExerciseDefinitionWeightMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/progression-service", () => ({
-  resolveWeight: vi.fn().mockResolvedValue(135),
-  resolveWeightWithMeta: vi.fn().mockResolvedValue({ weight: 135, prevWeight: null, reason: "no_history" }),
-  getProgressionIncrement: vi.fn().mockReturnValue(5),
-  adjustForEquipment: vi.fn().mockImplementation((target: number) => target),
+// Mock all external dependencies. progression-service itself is NOT mocked —
+// it's pure and cheap, so these tests exercise the real computeNextWeight/
+// liveEasyBump logic (already unit-tested in progression-service.test.ts).
+vi.mock("@/lib/firestore", () => ({
+  saveSession: vi.fn().mockResolvedValue("session-id"),
+  updateExerciseDefinitionWeight: updateExerciseDefinitionWeightMock,
 }));
 
 vi.mock("@/lib/pr-detector", () => ({
@@ -30,6 +29,12 @@ vi.mock("../useSound", () => ({
     playSetComplete: playSetCompleteMock,
     initAudio: initAudioMock,
   }),
+}));
+
+const showErrorMock = vi.fn();
+
+vi.mock("@/components/providers/ErrorProvider", () => ({
+  useError: () => ({ showError: showErrorMock }),
 }));
 
 // Mock crypto.randomUUID
@@ -57,25 +62,67 @@ vi.mock("firebase/firestore", () => ({
   serverTimestamp: vi.fn(),
 }));
 
-function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
+// Metadata now lives on ExerciseDefinition, not the occurrence. makeExercise still
+// accepts the old flat shape (name, equipmentType, etc.) for minimal test churn —
+// it splits overrides into an occurrence + a definition, auto-registering the
+// definition into a per-test registry that getDefinitions() hands to startWorkout.
+let defCounter = 0;
+let definitionsRegistry: Record<string, ExerciseDefinition> = {};
+
+interface ExerciseTestOverrides extends Partial<Exercise> {
+  name?: string;
+  equipmentType?: EquipmentType;
+  progressionRule?: ProgressionRule;
+  isTimeBased?: boolean;
+  isUnilateral?: boolean;
+  currentWeight?: number;
+  hardStreak?: number;
+}
+
+function makeExercise(overrides: ExerciseTestOverrides = {}): Exercise {
+  const {
+    name = "Bench Press",
+    equipmentType = "barbell_45",
+    progressionRule = "add_5lb",
+    isTimeBased = false,
+    isUnilateral = false,
+    currentWeight = 135,
+    hardStreak = 0,
+    ...occurrenceOverrides
+  } = overrides;
+
+  const definitionId = occurrenceOverrides.definitionId ?? `def-${++defCounter}`;
+  definitionsRegistry[definitionId] = {
+    id: definitionId,
+    name,
+    muscleGroups: [],
+    equipmentType,
+    equipmentDetail: null,
+    progressionRule,
+    isUnilateral,
+    isTimeBased,
+    currentWeight,
+    hardStreak,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   return {
     id: `ex-${++uuidCounter}`,
+    definitionId,
     order: 1,
-    name: "Bench Press",
     phase: "main",
-    equipmentType: "barbell_45",
-    equipmentDetail: null,
-    baseWeight: { type: "fixed", value: 135 },
     sets: 3,
     repMin: 8,
     repMax: { type: "count", value: 12 },
     restSeconds: 120,
-    progressionRule: "add_5lb",
-    isUnilateral: false,
-    isTimeBased: false,
     notes: null,
-    ...overrides,
+    ...occurrenceOverrides,
   };
+}
+
+function getDefinitions(): Record<string, ExerciseDefinition> {
+  return definitionsRegistry;
 }
 
 function makeWorkout(overrides: Partial<Workout> = {}): Workout {
@@ -93,6 +140,8 @@ function makeWorkout(overrides: Partial<Workout> = {}): Workout {
 beforeEach(() => {
   vi.clearAllMocks();
   uuidCounter = 0;
+  defCounter = 0;
+  definitionsRegistry = {};
   vi.useFakeTimers();
 });
 
@@ -107,9 +156,32 @@ describe("useWorkout", () => {
   it("does nothing when startWorkout called without userId", async () => {
     const { result } = renderHook(() => useWorkout(null));
     await act(async () => {
-      await result.current.startWorkout(makeWorkout());
+      await result.current.startWorkout(makeWorkout(), getDefinitions());
     });
     expect(result.current.session).toBeNull();
+  });
+
+  // Regression: usePrograms() and useExerciseDefinitions() fetch in parallel
+  // (see page.tsx), so definitions can still be stale/incomplete — missing an
+  // id resolveExercise() needs — when the user clicks Start. That throw used
+  // to propagate straight out of the onClick handler with no try/catch
+  // anywhere in the chain: the button click would silently do nothing instead
+  // of starting the workout or telling the user why.
+  it("surfaces a startWorkout failure via showError instead of failing silently", () => {
+    const workout = makeWorkout();
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    let returned: boolean | undefined;
+    act(() => {
+      // Empty definitions map: the workout's exercise references a
+      // definitionId resolveExercise() won't find.
+      returned = result.current.startWorkout(workout, {});
+    });
+
+    expect(result.current.session).toBeNull();
+    expect(showErrorMock).toHaveBeenCalledTimes(1);
+    expect(showErrorMock.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(returned).toBe(false);
   });
 
   it("creates session with correct initial state on startWorkout", async () => {
@@ -117,7 +189,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     expect(result.current.session).not.toBeNull();
@@ -134,7 +206,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     expect(result.current.currentExercise).not.toBeNull();
@@ -147,7 +219,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -167,7 +239,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -183,7 +255,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -203,7 +275,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -223,7 +295,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -241,7 +313,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     // Set 1 — not the last set
@@ -262,7 +334,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => { result.current.completeSet(10, 135, false, "normal"); });
@@ -277,7 +349,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -298,7 +370,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -316,7 +388,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -338,7 +410,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     expect(result.current.session).not.toBeNull();
@@ -356,7 +428,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     expect(result.current.setsCompletedForCurrent).toBe(0);
@@ -380,7 +452,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -396,7 +468,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -414,7 +486,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -431,7 +503,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => { result.current.updateWeight(ex1.id, 200); });
@@ -447,7 +519,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => { result.current.updateSets(exercise.id, 5); });
@@ -461,7 +533,7 @@ describe("useWorkout", () => {
     const workout = makeWorkout();
     const { result } = renderHook(() => useWorkout("user-1"));
 
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     expect(result.current.session).not.toBeNull();
 
     act(() => { result.current.pauseWorkout(); });
@@ -475,7 +547,7 @@ describe("useWorkout", () => {
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
 
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(10, 135, false, "normal"); });
     // Now resting before set 2
     expect(result.current.session!.currentSetNumber).toBe(2);
@@ -490,7 +562,7 @@ describe("useWorkout", () => {
     const workout = makeWorkout();
     const { result } = renderHook(() => useWorkout("user-1"));
 
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.pauseWorkout(); });
     expect(result.current.pausedSession).not.toBeNull();
 
@@ -505,7 +577,7 @@ describe("useWorkout", () => {
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
 
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(10, 135, false, "normal"); });
     act(() => { result.current.completeSet(10, 135, false, "normal"); });
     expect(result.current.session!.currentSetNumber).toBe(3);
@@ -520,7 +592,7 @@ describe("useWorkout", () => {
     const workout = makeWorkout();
     const { result } = renderHook(() => useWorkout("user-1"));
 
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.pauseWorkout(); });
     expect(result.current.pausedSession).not.toBeNull();
     expect(result.current.session).toBeNull();
@@ -537,7 +609,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, repMin: 8, repMax: { type: "failure" } });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(15, 135, false, "normal"); });
     expect(result.current.session!.completedSets[0].targetReps).toBe(8); // repMin, not 0
   });
@@ -552,7 +624,7 @@ describe("useWorkout", () => {
     });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
 
     act(() => { result.current.completeSet(12, 135, false, "normal"); });
     expect(result.current.session!.completedSets[0].targetReps).toBe(12); // set 1: repMax
@@ -568,7 +640,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 3, restSeconds: 0 });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(6, 135, true, "hard"); }); // failed=true
     const s = result.current.session!.completedSets[0];
     expect(s.completed).toBe(false);
@@ -580,7 +652,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, isTimeBased: true });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(30, 0, false, "normal"); });
     expect(result.current.session!.completedSets[0].isTimeBased).toBe(true);
   });
@@ -591,7 +663,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 3, restSeconds: 60, restAfter: false });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(10, 0, false, "normal"); });
     expect(result.current.session!.isResting).toBe(false);
     expect(result.current.session!.currentSetNumber).toBe(2);
@@ -603,7 +675,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 2, restSeconds: 0, isUnilateral: true });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(12, 20, false, "normal"); });
     expect(result.current.session!.currentSetNumber).toBe(2);
     expect(result.current.session!.isResting).toBe(false);
@@ -613,7 +685,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, isUnilateral: true });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(12, 25, false, "normal"); });
     // actualWeight is the per-side value as entered — not doubled
     expect(result.current.session!.completedSets[0].actualWeight).toBe(25);
@@ -625,7 +697,7 @@ describe("useWorkout", () => {
     const exercise = makeExercise({ sets: 3, restSeconds: 0 });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
-    await act(async () => { await result.current.startWorkout(workout); });
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
 
     // Set 1: targetWeight = resolved weight (135 from mock)
     act(() => { result.current.completeSet(10, 135, false, "normal"); });
@@ -649,7 +721,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     // Advance to set 3
@@ -675,7 +747,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
     });
 
     act(() => {
@@ -711,7 +783,7 @@ describe("useWorkout", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
 
     await act(async () => {
-      await result.current.startWorkout(workout);
+      await result.current.startWorkout(workout, getDefinitions());
       await Promise.resolve();
     });
 
@@ -731,5 +803,86 @@ describe("useWorkout", () => {
     });
 
     expect(requestMock).toHaveBeenCalledTimes(2);
+  });
+
+  // ── rating-driven progression engine wiring ────────────────────────────────
+
+  it("an 'easy' rating live-bumps the weight for the next set of the same exercise", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    expect(result.current.currentWeight).toBe(100);
+
+    act(() => { result.current.completeSet(10, 100, false, "easy"); });
+
+    // Live bump applies to the very next set of this same exercise, immediately —
+    // not just at the next session.
+    expect(result.current.currentWeight).toBe(105);
+  });
+
+  it("a 'normal' rating does NOT live-bump the next set", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 100, false, "normal"); });
+
+    expect(result.current.currentWeight).toBe(100);
+  });
+
+  it("endWorkout writes the progression result back to the exercise's definition", async () => {
+    const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    // Single exercise, single set — completing it ends the workout automatically.
+    await act(async () => {
+      result.current.completeSet(10, 100, false, "normal");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateExerciseDefinitionWeightMock).toHaveBeenCalledWith(
+      "user-1", exercise.definitionId, 105, 0
+    );
+  });
+
+  it("endWorkout does not write back when the progression rule has no numeric increment", async () => {
+    const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "maintain", currentWeight: 100 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    await act(async () => {
+      result.current.completeSet(10, 100, false, "normal");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateExerciseDefinitionWeightMock).not.toHaveBeenCalled();
+  });
+
+  it("endWorkout applies a 3rd consecutive hard rating as a weight drop", async () => {
+    const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    await act(async () => {
+      result.current.completeSet(6, 100, false, "hard");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateExerciseDefinitionWeightMock).toHaveBeenCalledWith(
+      "user-1", exercise.definitionId, 95, 0
+    );
   });
 });

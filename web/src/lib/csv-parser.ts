@@ -1,7 +1,8 @@
-import type {
-  Exercise, Program, Workout, Phase, EquipmentType,
-  ProgressionRule, WeightSpec, RepTarget,
-} from "./types";
+import type { Program, Phase, EquipmentType, ProgressionRule, RepTarget } from "./types";
+import type { ParsedExercise, ParsedWorkout } from "./exercise-import";
+
+export type { ParsedExercise, ParsedWorkout } from "./exercise-import";
+export { resolveExerciseDefinitions } from "./exercise-import";
 
 const EXPECTED_HEADERS = [
   "program_name", "week", "day_of_week", "phase", "exercise_order",
@@ -40,7 +41,7 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-export function parseCSV(csvString: string): { programs: Omit<Program, "createdAt">[]; workouts: Workout[] } {
+export function parseCSV(csvString: string): { programs: Omit<Program, "createdAt">[]; workouts: ParsedWorkout[] } {
   const lines = csvString
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -61,7 +62,7 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
     programName: string;
     week: number;
     day: string;
-    exercise: Exercise;
+    exercise: ParsedExercise;
   }
 
   const rows: RawRow[] = [];
@@ -89,9 +90,10 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
 
     const equipmentDetail = cols[7] || null;
 
-    const baseWeight: WeightSpec = cols[8].toLowerCase() === "progressive"
-      ? { type: "progressive" }
-      : { type: "fixed", value: parseFloat(cols[8]) || 0 };
+    // base_weight: "progressive" means no seed (definition starts at 0 if newly created);
+    // a numeric value seeds a brand-new definition's starting currentWeight.
+    const baseWeightRaw = cols[8].toLowerCase() === "progressive" ? undefined : parseFloat(cols[8]);
+    const seedWeight = baseWeightRaw !== undefined && !isNaN(baseWeightRaw) && baseWeightRaw > 0 ? baseWeightRaw : undefined;
 
     const sets = parseInt(cols[9]) || 0;
     const repMin = parseInt(cols[10]) || 0;
@@ -113,13 +115,11 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
       week,
       day,
       exercise: {
-        id: crypto.randomUUID(),
         order,
         name,
         phase,
         equipmentType,
         equipmentDetail,
-        baseWeight,
         sets,
         repMin,
         repMax,
@@ -128,13 +128,14 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
         isUnilateral,
         isTimeBased: progressionRule === "add_time" || repMin >= 30,
         notes,
+        ...(seedWeight !== undefined ? { seedWeight } : {}),
       },
     });
   }
 
   // Group into programs and workouts
   const programMap = new Map<string, { maxWeek: number }>();
-  const workoutMap = new Map<string, { programName: string; week: number; day: string; exercises: Exercise[] }>();
+  const workoutMap = new Map<string, { programName: string; week: number; day: string; exercises: ParsedExercise[] }>();
 
   for (const row of rows) {
     const existing = programMap.get(row.programName);
@@ -165,7 +166,7 @@ export function parseCSV(csvString: string): { programs: Omit<Program, "createdA
     });
   }
 
-  const workouts: Workout[] = [];
+  const workouts: ParsedWorkout[] = [];
   for (const [key, data] of workoutMap) {
     data.exercises.sort((a, b) => a.order - b.order);
     workouts.push({

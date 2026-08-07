@@ -1,11 +1,11 @@
 "use client";
 
-import type { Exercise, EquipmentDisplay } from "@/lib/types";
+import type { ResolvedExercise, EquipmentDisplay } from "@/lib/types";
 import { repTargetDisplay, formatRestTime, PHASE_COLORS, isTimeBased } from "@/lib/types";
 import { equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface ExerciseCardProps {
-  exercise: Exercise;
+  exercise: ResolvedExercise;
   setNumber: number;
   weight: number;
   equipmentDisplay: EquipmentDisplay;

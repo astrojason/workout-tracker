@@ -7,3 +7,15 @@ out/
 *.tsbuildinfo
 playwright-report/
 test-results/
+
+# Safety net: the exercise-library migration script (scripts/migrate-exercise-library.ts)
+# instructs saving the Firebase service account key OUTSIDE this repo, but never commit
+# one if it ends up here anyway.
+*serviceAccount*.json
+*service-account*.json
+
+# Firebase emulator suite (npm run emulators)
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+.firebase/

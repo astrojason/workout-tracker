@@ -38,9 +38,10 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 
 **Pages:**
 - `/` — Home: program cards, start workout, resume banner
-- `/history` — Session list + exercise PR board
-- `/settings` — Import XLSX, manage programs, rest time, sound
-- `/programs/[id]` — Browse and edit exercises per week
+- `/history` — Session list + exercise PR board + copy a logged week to clipboard
+- `/settings` — Import XLSX, manage programs, rest time, sound, version footer
+- `/settings/equipment` — Owned-equipment inventory (plates, PowerBlock range, bands, etc.)
+- `/programs/[id]` — Browse and edit exercises per week + copy a week to clipboard
 - `/session/[id]` — Set-by-set session breakdown
 - `/exercise/[name]` — Exercise progression history
 
@@ -48,13 +49,15 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 - `useWorkout` — full workout state machine (timer, sets, PRs, localStorage persistence, WakeLock, pause/resume, manual weight/set override)
 - `usePrograms` — programs, workouts cache, XLSX import, week management
 - `useHistory` — session history and exercise stats (weight, reps, duration)
+- `useEquipmentConfig` — loads/saves the user's owned-equipment inventory
 
 **Key services:**
 - `lib/xlsx-parser.ts` — parses XLSX into Program/Workout objects (primary import format)
 - `lib/csv-parser.ts` — parses CSV (used for `daily_mobility.csv`; not exposed in UI)
 - `lib/progression-service.ts` — resolves planned weights from exercise definition
-- `lib/equipment-calculator.ts` — barbell plate math, PowerBlock selector/rod config, landmine
+- `lib/equipment-calculator.ts` — barbell plate math (clamped to owned inventory), PowerBlock selector/rod config, landmine
 - `lib/pr-detector.ts` — weight PR, estimated 1RM (Epley), volume PR
+- `lib/week-export.ts` — formats a planned or logged week as clipboard-ready text
 - `lib/firestore.ts` — all Firestore CRUD
 
 ### Firestore Schema
@@ -62,6 +65,7 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 ```
 /users/{userId}/
   settings/prefs       — default rest time, sound, current weeks per program
+  settings/equipment   — owned equipment inventory (plates, PowerBlock range, bands, etc.)
   programs/{id}        — program metadata (name, totalWeeks, archived flag)
   workouts/{id}        — exercises embedded (doc ID: {name}_{week}_{day})
   sessions/{id}        — completed sets embedded
@@ -82,6 +86,13 @@ Weights are planned ahead of time in the XLSX — no history-based auto-progress
 - `base_weight: "progressive"` → seed from `total_weight` in XLSX (falls back to 0 if not set)
 - User can override weight for any exercise before or during a workout via the weight editor
 - Ratings (easy/normal/hard) are recorded per set for history review but do not automatically adjust future weights
+
+### Other Features
+
+- **Copy to clipboard** — copy a week's planned exercises (Program Editor) or actual logged sets (History) as plain text
+- **Equipment inventory** (`/settings/equipment`) — configure owned plates, PowerBlock range, bands, kettlebells, etc.; weight inputs and equipment dropdowns clamp/filter to what's actually owned
+- **Program rename** — rename a program without resetting its history or progress
+- **Version footer** — app version (from `web/package.json`) shown at the bottom of Settings; see [Versioning](#versioning) below
 
 ---
 
@@ -167,9 +178,17 @@ rest_seconds,progression_rule,unilateral,notes
 
 **Resistance Bands (Serious Steel):** Orange (2–12 lbs), Purple (5–35 lbs), Red (10–50 lbs), Blue (20–80 lbs), Green (50–120 lbs), Black (60–150 lbs)
 
-**Landmine:** Exercises with "landmine" in the name use single-side plate loading (not per-side × 2).
+**Landmine:** Exercises with "landmine" or "meadows" in the name (e.g. Meadows Row) use single-side plate loading (not per-side × 2).
 
 **Grippers:** Captains of Crush (Trainer, 0.5, 1) and other grip tools use `gripper` equipment type.
+
+All of the above are defaults — see `/settings/equipment` to configure what's actually owned.
+
+---
+
+## Versioning
+
+App version lives in `web/package.json` and is shown in the Settings page footer. A `pre-commit` git hook (enabled via `git config core.hooksPath scripts/git-hooks`, see Quick Start above) interactively prompts a human committer for a semver bump on each commit; it auto-skips for non-interactive commits (including ones made by Claude Code).
 
 ---
 

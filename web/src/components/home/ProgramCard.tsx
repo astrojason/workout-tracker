@@ -26,8 +26,10 @@ interface ProgramCardProps {
   todaysWorkout: Workout | null;
   availableDays: string[];
   completedDays: Set<string>;
-  onStartWorkout: (workout: Workout) => void;
-  onSelectDay: (day: string) => void;
+  // Returns whether the workout actually started, so the button knows
+  // whether to keep showing its loading state or release it.
+  onStartWorkout: (workout: Workout) => boolean;
+  onSelectDay: (day: string) => boolean;
 }
 
 export function ProgramCard({
@@ -35,9 +37,35 @@ export function ProgramCard({
   onStartWorkout, onSelectDay,
 }: ProgramCardProps) {
   const [showDays, setShowDays] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const weekDates = getThisWeekDates();
   const todayISO = new Date().toLocaleDateString("en-CA");
   const isCompleted = todaysWorkout ? completedDays.has(todayISO) : false;
+
+  // Starting a workout is otherwise a synchronous local state flip with no
+  // network round-trip, so React batches it into the same commit as this
+  // click — the loading state would never actually paint. Deferring the real
+  // call to the next tick forces a commit in between, so the button visibly
+  // reacts to the click (and can't be double-fired) even though the whole
+  // operation is normally instant.
+  function handleStart(workout: Workout) {
+    if (isStarting) return;
+    setIsStarting(true);
+    setTimeout(() => {
+      const started = onStartWorkout(workout);
+      if (!started) setIsStarting(false);
+    }, 0);
+  }
+
+  function handleSelectDay(day: string) {
+    if (isStarting) return;
+    setIsStarting(true);
+    setShowDays(false);
+    setTimeout(() => {
+      const started = onSelectDay(day);
+      if (!started) setIsStarting(false);
+    }, 0);
+  }
 
   return (
     <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
@@ -60,25 +88,38 @@ export function ProgramCard({
       {/* Today's Workout Button */}
       {todaysWorkout && (
         <button
-          onClick={() => onStartWorkout(todaysWorkout)}
-          disabled={isCompleted}
+          onClick={() => handleStart(todaysWorkout)}
+          disabled={isCompleted || isStarting}
+          aria-busy={isStarting}
           className={`w-full mt-4 p-4 rounded-xl font-semibold flex items-center justify-between transition ${
             isCompleted
               ? "bg-green-700 cursor-default"
-              : "bg-indigo-600 hover:bg-indigo-500"
+              : "bg-indigo-600 hover:bg-indigo-500 disabled:opacity-70"
           }`}
         >
           <div className="text-left">
             <div className="font-bold">
-              {isCompleted ? "Today's Workout Completed" : `Start ${todaysWorkout.dayOfWeek}`}
+              {isCompleted
+                ? "Today's Workout Completed"
+                : isStarting
+                  ? "Starting..."
+                  : `Start ${todaysWorkout.dayOfWeek}`}
             </div>
             <div className="text-sm opacity-80">
               {todaysWorkout.exercises.length} exercises
             </div>
           </div>
-          <span className="text-2xl">
-            {isCompleted ? "\u2713" : "\u25B6"}
-          </span>
+          {isStarting ? (
+            <span
+              role="status"
+              aria-label="Starting workout"
+              className="h-6 w-6 rounded-full border-2 border-white/40 border-t-white animate-spin"
+            />
+          ) : (
+            <span className="text-2xl">
+              {isCompleted ? "\u2713" : "\u25B6"}
+            </span>
+          )}
         </button>
       )}
 
@@ -95,8 +136,9 @@ export function ProgramCard({
           {availableDays.map((day) => (
             <button
               key={day}
-              onClick={() => { onSelectDay(day); setShowDays(false); }}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm flex justify-between items-center"
+              onClick={() => handleSelectDay(day)}
+              disabled={isStarting}
+              className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm flex justify-between items-center disabled:opacity-50"
             >
               <span>{day}</span>
               {completedDays.has(weekDates[day] ?? "") && (

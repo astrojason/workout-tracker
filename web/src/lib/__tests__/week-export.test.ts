@@ -1,15 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { formatWeekAsText, formatSessionsWeekAsText } from "../week-export";
-import type { Workout, Exercise, WorkoutSessionDoc, CompletedSet } from "../types";
+import type { ResolvedWorkout, ResolvedExercise, WorkoutSessionDoc, CompletedSet } from "../types";
 
-const makeExercise = (overrides: Partial<Exercise>): Exercise => ({
+const makeExercise = (overrides: Partial<ResolvedExercise>): ResolvedExercise => ({
   id: "ex-1",
+  definitionId: "def-1",
   order: 1,
   name: "Test Exercise",
   phase: "main",
   equipmentType: "barbell_45",
   equipmentDetail: null,
-  baseWeight: { type: "fixed", value: 0 },
+  muscleGroups: [],
+  currentWeight: 0,
+  hardStreak: 0,
   sets: 3,
   repMin: 8,
   repMax: { type: "count", value: 10 },
@@ -29,11 +32,11 @@ describe("formatWeekAsText", () => {
   });
 
   it("lists each workout under its day of week, in DAY_ORDER", () => {
-    const monday: Workout = {
+    const monday: ResolvedWorkout = {
       id: "w1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
-      exercises: [makeExercise({ id: "e1", order: 1, name: "Landmine Press", sets: 3, baseWeight: { type: "fixed", value: 90 } })],
+      exercises: [makeExercise({ id: "e1", order: 1, name: "Landmine Press", sets: 3, currentWeight: 90 })],
     };
-    const friday: Workout = {
+    const friday: ResolvedWorkout = {
       id: "w2", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Friday",
       exercises: [makeExercise({ id: "e2", order: 1, name: "Scapular Hangs" })],
     };
@@ -48,13 +51,13 @@ describe("formatWeekAsText", () => {
   });
 
   it("formats each exercise with sets, reps, weight, and rest", () => {
-    const workout: Workout = {
+    const workout: ResolvedWorkout = {
       id: "w1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
       exercises: [
         makeExercise({
           id: "e1", order: 1, name: "Landmine Press", sets: 3, repMin: 8,
           repMax: { type: "count", value: 10 }, restSeconds: 120,
-          baseWeight: { type: "fixed", value: 90 },
+          currentWeight: 90,
         }),
       ],
     };
@@ -68,7 +71,7 @@ describe("formatWeekAsText", () => {
   });
 
   it("orders exercises within a day by their order field", () => {
-    const workout: Workout = {
+    const workout: ResolvedWorkout = {
       id: "w1", programId: "p1", programName: "Reacher Build", week: 1, dayOfWeek: "Monday",
       exercises: [
         makeExercise({ id: "e2", order: 2, name: "Second Exercise" }),

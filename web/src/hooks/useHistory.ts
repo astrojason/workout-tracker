@@ -71,7 +71,10 @@ export function useHistory(userId: string | null) {
   return { sessions, exerciseStats, loading };
 }
 
-export function useExerciseHistory(userId: string | null, exerciseName: string) {
+// definitionId, when known, makes matching rename-proof — sets logged after the
+// exercise library existed carry it, so a rename doesn't orphan their history.
+// Pass null when the definition can't be resolved (falls back to a name match).
+export function useExerciseHistory(userId: string | null, exerciseName: string, definitionId: string | null = null) {
   const [history, setHistory] = useState<{ date: Date; weight: number; reps: number; volume: number; isTimeBased?: boolean; isBodyweight?: boolean }[]>([]);
   const [isTimeBased, setIsTimeBased] = useState(false);
   const [isBodyweight, setIsBodyweight] = useState(false);
@@ -83,7 +86,7 @@ export function useExerciseHistory(userId: string | null, exerciseName: string) 
 
     async function load() {
       setLoading(true);
-      const data = await getExerciseHistory(userId!, exerciseName);
+      const data = await getExerciseHistory(userId!, exerciseName, definitionId);
       if (cancelled) return;
       setHistory(data);
       const firstWithMeta = data.find((d) => d.isTimeBased !== undefined || d.isBodyweight !== undefined);
@@ -94,7 +97,7 @@ export function useExerciseHistory(userId: string | null, exerciseName: string) 
 
     load();
     return () => { cancelled = true; };
-  }, [userId, exerciseName]);
+  }, [userId, exerciseName, definitionId]);
 
   return { history, isTimeBased, isBodyweight, loading };
 }
