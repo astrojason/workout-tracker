@@ -216,6 +216,23 @@ describe("ExerciseEditor", () => {
       expect(onCancel).toHaveBeenCalledTimes(1);
       expect(onSave).not.toHaveBeenCalled();
     });
+
+    it("sets occurrence.restAfter to false when Skip Rest Before Next Exercise is toggled on", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Face Pulls" } });
+      // Toggle order when creating new: Time Based, Final Set AMRAP, Skip Rest Before Next Exercise, Unilateral
+      const [, , skipRestToggle] = toggleButtons(container);
+      fireEvent.click(skipRestToggle);
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.occurrence.restAfter).toBe(false);
+    });
   });
 
   // ── editing an occurrence of an existing definition ──────────────────────
@@ -301,6 +318,50 @@ describe("ExerciseEditor", () => {
       fireEvent.change(picker, { target: { value: "__new__" } });
 
       expect(screen.getByPlaceholderText("e.g. Bench Press")).toBeInTheDocument();
+    });
+
+    it("pre-checks Skip Rest Before Next Exercise when the occurrence has restAfter:false, and preserves it untouched", () => {
+      const noRestOccurrence: Exercise = { ...existingOccurrence, restAfter: false };
+      render(
+        <ExerciseEditor
+          exercise={noRestOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
+
+      // Save without touching the toggle — the pre-checked state should round-trip.
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(result.occurrence.restAfter).toBe(false);
+    });
+
+    it("clearing Skip Rest Before Next Exercise on a restAfter:false occurrence restores normal rest", () => {
+      const noRestOccurrence: Exercise = { ...existingOccurrence, restAfter: false };
+      const { container } = render(
+        <ExerciseEditor
+          exercise={noRestOccurrence}
+          maxOrder={9}
+          definitions={[benchDefinition]}
+          onSave={onSave}
+          onCancel={onCancel}
+        />
+      );
+
+      // Toggle order when editing an existing definition (Time Based/Unilateral
+      // are new-exercise-only): Final Set AMRAP, Skip Rest Before Next Exercise.
+      const [, skipRestToggle] = toggleButtons(container);
+      fireEvent.click(skipRestToggle);
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(result.occurrence.restAfter).toBeUndefined();
     });
   });
 });

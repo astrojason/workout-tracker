@@ -28,6 +28,7 @@ with a descriptive note — the app doesn't calculate anything for them.
 | Serious Steel bands | Orange, Purple, Red, Blue, Green, Black (all 6 owned) |
 | Pull-up assist | up to 4 bands (~80 lbs assistance each) |
 | Grippers | Captains of Crush: Trainer (T), 0.5, 1 |
+| Spud Pulley System | plate-loaded, unilateral — no bar, no per-side split (see §8 for import workaround) |
 
 These are defaults (`DEFAULT_EQUIPMENT_CONFIG`); the live per-user config is
 editable at **Settings → Manage Equipment** and can differ from this table —
@@ -49,20 +50,7 @@ trusting this snapshot.
 | `bodyweight` | No external load | No calc |
 | `assisted_pullup` | Pull-up assist bands | No calc; weight = band count (see §4) |
 | `gripper` | Captains of Crush gripper | No calc; weight = lbs rating |
-| `dumbbell` | Plain/fixed dumbbell | ⚠️ **See known bug below** |
-
-> **⚠️ Known bug — do not use `dumbbell` in an XLSX import.** The type is
-> valid in the app's data model and renders fine once an exercise has it, but
-> the current XLSX/CSV import validators (`xlsx-parser.ts`, `csv-parser.ts`)
-> both reject `dumbbell` as an "invalid Equip Type" — the row will fail to
-> import. **Workaround for anything under 5 lbs** (the only owned fixed
-> dumbbell is 2 lbs): use `Equip Type = powerblock` with `Equip Detail = 2lb`
-> — the app specifically detects a detail weight under 5 lbs on a `powerblock`
-> row and displays it as a plain dumbbell instead of PowerBlock instructions.
-> For anything ≥5 lbs there is currently no clean import path for a fixed
-> dumbbell; add it manually afterward via the in-app "+ Add Exercise" editor,
-> which does offer a working "Dumbbell" option, or ask to have the importer's
-> validator list fixed first.
+| `dumbbell` | Plain/fixed dumbbell | No calc; weight = the dumbbell's own weight |
 
 ---
 
@@ -155,8 +143,8 @@ current app. Everything else requires the user to change weight manually.
   | `Rep Min` | Yes | Integer (or hold-duration seconds if time-based) |
   | `Rep Max` | Yes | Integer, or `failure` for AMRAP |
   | `Last Set AMRAP` | No | `TRUE`/`FALSE` — final set is AMRAP regardless of `Rep Max` |
-  | `Rest (s)` | Yes | Integer seconds; `0` = no rest timer |
-  | `Rest After` | No | Overrides `Rest (s)`. `FALSE`, an integer, `"90s"`, `"2m"`, or `"2:00"`. Warmup-phase rows default to `FALSE` if omitted. |
+  | `Rest (s)` | Yes | Integer seconds of rest **between this exercise's own sets**. `0` = no rest timer between sets. |
+  | `Rest After` | No | Rest **before the NEXT exercise only** — never affects rest between this exercise's own sets, which always uses `Rest (s)`. Leave blank for normal exercises. `FALSE`, an integer, `"90s"`, `"2m"`, or `"2:00"`. Warmup-phase rows default to `FALSE` if omitted (so warmup movements flow into each other), but non-warmup rows should be left blank unless you deliberately want a superset/no-rest transition into the next exercise — don't fill this column with `FALSE` by default. |
   | `Progression` | No | See §5; defaults to `none` if blank |
   | `Unilateral` | No | `TRUE`/`FALSE` — per-side exercise |
   | `Is Timed` | No | `TRUE`/`FALSE`; also auto-inferred when `Progression = add_time` or `Rep Min ≥ 30` |
@@ -187,6 +175,10 @@ Week | Phase | Order | Exercise          | Equip Type     | Equip Detail | Total
 1    | main  | 8     | Gripper Close     | gripper        |              | 100          | 3    | 5       | 5       | 90       | progress_gripper | FALSE
 ```
 
+Note these examples omit `Rest After` entirely — that's the correct default. Only add a
+`Rest After` column value on a row when you specifically want to override the rest
+before the *next* exercise (e.g. `FALSE` for a superset pair, or a shorter override).
+
 ---
 
 ## 8. Other known gaps (as of this writing)
@@ -194,4 +186,13 @@ Week | Phase | Order | Exercise          | Equip Type     | Equip Detail | Total
 - Loop bands (`loopBands` in the equipment config) are trackable as owned
   inventory in Settings but have no dedicated `Equip Type` — they aren't
   currently assignable to an exercise at all.
-- `Equip Type = dumbbell` is rejected on import — see the warning in §2.
+- **Spud Pulley System has no dedicated `Equip Type`.** It's plate-loaded
+  (unlike `bodyweight`, which never shows a weight number) but has no bar
+  weight and no per-side split (unlike `barbell_*`/landmine mode, which
+  bakes in a 45/35 lb bar and splits remaining plates across two sides —
+  wrong here since a Spud row is a single stack of plates on one pin,
+  worked unilaterally). **Workaround: use `Equip Type = kettlebell`** with
+  `Total Weight` = the actual plate weight loaded on the pulley pin. That
+  type displays the raw weight number with no calculation or splitting,
+  which matches how the pulley actually loads. Use `Notes` to clarify it's
+  a Spud Pulley exercise, not a literal kettlebell.

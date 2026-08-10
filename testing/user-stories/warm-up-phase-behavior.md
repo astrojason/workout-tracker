@@ -1,25 +1,29 @@
 # Warmup Phase Behavior
 
-Warmup exercises flow through without rest timers. They are identified by
-`phase: "warmup"` and always have `restAfter: false` applied, even when
-`rest_seconds` has a value.
+Warmup exercises flow into each other without a rest timer between different
+movements. They are identified by `phase: "warmup"` and always have
+`restAfter: false` applied when the column is absent. `restAfter` only governs
+the transition into the NEXT exercise — it never affects rest between an
+exercise's own sets, which always uses `rest_seconds`.
 
 ---
 
-## No Rest Timer Between Warmup Sets
+## Rest Timer Still Runs Between Warmup Sets
 
 **As a user moving through warmup sets:**
 
 Given External Rotations is configured with `phase: warmup`, `sets: 2`,
 `rest_seconds: 60`, and no `rest_after` column value:
 
-- I complete Set 1 and immediately see Set 2 — no rest timer appears
+- I complete Set 1 and see a 60s rest timer before Set 2 — `rest_seconds`
+  always governs rest between an exercise's own sets, regardless of `restAfter`
 - `rest_after: false` is applied by the parser for all warmup exercises
-  when the `rest_after` column is absent
-- The `rest_seconds: 60` value is ignored for between-set rest in warmup phase
+  when the `rest_after` column is absent, but that only suppresses the rest
+  that would otherwise precede the NEXT exercise (e.g. Band Pull-Aparts)
 
-**Rule:** Warmup exercises never show a rest timer between sets or between
-exercises unless `rest_after` is explicitly set to a non-false value in the XLSX.
+**Rule:** `restAfter: false` skips the rest timer before moving to the next
+exercise. It never skips rest between sets of the same exercise — that always
+follows `rest_seconds`.
 
 ---
 

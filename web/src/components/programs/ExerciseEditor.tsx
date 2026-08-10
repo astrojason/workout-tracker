@@ -97,6 +97,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
   const [repMin, setRepMin] = useState(exercise?.repMin ?? 8);
   const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
   const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
+  const [skipRest, setSkipRest] = useState(exercise?.restAfter === false);
   const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
@@ -122,6 +123,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
       restSeconds,
       notes: notes.trim() || null,
       ...(finalSetAmrap ? { lastSetAmrap: true as const } : {}),
+      ...(skipRest ? { restAfter: false as const } : {}),
     };
 
     if (creatingNew) {
@@ -302,6 +304,17 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
             className="input-field"
           />
         </Field>
+
+        {/* Skips only the rest before the NEXT exercise — never affects rest between this exercise's own sets (the Rest field above) */}
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm text-gray-400">Skip Rest Before Next Exercise</span>
+          <button
+            onClick={() => setSkipRest(!skipRest)}
+            className={`w-12 h-7 rounded-full transition relative ${skipRest ? "bg-indigo-600" : "bg-gray-700"}`}
+          >
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${skipRest ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
 
         {/* Progression + Muscle Groups + Unilateral (new only) */}
         {creatingNew && (

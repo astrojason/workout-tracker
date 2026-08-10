@@ -278,6 +278,18 @@ describe("parseXLSX - Progression column", () => {
   });
 });
 
+describe("parseXLSX - Equip Type validation", () => {
+  it("accepts dumbbell as a valid Equip Type", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Equip Type": "dumbbell" })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].equipmentType).toBe("dumbbell");
+  });
+
+  it("still rejects an unrecognized Equip Type", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Equip Type": "trampoline" })] });
+    expect(() => parseXLSX(buf)).toThrow(/invalid Equip Type/i);
+  });
+});
+
 // ── time-based-exercises and unilateral-exercises user stories ────────────────
 
 describe("parseXLSX - time-based-exercises user story", () => {

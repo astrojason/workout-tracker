@@ -13,7 +13,7 @@ const DAY_OF_WEEK_NAMES = [
 
 const VALID_PHASES = new Set<Phase>(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT: Set<string> = new Set([
-  "barbell_45", "barbell_35", "barbell_ez", "powerblock",
+  "barbell_45", "barbell_35", "barbell_ez", "powerblock", "dumbbell",
   "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper",
 ]);
 
@@ -139,8 +139,11 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
 
   const restSeconds = parseNumber(row["Rest (s)"]) ?? 0;
 
-  // rest_after: FALSE = suppress timer; number/time string = override seconds
-  // Warmup exercises always get restAfter=false when column is absent
+  // rest_after: governs only the transition into the NEXT exercise — never
+  // rest between this exercise's own sets (always rest_seconds).
+  // FALSE = skip that transition rest; number/time string = override its duration.
+  // Warmup exercises always get restAfter=false when column is absent, so
+  // warmup movements flow into each other without pausing.
   let restAfter: false | number | undefined = parseRestAfter(row["Rest After"]);
   if (phaseStr === "warmup" && restAfter === undefined) {
     restAfter = false;

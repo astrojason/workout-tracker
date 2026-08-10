@@ -267,9 +267,9 @@ describe("useWorkout", () => {
     expect(result.current.session!.currentSetNumber).toBe(2);
   });
 
-  it("restAfter=false suppresses all rest timers (between-set and between-exercise)", async () => {
-    // Exercise with restSeconds=120 and restAfter=false: all rest timers are
-    // suppressed — used for warmup exercises that flow through without pausing.
+  it("restAfter=false does not suppress between-set rest — that always uses restSeconds", async () => {
+    // restAfter only governs the transition to the NEXT exercise. Rest between
+    // this exercise's own sets always follows restSeconds, regardless of restAfter.
     const exercise = makeExercise({ sets: 3, restSeconds: 120, restAfter: false });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
@@ -282,9 +282,88 @@ describe("useWorkout", () => {
       result.current.completeSet(10, 135, false, "normal");
     });
 
-    // restAfter=false suppresses between-set rest — advances immediately
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(120);
+    expect(result.current.session!.currentSetNumber).toBe(2);
+  });
+
+  it("restAfter=false suppresses rest before the next exercise", async () => {
+    const ex1 = makeExercise({ name: "Ex1", sets: 1, restSeconds: 120, restAfter: false, order: 1 });
+    const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });
+    const workout = makeWorkout({ exercises: [ex1, ex2] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    await act(async () => {
+      await result.current.startWorkout(workout, getDefinitions());
+    });
+
+    act(() => {
+      result.current.completeSet(10, 135, false, "normal");
+    });
+
+    // Last (only) set of ex1 completed — restAfter=false skips the rest that
+    // would otherwise precede moving into ex2.
+    expect(result.current.session!.isResting).toBe(false);
+    expect(result.current.session!.currentExerciseIndex).toBe(1);
+  });
+
+  // ── rest-timer-behavior user story ──────────────────────────────────────
+
+  it("story: rest between sets — completing set 1 of 3 starts a 45s timer, then shows set 2", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 45 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(45);
+    expect(result.current.session!.currentSetNumber).toBe(2);
+
+    act(() => { result.current.skipRest(); }); // simulate the countdown finishing
     expect(result.current.session!.isResting).toBe(false);
     expect(result.current.session!.currentSetNumber).toBe(2);
+  });
+
+  it("story: rest_after=false — completing the last set shows the next exercise immediately", async () => {
+    const ex1 = makeExercise({ name: "Ex1", sets: 3, restSeconds: 45, restAfter: false, order: 1 });
+    const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });
+    const workout = makeWorkout({ exercises: [ex1, ex2] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 1
+    act(() => { result.current.skipRest(); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 2
+    act(() => { result.current.skipRest(); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 3 — last
+
+    expect(result.current.session!.isResting).toBe(false);
+    expect(result.current.session!.currentExerciseIndex).toBe(1);
+    expect(result.current.currentExercise!.name).toBe("Ex2");
+  });
+
+  it("story: rest_after enabled (default) — completing the last set starts a 45s timer, then shows the next exercise", async () => {
+    const ex1 = makeExercise({ name: "Ex1", sets: 3, restSeconds: 45, order: 1 });
+    const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });
+    const workout = makeWorkout({ exercises: [ex1, ex2] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 1
+    act(() => { result.current.skipRest(); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 2
+    act(() => { result.current.skipRest(); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); }); // set 3 — last
+
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(45);
+    expect(result.current.session!.currentExerciseIndex).toBe(1); // position already advanced
+
+    act(() => { result.current.skipRest(); }); // simulate the countdown finishing
+    expect(result.current.session!.isResting).toBe(false);
+    expect(result.current.currentExercise!.name).toBe("Ex2");
   });
 
   it("restAfter as a number overrides between-exercise rest but not between-set rest", async () => {
@@ -659,13 +738,16 @@ describe("useWorkout", () => {
 
   // ── warm-up-phase-behavior user story ─────────────────────────────────────
 
-  it("warmup exercise (restAfter=false) fires no rest timer between sets even with restSeconds set", async () => {
+  it("warmup exercise (restAfter=false) still rests between its own sets using restSeconds", async () => {
     const exercise = makeExercise({ sets: 3, restSeconds: 60, restAfter: false });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
     await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
     act(() => { result.current.completeSet(10, 0, false, "normal"); });
-    expect(result.current.session!.isResting).toBe(false);
+    // restAfter=false only skips the transition into the NEXT exercise, not
+    // rest between this warmup exercise's own sets.
+    expect(result.current.session!.isResting).toBe(true);
+    expect(result.current.session!.restTimeRemaining).toBeLessThanOrEqual(60);
     expect(result.current.session!.currentSetNumber).toBe(2);
   });
 

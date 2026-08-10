@@ -12,9 +12,10 @@ import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
 
-// Returns the effective rest duration in seconds for an exercise.
-// restAfter === false → 0 (no rest timer); restAfter is a number → use it;
-// otherwise fall back to restSeconds.
+// Returns the rest duration in seconds before moving to the NEXT exercise.
+// restAfter === false → 0 (no rest); restAfter is a number → use it;
+// otherwise fall back to restSeconds. Not used for between-set rest, which
+// always uses restSeconds directly.
 function effectiveRestSeconds(exercise: { restSeconds: number; restAfter?: false | number }): number {
   if (exercise.restAfter === false) return 0;
   if (typeof exercise.restAfter === "number") return exercise.restAfter;
@@ -346,15 +347,15 @@ export function useWorkout(userId: string | null) {
 
     const updatedSession = { ...session, completedSets: newSets };
 
-    // restAfter === false suppresses both between-set and between-exercise
-    // rest (used for warmup exercises that flow through without pausing).
-    // A numeric restAfter overrides only the between-exercise duration;
-    // between-set rest still uses restSeconds in that case.
+    // restAfter only governs the transition into the NEXT exercise (used e.g.
+    // to let warmup exercises flow into each other without pausing). Rest
+    // between this exercise's own sets always follows restSeconds, regardless
+    // of restAfter.
     // IMPORTANT: always advance the position in state FIRST, then start the
     // rest timer. The timer only flips isResting → false; it never moves
     // currentSetNumber or currentExerciseIndex. This prevents double-advance
     // bugs caused by stale closures or rapid state updates.
-    const betweenSetRest = currentExercise.restAfter === false ? 0 : currentExercise.restSeconds;
+    const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
       // Live autoregulation: an "easy" set bumps the weight for the very next

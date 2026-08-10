@@ -77,7 +77,7 @@ export interface Exercise {
   restSeconds: number;
   notes: string | null;
   lastSetAmrap?: boolean;        // when true, the final set is AMRAP regardless of repMax
-  restAfter?: false | number;    // false = no rest timer; number = rest seconds (overrides restSeconds)
+  restAfter?: false | number;    // rest before the NEXT exercise only: false = skip it, number = override its duration. Never affects rest between this exercise's own sets — that always uses restSeconds.
 }
 
 // An Exercise occurrence merged with its definition — the shape the workout UI actually works with.
