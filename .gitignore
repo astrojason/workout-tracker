@@ -14,6 +14,7 @@ GoogleService-Info.plist
 *.csv
 *.xlsx
 Gym_Equipment.md
+data/
 
 # Web (also has web/.gitignore)
 web/node_modules/
