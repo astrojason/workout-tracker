@@ -289,6 +289,11 @@ describe("parseXLSX - Equip Type validation", () => {
     expect(parseXLSX(buf).workouts[0].exercises[0].equipmentType).toBe("pulley");
   });
 
+  it("accepts loop_band as a valid Equip Type", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Equip Type": "loop_band" })] });
+    expect(parseXLSX(buf).workouts[0].exercises[0].equipmentType).toBe("loop_band");
+  });
+
   it("still rejects an unrecognized Equip Type", () => {
     const buf = buildXLSX({ Monday: [makeRow({ "Equip Type": "trampoline" })] });
     expect(() => parseXLSX(buf)).toThrow(/invalid Equip Type/i);

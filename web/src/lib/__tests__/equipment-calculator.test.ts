@@ -515,6 +515,24 @@ describe("getEquipmentDisplay", () => {
     }
   });
 
+  it("returns loop_band with the given size", () => {
+    const ex = makeExercise({ equipmentType: "loop_band", equipmentDetail: "Heavy" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("loop_band");
+    if (result.type === "loop_band") {
+      expect(result.size).toBe("Heavy");
+    }
+  });
+
+  it("returns loop_band defaulting to Medium when no detail is set", () => {
+    const ex = makeExercise({ equipmentType: "loop_band", equipmentDetail: null });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("loop_band");
+    if (result.type === "loop_band") {
+      expect(result.size).toBe("Medium");
+    }
+  });
+
   it("returns bodyweight with detail", () => {
     const ex = makeExercise({ equipmentType: "bodyweight", equipmentDetail: "Pull-up bar" });
     const result = getEquipmentDisplay(ex, 0);
@@ -726,6 +744,10 @@ describe("equipmentDisplayText", () => {
     });
     expect(text).toBe("No plates");
   });
+
+  it("displays loop band size", () => {
+    expect(equipmentDisplayText({ type: "loop_band", size: "X-heavy" })).toBe("X-heavy Loop Band");
+  });
 });
 
 describe("equipmentShortText", () => {
@@ -779,6 +801,10 @@ describe("equipmentShortText", () => {
       config: { targetWeight: 45, barWeight: 0, achievedWeight: 45, perSide: [{ plate: 45, count: 1 }] },
     });
     expect(text).toBe("45 lbs");
+  });
+
+  it("shows size for loop band", () => {
+    expect(equipmentShortText({ type: "loop_band", size: "Light" })).toBe("Light");
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ResolvedExercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions, UserEquipmentConfig } from "./types";
+import type { ResolvedExercise, PlateConfiguration, EquipmentDisplay, PowerBlockInstructions, UserEquipmentConfig, LoopBandSize } from "./types";
 import { barWeight, cleanWeight, ALL_BAND_COLORS, ALL_LOOP_BAND_SIZES, ALL_COC_LEVELS } from "./types";
 
 export const FIXED_DUMBBELLS: number[] = [2];
@@ -314,6 +314,9 @@ export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, 
       // Reuses the single-sided ("landmine") plate-finder with bWeight=0 —
       // there's no bar, just a plate stack loaded directly on the pin.
       return { type: "pulley", config: calculateLandmine(weight, 0, config) };
+
+    case "loop_band":
+      return { type: "loop_band", size: (exercise.equipmentDetail as LoopBandSize) || "Medium" };
   }
 }
 
@@ -334,6 +337,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
     case "kettlebell": return `Kettlebell: ${cleanWeight(display.weight)} lbs`;
     case "gripper": return display.weight > 0 ? `Gripper: ${cleanWeight(display.weight)} lbs` : "Gripper";
     case "pulley": return pulleyDisplayString(display.config);
+    case "loop_band": return `${display.size} Loop Band`;
   }
 }
 
@@ -346,6 +350,7 @@ export function equipmentShortText(display: EquipmentDisplay): string {
     case "gripper": return `${cleanWeight(display.weight)} lbs`;
     case "pulley": return `${cleanWeight(display.config.achievedWeight)} lbs`;
     case "band": return `${display.name} Band`;
+    case "loop_band": return display.size;
     case "bodyweight": return "BW";
     case "assisted": {
       if (display.weight > 0) {

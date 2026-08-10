@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { EquipmentType, UserEquipmentConfig } from "@/lib/types";
-import { barWeight as getBarWeight } from "@/lib/types";
+import { barWeight as getBarWeight, ALL_LOOP_BAND_SIZES } from "@/lib/types";
 import {
   calculateBarbell,
   calculateLandmine,
@@ -69,6 +69,8 @@ export function EquipmentWeightInput({
       return <DumbbellWeightInput value={weightValue} onChange={onWeightValueChange} />;
     case "band":
       return <BandColorSelect value={equipmentDetail} onChange={onEquipmentDetailChange} equipmentConfig={equipmentConfig} />;
+    case "loop_band":
+      return <LoopBandSizeSelect value={equipmentDetail} onChange={onEquipmentDetailChange} equipmentConfig={equipmentConfig} />;
     case "assisted_pullup":
       return <PullupAssistWeightInput value={weightValue} onChange={onWeightValueChange} equipmentConfig={equipmentConfig} />;
     case "kettlebell":
@@ -251,6 +253,21 @@ function BandColorSelect({
         const opt = BAND_OPTIONS.find((b) => b.value === color);
         return <option key={color} value={color}>{opt?.label ?? color}</option>;
       })}
+    </select>
+  );
+}
+
+function LoopBandSizeSelect({
+  value, onChange, equipmentConfig,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  equipmentConfig?: UserEquipmentConfig;
+}) {
+  const sizes = equipmentConfig?.loopBands?.length ? equipmentConfig.loopBands : ALL_LOOP_BAND_SIZES;
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="input-field">
+      {sizes.map((size) => <option key={size} value={size}>{size}</option>)}
     </select>
   );
 }

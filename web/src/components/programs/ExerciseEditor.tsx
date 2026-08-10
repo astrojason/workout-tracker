@@ -220,6 +220,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
               <option value="powerblock">PowerBlock ({powerBlockMin}–{powerBlockMax} lbs)</option>
               <option value="dumbbell">Dumbbell</option>
               <option value="band">Serious Steel Band</option>
+              <option value="loop_band">Loop Band</option>
               <option value="assisted_pullup">Pull-Up Assist (Bands)</option>
               <option value="kettlebell">Kettlebell</option>
               <option value="bodyweight">Bodyweight</option>

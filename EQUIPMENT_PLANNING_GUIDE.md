@@ -26,6 +26,7 @@ with a descriptive note — the app doesn't calculate anything for them.
 | Fixed dumbbell | 2 lb only |
 | Kettlebells | 15, 25, 45 lb |
 | Serious Steel bands | Orange, Purple, Red, Blue, Green, Black (all 6 owned) |
+| Loop bands | Ultra-light, Light, Medium, Heavy, X-heavy, XX-heavy (all 6 owned; `Equip Type = loop_band`, distinct from Serious Steel bands) |
 | Pull-up assist | up to 4 bands (~80 lbs assistance each) |
 | Grippers | Captains of Crush: Trainer (T), 0.5, 1 |
 | Spud Pulley System | plate-loaded, unilateral — no bar, no per-side split (`Equip Type = pulley`, see §2–§4) |
@@ -46,6 +47,7 @@ trusting this snapshot.
 | `barbell_ez` | 15 lb EZ curl bar | Yes — auto plate math |
 | `powerblock` | PowerBlock adjustable dumbbell | Yes — snaps to 2.5 lb steps, 5–50 lb range |
 | `band` | Serious Steel resistance band | No calc; needs `Equip Detail` = color |
+| `loop_band` | Loop resistance band | No calc (no known lb range for these — only the size is tracked); needs `Equip Detail` = size |
 | `kettlebell` | Fixed kettlebell | No calc; weight = the kettlebell's own weight |
 | `bodyweight` | No external load | No calc |
 | `assisted_pullup` | Pull-up assist bands | No calc; weight = band count (see §4) |
@@ -60,6 +62,7 @@ trusting this snapshot.
 | Equip Type | Equip Detail format | Notes |
 |---|---|---|
 | `band` | One of: `Orange`, `Purple`, `Red`, `Blue`, `Green`, `Black` | Must match exactly (case-sensitive) or it displays as "Unknown Band". Leave blank only if you don't care about the resistance-range display. |
+| `loop_band` | One of: `Ultra-light`, `Light`, `Medium`, `Heavy`, `X-heavy`, `XX-heavy` | Not validated against this list — any value is shown as-is (e.g. `"${value} Loop Band"`). Defaults to `Medium` only when blank. |
 | `powerblock` | Blank normally. `2lb` (or any value <5, with or without `lb`/`lbs` suffix) triggers the fixed-dumbbell escape hatch. | Anything ≥5 is ignored — PowerBlock weight comes from `Total Weight`, not detail. |
 | `bodyweight` | Free text, e.g. `2lb_optional`, `lacrosse_ball`, `choice`, `back_lats` | Purely descriptive, shown to the user as-is or defaults to "Bodyweight" if blank. Not parsed. |
 | `barbell_45` / `barbell_35` / `barbell_ez` | Leave blank | Ignored entirely — plates are auto-calculated from owned inventory. |
@@ -90,8 +93,8 @@ this carefully for `assisted_pullup`, it's a real trap**:
 - **`pulley`: `Total Weight` = the total plate weight loaded on the pin** —
   the app calculates which plates achieve it (single stack, not split), the
   same way it does for a barbell's per-side plates.
-- **`band`: `Total Weight` is unused** — leave `0`. Resistance comes from the
-  band color in `Equip Detail`.
+- **`band` / `loop_band`: `Total Weight` is unused** — leave `0`. Resistance
+  comes from `Equip Detail` (color for `band`, size for `loop_band`).
 - **`bodyweight`: `Total Weight` = `0`** unless there's a genuine added load.
 
 If omitted or `0`, the exercise starts unweighted/unseeded and the user sets
@@ -179,16 +182,9 @@ Week | Phase | Order | Exercise          | Equip Type     | Equip Detail | Total
 1    | main  | 7     | Push-up           | bodyweight     |              | 0            | 3    | 12      | 15      | 60       | add_reps      | FALSE
 1    | main  | 8     | Gripper Close     | gripper        |              | 100          | 3    | 5       | 5       | 90       | progress_gripper | FALSE
 1    | main  | 9     | Tricep Pushdown   | pulley         |              | 45           | 3    | 12      | 15      | 60       | none          | TRUE
+1    | main  | 10    | Monster Walk      | loop_band      | Medium       | 0            | 3    | 15      | 20      | 45       | none          | FALSE
 ```
 
 Note these examples omit `Rest After` entirely — that's the correct default. Only add a
 `Rest After` column value on a row when you specifically want to override the rest
 before the *next* exercise (e.g. `FALSE` for a superset pair, or a shorter override).
-
----
-
-## 8. Other known gaps (as of this writing)
-
-- Loop bands (`loopBands` in the equipment config) are trackable as owned
-  inventory in Settings but have no dedicated `Equip Type` — they aren't
-  currently assignable to an exercise at all.
