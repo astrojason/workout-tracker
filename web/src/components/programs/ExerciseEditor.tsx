@@ -224,6 +224,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
               <option value="kettlebell">Kettlebell</option>
               <option value="bodyweight">Bodyweight</option>
               <option value="gripper">Gripper</option>
+              <option value="pulley">Pulley (Spud System)</option>
             </select>
           </Field>
         )}

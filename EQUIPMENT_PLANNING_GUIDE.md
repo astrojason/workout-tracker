@@ -28,7 +28,7 @@ with a descriptive note — the app doesn't calculate anything for them.
 | Serious Steel bands | Orange, Purple, Red, Blue, Green, Black (all 6 owned) |
 | Pull-up assist | up to 4 bands (~80 lbs assistance each) |
 | Grippers | Captains of Crush: Trainer (T), 0.5, 1 |
-| Spud Pulley System | plate-loaded, unilateral — no bar, no per-side split (see §8 for import workaround) |
+| Spud Pulley System | plate-loaded, unilateral — no bar, no per-side split (`Equip Type = pulley`, see §2–§4) |
 
 These are defaults (`DEFAULT_EQUIPMENT_CONFIG`); the live per-user config is
 editable at **Settings → Manage Equipment** and can differ from this table —
@@ -51,6 +51,7 @@ trusting this snapshot.
 | `assisted_pullup` | Pull-up assist bands | No calc; weight = band count (see §4) |
 | `gripper` | Captains of Crush gripper | No calc; weight = lbs rating |
 | `dumbbell` | Plain/fixed dumbbell | No calc; weight = the dumbbell's own weight |
+| `pulley` | Plate-loaded pulley/cable attachment (e.g. Spud Pulley System) | Yes — auto plate math, single stack on one pin (no bar weight, no per-side split — see §3/§4) |
 
 ---
 
@@ -64,6 +65,7 @@ trusting this snapshot.
 | `barbell_45` / `barbell_35` / `barbell_ez` | Leave blank | Ignored entirely — plates are auto-calculated from owned inventory. |
 | `assisted_pullup` | Leave blank | Ignored by the current calculator (band count comes from `Total Weight`, see §4) — only ever shown as a fallback label if weight is 0. |
 | `kettlebell` / `gripper` | Leave blank | Not used. |
+| `pulley` | Leave blank | Ignored — plates are auto-calculated from owned inventory, same as a barbell, just single-sided. |
 
 ---
 
@@ -85,6 +87,9 @@ this carefully for `assisted_pullup`, it's a real trap**:
   plate combination / PowerBlock step automatically.
 - **`kettlebell`: `Total Weight` = the kettlebell's fixed weight** (should
   match one of the owned weights: 15, 25, 45).
+- **`pulley`: `Total Weight` = the total plate weight loaded on the pin** —
+  the app calculates which plates achieve it (single stack, not split), the
+  same way it does for a barbell's per-side plates.
 - **`band`: `Total Weight` is unused** — leave `0`. Resistance comes from the
   band color in `Equip Detail`.
 - **`bodyweight`: `Total Weight` = `0`** unless there's a genuine added load.
@@ -173,6 +178,7 @@ Week | Phase | Order | Exercise          | Equip Type     | Equip Detail | Total
 1    | main  | 6     | Weighted Pull-up  | assisted_pullup|              | 2            | 3    | 5       | 8       | 120      | reduce_assistance | FALSE
 1    | main  | 7     | Push-up           | bodyweight     |              | 0            | 3    | 12      | 15      | 60       | add_reps      | FALSE
 1    | main  | 8     | Gripper Close     | gripper        |              | 100          | 3    | 5       | 5       | 90       | progress_gripper | FALSE
+1    | main  | 9     | Tricep Pushdown   | pulley         |              | 45           | 3    | 12      | 15      | 60       | none          | TRUE
 ```
 
 Note these examples omit `Rest After` entirely — that's the correct default. Only add a
@@ -186,13 +192,3 @@ before the *next* exercise (e.g. `FALSE` for a superset pair, or a shorter overr
 - Loop bands (`loopBands` in the equipment config) are trackable as owned
   inventory in Settings but have no dedicated `Equip Type` — they aren't
   currently assignable to an exercise at all.
-- **Spud Pulley System has no dedicated `Equip Type`.** It's plate-loaded
-  (unlike `bodyweight`, which never shows a weight number) but has no bar
-  weight and no per-side split (unlike `barbell_*`/landmine mode, which
-  bakes in a 45/35 lb bar and splits remaining plates across two sides —
-  wrong here since a Spud row is a single stack of plates on one pin,
-  worked unilaterally). **Workaround: use `Equip Type = kettlebell`** with
-  `Total Weight` = the actual plate weight loaded on the pulley pin. That
-  type displays the raw weight number with no calculation or splitting,
-  which matches how the pulley actually loads. Use `Notes` to clarify it's
-  a Spud Pulley exercise, not a literal kettlebell.

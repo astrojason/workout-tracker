@@ -14,7 +14,7 @@ const DAY_OF_WEEK_NAMES = [
 const VALID_PHASES = new Set<Phase>(["warmup", "main", "finisher", "cooldown", "mobility"]);
 const VALID_EQUIPMENT: Set<string> = new Set([
   "barbell_45", "barbell_35", "barbell_ez", "powerblock", "dumbbell",
-  "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper",
+  "band", "kettlebell", "bodyweight", "assisted_pullup", "gripper", "pulley",
 ]);
 
 // ── Column name mapping ──────────────────────────────────────────────────────

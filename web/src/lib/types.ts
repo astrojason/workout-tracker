@@ -14,7 +14,8 @@ export type EquipmentType =
   | "kettlebell"
   | "bodyweight"
   | "assisted_pullup"
-  | "gripper";
+  | "gripper"
+  | "pulley";
 
 // Known keyword rules plus any free-form next-step string (band color, band count, etc.)
 export type ProgressionRule =
@@ -230,7 +231,8 @@ export type EquipmentDisplay =
   | { type: "bodyweight"; detail: string | null }
   | { type: "assisted"; weight: number; detail: string | null }
   | { type: "kettlebell"; weight: number }
-  | { type: "gripper"; weight: number };
+  | { type: "gripper"; weight: number }
+  | { type: "pulley"; config: PlateConfiguration };
 
 // ── Active workout state ──
 

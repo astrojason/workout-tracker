@@ -241,6 +241,15 @@ export function plateFullDisplayString(config: PlateConfiguration): string {
   return `${cleanWeight(config.barWeight)}lb bar + ${brackets} ${label} (${cleanWeight(config.achievedWeight)} lbs)`;
 }
 
+// Pulley/cable attachments (e.g. Spud Pulley System) are plate-loaded like a
+// barbell, but with no bar weight and no per-side split — the full stack is
+// loaded on a single pin and worked unilaterally. Never uses "bar" wording.
+export function pulleyDisplayString(config: PlateConfiguration): string {
+  if (config.perSide.length === 0) return "No plates";
+  const items = config.perSide.map((p) => `${p.count}x${cleanWeight(p.plate)}`).join(" + ");
+  return `${items} (${cleanWeight(config.achievedWeight)} lbs)`;
+}
+
 function parseWeightFromDetail(detail: string): number | null {
   const cleaned = detail.replace(/lbs?/gi, "").replace(/s$/i, "").trim();
   const num = parseFloat(cleaned);
@@ -300,6 +309,11 @@ export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, 
 
     case "gripper":
       return { type: "gripper", weight };
+
+    case "pulley":
+      // Reuses the single-sided ("landmine") plate-finder with bWeight=0 —
+      // there's no bar, just a plate stack loaded directly on the pin.
+      return { type: "pulley", config: calculateLandmine(weight, 0, config) };
   }
 }
 
@@ -319,6 +333,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
     }
     case "kettlebell": return `Kettlebell: ${cleanWeight(display.weight)} lbs`;
     case "gripper": return display.weight > 0 ? `Gripper: ${cleanWeight(display.weight)} lbs` : "Gripper";
+    case "pulley": return pulleyDisplayString(display.config);
   }
 }
 
@@ -329,6 +344,7 @@ export function equipmentShortText(display: EquipmentDisplay): string {
     case "dumbbell":
     case "kettlebell":
     case "gripper": return `${cleanWeight(display.weight)} lbs`;
+    case "pulley": return `${cleanWeight(display.config.achievedWeight)} lbs`;
     case "band": return `${display.name} Band`;
     case "bodyweight": return "BW";
     case "assisted": {

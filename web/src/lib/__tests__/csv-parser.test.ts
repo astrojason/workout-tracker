@@ -237,6 +237,12 @@ describe("parseCSV - error handling", () => {
     expect(parseCSV(csv).workouts[0].exercises[0].equipmentType).toBe("dumbbell");
   });
 
+  it("accepts pulley as a valid equipment type", () => {
+    const csv = `${VALID_HEADER}\n${makeRow({ equipment_type: "pulley" })}`;
+    expect(() => parseCSV(csv)).not.toThrow();
+    expect(parseCSV(csv).workouts[0].exercises[0].equipmentType).toBe("pulley");
+  });
+
   it("throws on invalid week (non-numeric)", () => {
     const csv = `${VALID_HEADER}\n${makeRow({ week: "abc" })}`;
     expect(() => parseCSV(csv)).toThrow("invalid week");

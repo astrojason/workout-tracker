@@ -5,6 +5,7 @@ import type { EquipmentType, UserEquipmentConfig } from "@/lib/types";
 import { barWeight as getBarWeight } from "@/lib/types";
 import {
   calculateBarbell,
+  calculateLandmine,
   getPowerBlockInstructions,
   nearestPowerBlock,
   plateDisplayString,
@@ -31,6 +32,7 @@ export function defaultWeightForType(t: EquipmentType): string {
     case "kettlebell": return String(KETTLEBELL_WEIGHTS[0]);
     case "assisted_pullup": return "1";
     case "gripper": return "10";
+    case "pulley": return "0";
     default: return "0";
   }
 }
@@ -73,6 +75,8 @@ export function EquipmentWeightInput({
       return <KettlebellWeightSelect value={weightValue} onChange={onWeightValueChange} equipmentConfig={equipmentConfig} />;
     case "gripper":
       return <GripperWeightInput value={weightValue} onChange={onWeightValueChange} />;
+    case "pulley":
+      return <PulleyWeightInput value={weightValue} onChange={onWeightValueChange} equipmentConfig={equipmentConfig} />;
     default:
       return null;
   }
@@ -317,5 +321,66 @@ function GripperWeightInput({ value, onChange }: { value: string; onChange: (val
       className="input-field"
       placeholder="lbs"
     />
+  );
+}
+
+// Plate-loaded pulley/cable attachment (e.g. Spud Pulley System): no bar weight,
+// no per-side split — reuses the single-sided ("landmine") plate finder with
+// bWeight=0 so the hint shows exactly which plates to load on the pin.
+function PulleyWeightInput({
+  value, onChange, equipmentConfig,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  equipmentConfig?: UserEquipmentConfig;
+}) {
+  const [warning, setWarning] = useState<string | null>(null);
+
+  function handleBlur() {
+    const target = parseFloat(value);
+    if (isNaN(target) || target <= 0) {
+      setWarning(null);
+      return;
+    }
+    const config = calculateLandmine(target, 0, equipmentConfig);
+    if (config.achievedWeight !== target) {
+      onChange(String(config.achievedWeight));
+      const plateStr = config.perSide.length > 0 ? `Load: ${plateDisplayString(config)}` : "No plates achievable";
+      setWarning(
+        `${target} lbs isn't possible with available plates. Adjusted to ${config.achievedWeight} lbs.\n${plateStr}`
+      );
+    } else {
+      setWarning(null);
+    }
+  }
+
+  let hint: string | null = null;
+  const target = parseFloat(value);
+  if (!isNaN(target) && target > 0) {
+    const config = calculateLandmine(target, 0, equipmentConfig);
+    hint = config.perSide.length === 0
+      ? "No plates needed"
+      : `Load: ${plateDisplayString(config)} → ${config.achievedWeight} lbs`;
+  }
+
+  return (
+    <div>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setWarning(null); }}
+        onBlur={handleBlur}
+        step="2.5"
+        min={0}
+        className="input-field"
+        placeholder="lbs"
+      />
+      {warning && warning.split("\n").map((line, i) => (
+        <p key={i} className="text-yellow-400 text-xs mt-1">{i === 0 ? `⚠ ${line}` : line}</p>
+      ))}
+      {!warning && hint && (
+        <p className="text-gray-500 text-xs mt-1">{hint}</p>
+      )}
+    </div>
   );
 }

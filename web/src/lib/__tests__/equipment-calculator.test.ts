@@ -608,6 +608,39 @@ describe("getEquipmentDisplay", () => {
       expect(oneSideTotal).toBe(40);
     }
   });
+
+  it("returns pulley display with a single-sided plate breakdown and no bar weight", () => {
+    const ex = makeExercise({ equipmentType: "pulley" });
+    const result = getEquipmentDisplay(ex, 45);
+    expect(result.type).toBe("pulley");
+    if (result.type === "pulley") {
+      expect(result.config.barWeight).toBe(0);
+      expect(result.config.achievedWeight).toBe(45);
+      // All 45 lbs on one stack, not split — a symmetric barbell would split this as 22.5/side
+      expect(result.config.perSide).toEqual([{ plate: 45, count: 1 }]);
+    }
+  });
+
+  it("returns pulley display with an achievable multi-plate combo", () => {
+    const ex = makeExercise({ equipmentType: "pulley" });
+    const result = getEquipmentDisplay(ex, 35);
+    expect(result.type).toBe("pulley");
+    if (result.type === "pulley") {
+      expect(result.config.achievedWeight).toBe(35);
+      const total = result.config.perSide.reduce((sum, p) => sum + p.plate * p.count, 0);
+      expect(total).toBe(35);
+    }
+  });
+
+  it("returns pulley display with no plates for zero weight", () => {
+    const ex = makeExercise({ equipmentType: "pulley" });
+    const result = getEquipmentDisplay(ex, 0);
+    expect(result.type).toBe("pulley");
+    if (result.type === "pulley") {
+      expect(result.config.perSide).toEqual([]);
+      expect(result.config.achievedWeight).toBe(0);
+    }
+  });
 });
 
 describe("equipmentDisplayText", () => {
@@ -676,6 +709,23 @@ describe("equipmentDisplayText", () => {
   it("displays kettlebell weight", () => {
     expect(equipmentDisplayText({ type: "kettlebell", weight: 35 })).toBe("Kettlebell: 35 lbs");
   });
+
+  it("displays pulley plate breakdown without any bar wording", () => {
+    const text = equipmentDisplayText({
+      type: "pulley",
+      config: { targetWeight: 45, barWeight: 0, achievedWeight: 45, perSide: [{ plate: 45, count: 1 }], isLandmine: true },
+    });
+    expect(text).toBe("1x45 (45 lbs)");
+    expect(text).not.toMatch(/bar/i);
+  });
+
+  it("displays 'No plates' for zero-weight pulley", () => {
+    const text = equipmentDisplayText({
+      type: "pulley",
+      config: { targetWeight: 0, barWeight: 0, achievedWeight: 0, perSide: [], isLandmine: true },
+    });
+    expect(text).toBe("No plates");
+  });
 });
 
 describe("equipmentShortText", () => {
@@ -721,6 +771,14 @@ describe("equipmentShortText", () => {
 
   it("shows 'Assisted' for zero weight assisted", () => {
     expect(equipmentShortText({ type: "assisted", weight: 0, detail: null })).toBe("Assisted");
+  });
+
+  it("shows weight for pulley", () => {
+    const text = equipmentShortText({
+      type: "pulley",
+      config: { targetWeight: 45, barWeight: 0, achievedWeight: 45, perSide: [{ plate: 45, count: 1 }] },
+    });
+    expect(text).toBe("45 lbs");
   });
 });
 
