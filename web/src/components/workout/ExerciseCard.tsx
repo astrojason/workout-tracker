@@ -1,7 +1,7 @@
 "use client";
 
 import type { ResolvedExercise, EquipmentDisplay } from "@/lib/types";
-import { repTargetDisplay, formatRestTime, PHASE_COLORS, isTimeBased } from "@/lib/types";
+import { repTargetDisplay, formatRestTime, PHASE_COLORS, isTimeBased, cleanWeight } from "@/lib/types";
 import { equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface ExerciseCardProps {
@@ -13,20 +13,66 @@ interface ExerciseCardProps {
   onEditSets?: () => void;
 }
 
+function PlateLoadGuide({ equipmentDisplay }: { equipmentDisplay: EquipmentDisplay }) {
+  if (equipmentDisplay.type !== "barbell" && equipmentDisplay.type !== "pulley") return null;
+
+  const { config } = equipmentDisplay;
+  const loadLocation = equipmentDisplay.type === "pulley"
+    ? "Load on pin"
+    : config.isLandmine
+      ? "Load one end"
+      : "Load each side";
+
+  return (
+    <div
+      role="group"
+      aria-label="Plate loading instructions"
+      className="mt-3 border-t border-indigo-800/50 pt-3"
+    >
+      {config.perSide.length === 0 ? (
+        <p className="text-sm font-medium text-indigo-200">
+          {equipmentDisplay.type === "pulley"
+            ? "No plates needed"
+            : `No plates — use the ${cleanWeight(config.barWeight)} lb bar`}
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-indigo-400">
+            {loadLocation}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {config.perSide.map(({ plate, count }) => (
+              <span
+                key={plate}
+                className="rounded-lg border border-indigo-700/60 bg-indigo-900/60 px-2.5 py-1.5 text-sm font-semibold text-indigo-100"
+              >
+                {cleanWeight(plate)} lb plate &times; {count}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function EquipmentContent({ equipmentDisplay, editable }: { equipmentDisplay: EquipmentDisplay; editable: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="text-indigo-300 font-semibold">
-          {equipmentDisplayText(equipmentDisplay)}
-        </div>
-        {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
-          <div className="text-indigo-400/70 text-xs mt-0.5">
-            {equipmentDisplay.instructions.label}
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-indigo-300 font-semibold">
+            {equipmentDisplayText(equipmentDisplay)}
           </div>
-        )}
+          {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+            <div className="text-indigo-400/70 text-xs mt-0.5">
+              {equipmentDisplay.instructions.label}
+            </div>
+          )}
+        </div>
+        {editable && <span className="shrink-0 text-indigo-400 text-xs">Edit weight</span>}
       </div>
-      {editable && <span className="text-indigo-400 text-xs">Edit weight</span>}
+      <PlateLoadGuide equipmentDisplay={equipmentDisplay} />
     </div>
   );
 }
