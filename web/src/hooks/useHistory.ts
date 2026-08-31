@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { WorkoutSessionDoc } from "@/lib/types";
 import { subscribeToSessions, getExerciseHistory } from "@/lib/firestore";
+import { useError } from "@/components/providers/ErrorProvider";
 
 interface ExerciseStat {
   name: string;
@@ -14,6 +15,7 @@ interface ExerciseStat {
 }
 
 export function useHistory(userId: string | null) {
+  const { showError } = useError();
   const [sessions, setSessions] = useState<WorkoutSessionDoc[]>([]);
   const [exerciseStats, setExerciseStats] = useState<ExerciseStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,10 +65,10 @@ export function useHistory(userId: string | null) {
       setSessions(sess);
       setExerciseStats(stats);
       setLoading(false);
-    });
+    }, showError);
 
     return unsubscribe;
-  }, [userId]);
+  }, [userId, showError]);
 
   return { sessions, exerciseStats, loading };
 }

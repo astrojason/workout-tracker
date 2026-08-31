@@ -380,12 +380,13 @@ export async function getSessions(
 export function subscribeToSessions(
   userId: string,
   limitCount: number,
-  callback: (sessions: WorkoutSessionDoc[]) => void
+  callback: (sessions: WorkoutSessionDoc[]) => void,
+  onError: (error: Error) => void,
 ): () => void {
   const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc)));
-  });
+  }, onError);
 }
 
 export async function getSession(

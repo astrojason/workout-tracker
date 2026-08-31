@@ -7,6 +7,7 @@ import { useWorkout } from "@/hooks/useWorkout";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
+import { ConsistencyCard } from "@/components/home/ConsistencyCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
@@ -14,6 +15,8 @@ import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
 import type { ResolvedWorkout, Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
+import { useHistory } from "@/hooks/useHistory";
+import { calculateWorkoutConsistency } from "@/lib/workout-consistency";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -21,6 +24,7 @@ export default function HomePage() {
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const { sessions } = useHistory(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
   const { showError } = useError();
 
@@ -172,6 +176,15 @@ export default function HomePage() {
   const today = new Date();
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
   const dateStr = today.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const consistency = calculateWorkoutConsistency(
+    sessions,
+    activePrograms.map((program) => ({
+      programId: program.id,
+      week: currentWeek(program.id),
+      days: getAvailableDays(program.id),
+    })),
+    today,
+  );
 
   return (
     <div className="max-w-lg mx-auto p-4 pb-24">
@@ -180,6 +193,8 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold">{dayName}</h1>
         <p className="text-gray-400">{dateStr}</p>
       </div>
+
+      <ConsistencyCard {...consistency} />
 
       {/* Resume Banner */}
       {workout.pausedSession && (
