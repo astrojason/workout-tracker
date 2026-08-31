@@ -209,6 +209,22 @@ export interface BodyMeasurementInput {
   hips?: number;
   arm?: number;
   thigh?: number;
+  bodyFatPercentage?: number;
+  bmi?: number;
+  heartRate?: number;
+  muscleMass?: number;
+  boneMass?: number;
+  bodyWaterPercentage?: number;
+  visceralFat?: number;
+  proteinMass?: number;
+  bmr?: number;
+  metabolicAge?: number;
+  standardWeight?: number;
+  fatFreeBodyWeight?: number;
+  proteinPercentage?: number;
+  subcutaneousFatPercentage?: number;
+  skeletalMusclePercentage?: number;
+  waterWeight?: number;
 }
 
 export interface BodyMeasurementDoc extends Omit<BodyMeasurementInput, "date"> {

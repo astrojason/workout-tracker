@@ -14,15 +14,48 @@ import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { cleanWeight } from "@/lib/types";
 import type { BodyMeasurementDoc, BodyMeasurementInput } from "@/lib/types";
 
-type MetricKey = "weight" | "chest" | "waist" | "hips" | "arm" | "thigh";
+type MetricKey = keyof Omit<BodyMeasurementInput, "date">;
+type OptionalMetricKey = Exclude<MetricKey, "weight">;
 
-const METRICS: { key: MetricKey; label: string; unit: "lbs" | "in" }[] = [
-  { key: "weight", label: "Body weight", unit: "lbs" },
-  { key: "chest", label: "Chest", unit: "in" },
-  { key: "waist", label: "Waist", unit: "in" },
-  { key: "hips", label: "Hips", unit: "in" },
-  { key: "arm", label: "Arm", unit: "in" },
-  { key: "thigh", label: "Thigh", unit: "in" },
+interface MetricDefinition {
+  key: MetricKey;
+  label: string;
+  unit: "lbs" | "in" | "%" | "bpm" | "kcal" | "years" | "";
+  inputLabel: string;
+  step?: string;
+}
+
+const CIRCUMFERENCE_METRICS: MetricDefinition[] = [
+  { key: "chest", label: "Chest", unit: "in", inputLabel: "Chest (in)", step: "0.01" },
+  { key: "waist", label: "Waist", unit: "in", inputLabel: "Waist (in)", step: "0.01" },
+  { key: "hips", label: "Hips", unit: "in", inputLabel: "Hips (in)", step: "0.01" },
+  { key: "arm", label: "Arm", unit: "in", inputLabel: "Arm (in)", step: "0.01" },
+  { key: "thigh", label: "Thigh", unit: "in", inputLabel: "Thigh (in)", step: "0.01" },
+];
+
+const SMART_SCALE_METRICS: MetricDefinition[] = [
+  { key: "bodyFatPercentage", label: "Body fat", unit: "%", inputLabel: "Body fat (%)" },
+  { key: "bmi", label: "BMI", unit: "", inputLabel: "BMI" },
+  { key: "heartRate", label: "Heart rate", unit: "bpm", inputLabel: "Heart rate (bpm)", step: "1" },
+  { key: "muscleMass", label: "Muscle mass", unit: "lbs", inputLabel: "Muscle mass (lbs)" },
+  { key: "boneMass", label: "Bone mass", unit: "lbs", inputLabel: "Bone mass (lbs)" },
+  { key: "bodyWaterPercentage", label: "Body water", unit: "%", inputLabel: "Body water (%)" },
+  { key: "visceralFat", label: "Visceral fat", unit: "", inputLabel: "Visceral fat rating" },
+  { key: "proteinMass", label: "Protein mass", unit: "lbs", inputLabel: "Protein mass (lbs)" },
+  { key: "bmr", label: "BMR", unit: "kcal", inputLabel: "BMR (kcal)", step: "1" },
+  { key: "metabolicAge", label: "Metabolic age", unit: "years", inputLabel: "Metabolic age (years)", step: "1" },
+  { key: "standardWeight", label: "Standard weight", unit: "lbs", inputLabel: "Standard weight (lbs)" },
+  { key: "fatFreeBodyWeight", label: "Fat-free weight", unit: "lbs", inputLabel: "Fat-free weight (lbs)" },
+  { key: "proteinPercentage", label: "Protein", unit: "%", inputLabel: "Protein (%)" },
+  { key: "subcutaneousFatPercentage", label: "Subcutaneous fat", unit: "%", inputLabel: "Subcutaneous fat (%)" },
+  { key: "skeletalMusclePercentage", label: "Skeletal muscle", unit: "%", inputLabel: "Skeletal muscle (%)" },
+  { key: "waterWeight", label: "Water weight", unit: "lbs", inputLabel: "Water weight (lbs)" },
+];
+
+const METRICS: MetricDefinition[] = [
+  { key: "weight", label: "Body weight", unit: "lbs", inputLabel: "Body weight (lbs)" },
+  ...CIRCUMFERENCE_METRICS,
+  ...SMART_SCALE_METRICS,
 ];
 
 function asDate(value: BodyMeasurementDoc["date"]): Date {
@@ -40,6 +73,22 @@ function optionalNumber(value: string): number | undefined {
   if (value.trim() === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function formatMetric(metric: MetricDefinition, value: number): string {
+  const number = cleanWeight(value);
+  const label = metric.label.toLowerCase();
+  switch (metric.unit) {
+    case "%": return `${number}% ${label}`;
+    case "": return metric.key === "bmi" ? `${number} BMI` : `${number} ${label}`;
+    default: return `${number} ${metric.unit} ${label}`;
+  }
+}
+
+function tooltipValue(value: number, metric: MetricDefinition): string {
+  const number = cleanWeight(value);
+  if (metric.unit === "%") return `${number}%`;
+  return metric.unit ? `${number} ${metric.unit}` : number;
 }
 
 interface BodyMetricsSectionProps {
@@ -62,13 +111,7 @@ export function BodyMetricsSection({
   const [showForm, setShowForm] = useState(false);
   const [date, setDate] = useState(localDateInputValue());
   const [weight, setWeight] = useState("");
-  const [measurements, setMeasurements] = useState<Record<Exclude<MetricKey, "weight">, string>>({
-    chest: "",
-    waist: "",
-    hips: "",
-    arm: "",
-    thigh: "",
-  });
+  const [measurements, setMeasurements] = useState<Partial<Record<OptionalMetricKey, string>>>({});
   const [metric, setMetric] = useState<MetricKey>("weight");
   const [deleteTarget, setDeleteTarget] = useState<BodyMeasurementDoc | null>(null);
 
@@ -81,6 +124,7 @@ export function BodyMetricsSection({
     key === "weight" || sortedEntries.some((entry) => entry[key] !== undefined),
   );
   const selectedMetric = availableMetrics.some((item) => item.key === metric) ? metric : "weight";
+  const selectedDefinition = METRICS.find((item) => item.key === selectedMetric) ?? METRICS[0];
   const chartData = sortedEntries
     .filter((entry) => entry[selectedMetric] !== undefined)
     .map((entry) => ({
@@ -91,7 +135,7 @@ export function BodyMetricsSection({
   function resetForm() {
     setDate(localDateInputValue());
     setWeight("");
-    setMeasurements({ chest: "", waist: "", hips: "", arm: "", thigh: "" });
+    setMeasurements({});
     setShowForm(false);
   }
 
@@ -162,21 +206,44 @@ export function BodyMetricsSection({
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Optional measurements</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {METRICS.filter((item) => item.key !== "weight").map(({ key, label }) => (
+              {CIRCUMFERENCE_METRICS.map(({ key, inputLabel, step }) => (
                 <label key={key} className="text-sm text-gray-400">
-                  {label} (in)
+                  {inputLabel}
                   <input
                     type="number"
-                    value={measurements[key as Exclude<MetricKey, "weight">]}
+                    value={measurements[key as OptionalMetricKey] ?? ""}
                     onChange={(event) => setMeasurements((current) => ({ ...current, [key]: event.target.value }))}
                     min="0.1"
-                    step="0.01"
+                    step={step ?? "0.1"}
                     className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
                   />
                 </label>
               ))}
             </div>
           </div>
+          <details className="rounded-lg border border-gray-800 bg-gray-950/40 p-3" open>
+            <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-gray-500">
+              Smart scale metrics (optional)
+            </summary>
+            <p className="mt-2 text-xs text-gray-500">
+              Body-composition readings are scale estimates. Use them to follow trends, not as medical measurements.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {SMART_SCALE_METRICS.map(({ key, inputLabel, step }) => (
+                <label key={key} className="text-sm text-gray-400">
+                  {inputLabel}
+                  <input
+                    type="number"
+                    value={measurements[key as OptionalMetricKey] ?? ""}
+                    onChange={(event) => setMeasurements((current) => ({ ...current, [key]: event.target.value }))}
+                    min="0.1"
+                    step={step ?? "0.1"}
+                    className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
           <button
             type="submit"
             disabled={saving}
@@ -203,9 +270,9 @@ export function BodyMetricsSection({
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Latest check-in</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="text-2xl font-bold">{cleanWeight(latest.weight)} lbs</span>
-                  {METRICS.filter(({ key }) => key !== "weight" && latest[key] !== undefined).map(({ key, label }) => (
-                    <span key={key} className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-300">
-                      {cleanWeight(latest[key] as number)} in {label.toLowerCase()}
+                  {METRICS.filter(({ key }) => key !== "weight" && latest[key] !== undefined).map((definition) => (
+                    <span key={definition.key} className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-300">
+                      {formatMetric(definition, latest[definition.key] as number)}
                     </span>
                   ))}
                 </div>
@@ -230,7 +297,7 @@ export function BodyMetricsSection({
                   <YAxis stroke="#6B7280" fontSize={12} domain={["auto", "auto"]} width={42} />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: "8px" }}
-                    formatter={(value) => [`${value} ${selectedMetric === "weight" ? "lbs" : "in"}`]}
+                    formatter={(value) => [tooltipValue(Number(value), selectedDefinition)]}
                   />
                   <Line type="monotone" dataKey="value" stroke="#22C55E" strokeWidth={2} dot={{ fill: "#22C55E", r: 4 }} />
                 </LineChart>

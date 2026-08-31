@@ -58,6 +58,8 @@ describe("body measurement persistence", () => {
       date,
       weight: 178.5,
       waist: 33.25,
+      bodyFatPercentage: 20.8,
+      bmi: 24.2,
     });
 
     expect(id).toBe("entry-2");
@@ -67,6 +69,8 @@ describe("body measurement persistence", () => {
         date: { __timestamp: "2026-09-07T12:00:00.000Z" },
         weight: 178.5,
         waist: 33.25,
+        bodyFatPercentage: 20.8,
+        bmi: 24.2,
       },
     );
   });

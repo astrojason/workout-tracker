@@ -8,10 +8,16 @@ test("logs body weight and optional measurements and charts the trend", async ({
   await page.getByLabel("Date").fill("2026-09-07");
   await page.getByLabel("Body weight (lbs)").fill("178.5");
   await page.getByLabel("Waist (in)").fill("33.25");
+  await page.getByLabel("Body fat (%)").fill("20.8");
+  await page.getByLabel("Muscle mass (lbs)").fill("131.5");
+  await page.getByLabel("Visceral fat rating").fill("7");
   await page.getByRole("button", { name: "Save check-in" }).click();
 
   await expect(page.getByText("178.5 lbs").first()).toBeVisible();
   await expect(page.getByText("33.25 in waist")).toBeVisible();
+  await expect(page.getByText("20.8% body fat")).toBeVisible();
+  await expect(page.getByText("131.5 lbs muscle mass")).toBeVisible();
   await expect(page.getByLabel("Chart metric")).toContainText("Waist");
+  await expect(page.getByLabel("Chart metric")).toContainText("Body fat");
   await expect(page.getByRole("img", { name: "Body metrics trend chart" })).toBeVisible();
 });
