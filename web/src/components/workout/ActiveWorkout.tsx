@@ -266,6 +266,7 @@ export function ActiveWorkout({
           setNumber={session.currentSetNumber}
           weight={weight}
           equipmentDisplay={equipDisplay}
+          previousPerformance={session.previousPerformances?.[exercise.id]}
           onEditWeight={weight > 0 ? () => setShowWeightEditor(true) : undefined}
           onEditSets={() => setShowSetsEditor(true)}
         />

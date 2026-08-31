@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useWorkout } from "../useWorkout";
-import type { Workout, Exercise, ExerciseDefinition, EquipmentType, ProgressionRule } from "@/lib/types";
+import type { Workout, Exercise, ExerciseDefinition, EquipmentType, ProgressionRule, WorkoutSessionDoc } from "@/lib/types";
 
 const { updateExerciseDefinitionWeightMock } = vi.hoisted(() => ({
   updateExerciseDefinitionWeightMock: vi.fn().mockResolvedValue(undefined),
@@ -198,6 +198,45 @@ describe("useWorkout", () => {
     expect(result.current.session!.completedSets).toEqual([]);
     expect(result.current.session!.isResting).toBe(false);
     expect(result.current.session!.prsAchieved).toEqual([]);
+  });
+
+  it("captures the latest performance when starting a workout", () => {
+    const exercise = makeExercise({ name: "Squat" });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const previousSession = {
+      id: "previous-session",
+      programId: "test-program",
+      programName: "Test Program",
+      week: 1,
+      dayOfWeek: "Monday",
+      date: new Date("2026-08-01"),
+      completed: true,
+      durationSeconds: 600,
+      sets: [{
+        id: "previous-set",
+        exerciseName: "Squat",
+        definitionId: exercise.definitionId,
+        exerciseOrder: 1,
+        setNumber: 1,
+        targetWeight: 135,
+        actualWeight: 135,
+        targetReps: 8,
+        actualReps: 10,
+        completed: true,
+        timestamp: new Date("2026-08-01"),
+        notes: null,
+      }],
+    } satisfies WorkoutSessionDoc;
+    const { result } = renderHook(() => useWorkout("user-1"));
+
+    act(() => {
+      result.current.startWorkout(workout, getDefinitions(), undefined, [previousSession]);
+    });
+
+    expect(result.current.session?.previousPerformances?.[exercise.id]).toEqual({
+      weight: 135,
+      reps: 10,
+    });
   });
 
   it("sets currentExercise after startWorkout", async () => {

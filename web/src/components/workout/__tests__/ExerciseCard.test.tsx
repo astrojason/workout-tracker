@@ -106,3 +106,51 @@ describe("ExerciseCard plate-load guide", () => {
     expect(within(guide).getByText("No plates — use the 45 lb bar")).toBeInTheDocument();
   });
 });
+
+describe("ExerciseCard previous performance", () => {
+  it("shows the previous weight and reps beside the current equipment", () => {
+    render(
+      <ExerciseCard
+        exercise={exercise}
+        setNumber={1}
+        weight={155}
+        equipmentDisplay={{
+          type: "barbell",
+          config: {
+            targetWeight: 155,
+            barWeight: 45,
+            achievedWeight: 155,
+            perSide: [{ plate: 45, count: 1 }, { plate: 10, count: 1 }],
+          },
+        }}
+        previousPerformance={{ weight: 150, reps: 9 }}
+      />,
+    );
+
+    expect(screen.getByText("Last time: 150 lb × 9")).toBeInTheDocument();
+  });
+
+  it("formats bodyweight and timed performances without a zero-pound label", () => {
+    const { rerender } = render(
+      <ExerciseCard
+        exercise={{ ...exercise, equipmentType: "bodyweight", currentWeight: 0 }}
+        setNumber={1}
+        weight={0}
+        equipmentDisplay={{ type: "bodyweight", detail: null }}
+        previousPerformance={{ weight: 0, reps: 12 }}
+      />,
+    );
+    expect(screen.getByText("Last time: 12 reps")).toBeInTheDocument();
+
+    rerender(
+      <ExerciseCard
+        exercise={{ ...exercise, equipmentType: "bodyweight", currentWeight: 0, isTimeBased: true }}
+        setNumber={1}
+        weight={0}
+        equipmentDisplay={{ type: "bodyweight", detail: null }}
+        previousPerformance={{ weight: 0, reps: 75 }}
+      />,
+    );
+    expect(screen.getByText("Last time: 1:15")).toBeInTheDocument();
+  });
+});

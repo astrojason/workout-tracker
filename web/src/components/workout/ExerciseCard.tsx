@@ -1,7 +1,7 @@
 "use client";
 
-import type { ResolvedExercise, EquipmentDisplay } from "@/lib/types";
-import { repTargetDisplay, formatRestTime, PHASE_COLORS, isTimeBased, cleanWeight } from "@/lib/types";
+import type { ResolvedExercise, EquipmentDisplay, PreviousExercisePerformance } from "@/lib/types";
+import { repTargetDisplay, formatRestTime, formatTimeValue, PHASE_COLORS, isTimeBased, cleanWeight } from "@/lib/types";
 import { equipmentDisplayText } from "@/lib/equipment-calculator";
 
 interface ExerciseCardProps {
@@ -9,6 +9,7 @@ interface ExerciseCardProps {
   setNumber: number;
   weight: number;
   equipmentDisplay: EquipmentDisplay;
+  previousPerformance?: PreviousExercisePerformance;
   onEditWeight?: () => void;
   onEditSets?: () => void;
 }
@@ -56,7 +57,18 @@ function PlateLoadGuide({ equipmentDisplay }: { equipmentDisplay: EquipmentDispl
   );
 }
 
-function EquipmentContent({ equipmentDisplay, editable }: { equipmentDisplay: EquipmentDisplay; editable: boolean }) {
+function previousPerformanceText(exercise: ResolvedExercise, performance: PreviousExercisePerformance): string {
+  if (isTimeBased(exercise)) return formatTimeValue(performance.reps);
+  if (exercise.equipmentType === "bodyweight" || performance.weight <= 0) return `${performance.reps} reps`;
+  return `${cleanWeight(performance.weight)} lb × ${performance.reps}`;
+}
+
+function EquipmentContent({ exercise, equipmentDisplay, editable, previousPerformance }: {
+  exercise: ResolvedExercise;
+  equipmentDisplay: EquipmentDisplay;
+  editable: boolean;
+  previousPerformance?: PreviousExercisePerformance;
+}) {
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
@@ -72,12 +84,17 @@ function EquipmentContent({ equipmentDisplay, editable }: { equipmentDisplay: Eq
         </div>
         {editable && <span className="shrink-0 text-indigo-400 text-xs">Edit weight</span>}
       </div>
+      {previousPerformance && (
+        <p className="mt-2 text-sm font-medium text-gray-300">
+          Last time: {previousPerformanceText(exercise, previousPerformance)}
+        </p>
+      )}
       <PlateLoadGuide equipmentDisplay={equipmentDisplay} />
     </div>
   );
 }
 
-export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, onEditWeight, onEditSets }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, previousPerformance, onEditWeight, onEditSets }: ExerciseCardProps) {
   const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
 
   return (
@@ -120,11 +137,11 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, on
           onClick={onEditWeight}
           className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4 w-full text-left cursor-pointer active:bg-indigo-950/80"
         >
-          <EquipmentContent equipmentDisplay={equipmentDisplay} editable />
+          <EquipmentContent exercise={exercise} equipmentDisplay={equipmentDisplay} editable previousPerformance={previousPerformance} />
         </button>
       ) : (
         <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-4 mb-4">
-          <EquipmentContent equipmentDisplay={equipmentDisplay} editable={false} />
+          <EquipmentContent exercise={exercise} equipmentDisplay={equipmentDisplay} editable={false} previousPerformance={previousPerformance} />
         </div>
       )}
 

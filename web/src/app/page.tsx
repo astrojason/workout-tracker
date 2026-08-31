@@ -24,7 +24,7 @@ export default function HomePage() {
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
-  const { sessions } = useHistory(user?.uid ?? null);
+  const { sessions, loading: historyLoading } = useHistory(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
   const { showError } = useError();
 
@@ -165,7 +165,7 @@ export default function HomePage() {
     );
   }
 
-  if (loading) {
+  if (loading || historyLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
@@ -242,7 +242,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined, sessions);
               }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.id, day);
@@ -250,7 +250,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined);
+                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined, sessions);
               }}
             />
           ))}

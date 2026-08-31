@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type {
   Workout, ActiveSession, CompletedSet, PRResult, UserEquipmentConfig, ExerciseDefinition,
+  WorkoutSessionDoc,
 } from "@/lib/types";
 import { resolveWorkout } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
@@ -11,6 +12,7 @@ import { saveSession, updateExerciseDefinitionWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
+import { buildPreviousPerformanceMap } from "@/lib/last-performance";
 
 // Returns the rest duration in seconds before moving to the NEXT exercise.
 // restAfter === false → 0 (no rest); restAfter is a number → use it;
@@ -225,7 +227,8 @@ export function useWorkout(userId: string | null) {
   const startWorkout = useCallback((
     workout: Workout,
     definitions: Record<string, ExerciseDefinition>,
-    equipmentConfig?: UserEquipmentConfig
+    equipmentConfig?: UserEquipmentConfig,
+    previousSessions: WorkoutSessionDoc[] = [],
   ): boolean => {
     if (!userId) return false;
     try {
@@ -241,6 +244,7 @@ export function useWorkout(userId: string | null) {
       setSession({
         workout: resolvedWorkout,
         resolvedWeights,
+        previousPerformances: buildPreviousPerformanceMap(resolvedWorkout.exercises, previousSessions),
         currentExerciseIndex: 0,
         currentSetNumber: 1,
         completedSets: [],

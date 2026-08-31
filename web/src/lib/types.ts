@@ -272,6 +272,7 @@ export type EquipmentDisplay =
 export interface ActiveSession {
   workout: ResolvedWorkout;
   resolvedWeights: Record<string, number>; // exerciseId -> weight
+  previousPerformances?: Record<string, PreviousExercisePerformance>; // optional for sessions persisted before v1.10
   currentExerciseIndex: number;
   currentSetNumber: number;
   completedSets: CompletedSet[];
@@ -279,6 +280,11 @@ export interface ActiveSession {
   restTimeRemaining: number;
   startTime: Date;
   prsAchieved: PRResult[];
+}
+
+export interface PreviousExercisePerformance {
+  weight: number;
+  reps: number;
 }
 
 export interface PRResult {
