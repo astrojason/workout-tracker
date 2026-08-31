@@ -201,6 +201,21 @@ export interface WorkoutSessionDoc {
   sets: CompletedSet[];
 }
 
+export interface BodyMeasurementInput {
+  date: Date;
+  weight: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  arm?: number;
+  thigh?: number;
+}
+
+export interface BodyMeasurementDoc extends Omit<BodyMeasurementInput, "date"> {
+  id: string;
+  date: Timestamp | Date;
+}
+
 export interface PersonalRecordDoc {
   exerciseName: string;
   recordType: "weight" | "estimated1RM" | "volume";

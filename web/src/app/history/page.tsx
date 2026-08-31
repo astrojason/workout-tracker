@@ -11,6 +11,8 @@ import { formatDuration, formatTimeValue } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { BodyMetricsSection } from "@/components/history/BodyMetricsSection";
+import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
 
 const SESSIONS_PAGE_SIZE = 10;
 const EXERCISES_PAGE_SIZE = 10;
@@ -20,6 +22,7 @@ export default function HistoryPage() {
   const { showError } = useError();
   const { sessions, exerciseStats, loading } = useHistory(user?.uid ?? null);
   const { programs } = usePrograms(user?.uid ?? null);
+  const bodyMetrics = useBodyMeasurements(user?.uid ?? null);
   const [showAllExercises, setShowAllExercises] = useState(false);
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [copyProgramId, setCopyProgramId] = useState("");
@@ -100,6 +103,15 @@ export default function HistoryPage() {
           </div>
         </div>
       )}
+
+      <BodyMetricsSection
+        entries={bodyMetrics.entries}
+        loading={bodyMetrics.loading}
+        saving={bodyMetrics.saving}
+        deletingId={bodyMetrics.deletingId}
+        onSave={bodyMetrics.save}
+        onDelete={bodyMetrics.remove}
+      />
 
       {/* Exercise Progress */}
       {exerciseStats.length > 0 && (

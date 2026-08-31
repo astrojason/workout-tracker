@@ -7,7 +7,7 @@ import { db } from "./firebase";
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
   CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig, ExerciseDefinition,
-  EquipmentType, ProgressionRule,
+  EquipmentType, ProgressionRule, BodyMeasurementDoc, BodyMeasurementInput,
 } from "./types";
 
 // ── Path helpers ──
@@ -35,6 +35,9 @@ function prsCol(userId: string) {
 }
 function exerciseDefinitionsCol(userId: string) {
   return collection(db, "users", userId, "exerciseDefinitions");
+}
+function bodyMeasurementsCol(userId: string) {
+  return collection(db, "users", userId, "bodyMeasurements");
 }
 
 // ── Settings ──
@@ -399,6 +402,29 @@ export async function getSession(
 
 export async function deleteSession(userId: string, sessionId: string): Promise<void> {
   await deleteDoc(doc(sessionsCol(userId), sessionId));
+}
+
+// ── Body measurements ──
+
+export async function getBodyMeasurements(userId: string): Promise<BodyMeasurementDoc[]> {
+  const snap = await getDocs(query(bodyMeasurementsCol(userId), orderBy("date", "asc")));
+  return snap.docs.map((entry) => ({ id: entry.id, ...entry.data() } as BodyMeasurementDoc));
+}
+
+export async function saveBodyMeasurement(
+  userId: string,
+  measurement: BodyMeasurementInput,
+): Promise<string> {
+  const { date, ...values } = measurement;
+  const ref = await addDoc(bodyMeasurementsCol(userId), {
+    date: Timestamp.fromDate(date),
+    ...values,
+  });
+  return ref.id;
+}
+
+export async function deleteBodyMeasurement(userId: string, measurementId: string): Promise<void> {
+  await deleteDoc(doc(bodyMeasurementsCol(userId), measurementId));
 }
 
 export async function getCompletedDays(

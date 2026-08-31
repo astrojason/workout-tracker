@@ -19,24 +19,22 @@ a checklist-vs-set workout mode, a rest timer, CSV/XLSX import, and PR detection
 
 ## Tier 2 — moderate effort, strong differentiators
 
-3. **Body-weight / measurements tracking.** Weekly weigh-in + optional
-   measurements, charted alongside lift progress.
-4. **Workout notes / RPE per set.** Optional field on `CompletedSet` ("felt
+3. **Workout notes / RPE per set.** Optional field on `CompletedSet` ("felt
    heavy," RPE 8) — turns the log into a training journal.
-5. **Auto-progression suggestions surfaced in-UI.** `progression-service.ts`
+4. **Auto-progression suggestions surfaced in-UI.** `progression-service.ts`
    already computes this — show the reasoning ("last time: 135×8, suggested
    today: 140×6") at the top of the workout instead of leaving it invisible.
-6. **Apple Watch companion (iOS side).** WatchKit extension showing current
+5. **Apple Watch companion (iOS side).** WatchKit extension showing current
    exercise + rest timer + a "log set" button, built on the existing
    `WorkoutManager` domain model. Solves the no-phone-in-hand-between-sets pain.
 
 ## Tier 3 — bigger bets
 
-7. **Program templates / sharing.** "Duplicate as new program" plus
+6. **Program templates / sharing.** "Duplicate as new program" plus
    export/import of a full program (not just history via `week-export.ts`).
-8. **Multi-metric dashboard on History.** Cross-exercise volume/1RM trends,
+7. **Multi-metric dashboard on History.** Cross-exercise volume/1RM trends,
     extending existing Recharts infrastructure.
-9. **Push notifications** for rest-timer-done and "time to train" reminders
+8. **Push notifications** for rest-timer-done and "time to train" reminders
     (service worker + permission flow).
 
 ## Equipment coverage (loose threads from reference/equipment.md)
@@ -45,11 +43,11 @@ The equipment-type gap itself is closed (`pulley` and `loop_band` were the
 last two additions per git history) — these are the two remaining
 documented loose ends, both narrow:
 
-10. **Loop band resistance ranges.** Serious Steel bands show a known lb
+9. **Loop band resistance ranges.** Serious Steel bands show a known lb
     range per color (`equipment-calculator.ts`); loop bands don't, because no
     lb range data exists for them yet. Low priority — blocked on sourcing the
     manufacturer's numbers, not on engineering effort.
-11. **Loop band `Equip Detail` validation.** Band colors must match the known
+10. **Loop band `Equip Detail` validation.** Band colors must match the known
     list exactly or display as "Unknown Band"; loop band sizes aren't
     validated at all — any string is accepted and shown as-is. Cheap
     consistency fix if it ever causes a real mismatch in practice.
