@@ -27,7 +27,7 @@ export const DEFAULT_EQUIPMENT_CONFIG: UserEquipmentConfig = {
   kettlebells: [...KETTLEBELL_WEIGHTS],
   bands: [...ALL_BAND_COLORS],
   loopBands: [...ALL_LOOP_BAND_SIZES],
-  assistedPullupBands: 2,
+  assistedPullupBands: 4,
   grippers: [...ALL_COC_LEVELS],
 };
 
