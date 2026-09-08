@@ -20,7 +20,11 @@ import { calculateWorkoutConsistency } from "@/lib/workout-consistency";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const { activePrograms, settings, loading, getTodaysWorkout, getAvailableDays, getCompletedDaysForProgram, currentWeek, refreshCompletedDays, getWorkoutsForDay } = usePrograms(user?.uid ?? null);
+  const {
+    activePrograms, settings, loading, getTodaysWorkout, getAvailableDays,
+    getCompletedDaysForProgram, getSkippedDaysForProgram, markDaySkipped,
+    currentWeek, refreshCompletedDays, getWorkoutsForDay,
+  } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
@@ -238,6 +242,14 @@ export default function HomePage() {
               todaysWorkout={getTodaysWorkout(program.id)}
               availableDays={getAvailableDays(program.id)}
               completedDays={getCompletedDaysForProgram(program.id)}
+              skippedDays={getSkippedDaysForProgram(program.id)}
+              onSkipDay={async (day) => {
+                try {
+                  await markDaySkipped(program.id, day);
+                } catch (err) {
+                  showError(err);
+                }
+              }}
               onStartWorkout={(w) => {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);

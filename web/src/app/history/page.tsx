@@ -183,12 +183,14 @@ export default function HistoryPage() {
                     {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {formatDuration(session.durationSeconds)}
+                    {session.skipped ? "Skipped" : formatDuration(session.durationSeconds)}
                   </div>
                 </div>
-                {session.completed && (
+                {session.skipped ? (
+                  <span className="ml-3 text-amber-500 text-xs font-semibold">Skipped</span>
+                ) : session.completed ? (
                   <span className="ml-3 text-green-400">&#x2713;</span>
-                )}
+                ) : null}
               </Link>
             );
           })}

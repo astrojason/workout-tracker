@@ -123,8 +123,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           <div className="text-xs text-gray-400">Sets Done</div>
         </div>
         <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-          <div className={`font-bold ${session.completed ? "text-green-400" : "text-yellow-400"}`}>
-            {session.completed ? "Done" : "Partial"}
+          <div className={`font-bold ${session.skipped ? "text-amber-500" : session.completed ? "text-green-400" : "text-yellow-400"}`}>
+            {session.skipped ? "Skipped" : session.completed ? "Done" : "Partial"}
           </div>
           <div className="text-xs text-gray-400">Status</div>
         </div>
@@ -132,7 +132,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Exercises */}
       {groups.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No sets recorded.</p>
+        <p className="text-gray-500 text-center py-8">
+          {session.skipped ? "Marked as skipped — no sets recorded." : "No sets recorded."}
+        </p>
       ) : (
         <div className="space-y-4">
           {groups.map(({ name, sets }) => {

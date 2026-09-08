@@ -199,6 +199,10 @@ export interface WorkoutSessionDoc {
   completed: boolean;
   durationSeconds: number;
   sets: CompletedSet[];
+  // Explicit "I didn't train this day" marker — distinguishes a deliberate skip
+  // (no sets, completed: false) from silence in history or a partially-finished
+  // session. Never true alongside completed: true.
+  skipped?: boolean;
 }
 
 export interface BodyMeasurementInput {

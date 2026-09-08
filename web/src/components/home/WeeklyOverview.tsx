@@ -27,9 +27,10 @@ function getThisWeekDates(): Record<string, string> {
 interface WeeklyOverviewProps {
   availableDays: string[];
   completedDays: Set<string>;
+  skippedDays?: Set<string>;
 }
 
-export function WeeklyOverview({ availableDays, completedDays }: WeeklyOverviewProps) {
+export function WeeklyOverview({ availableDays, completedDays, skippedDays }: WeeklyOverviewProps) {
   const currentDay = todayIndex();
   const weekDates = getThisWeekDates();
 
@@ -39,15 +40,19 @@ export function WeeklyOverview({ availableDays, completedDays }: WeeklyOverviewP
         const fullDay = FULL_DAYS[i];
         const isAvailable = availableDays.includes(fullDay);
         const isCompleted = completedDays.has(weekDates[fullDay] ?? "");
+        const isSkipped = !isCompleted && (skippedDays?.has(weekDates[fullDay] ?? "") ?? false);
         const isToday = i === currentDay;
 
         return (
           <div key={day} className="flex flex-col items-center gap-1">
             <span className="text-[10px] text-gray-500">{day}</span>
             <div
+              title={isSkipped ? "Skipped" : undefined}
               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
                 isCompleted
                   ? "bg-green-600 text-white"
+                  : isSkipped
+                  ? "bg-amber-900/60 text-amber-400"
                   : isToday
                   ? "bg-indigo-600 text-white ring-2 ring-indigo-400"
                   : isAvailable
@@ -55,7 +60,7 @@ export function WeeklyOverview({ availableDays, completedDays }: WeeklyOverviewP
                   : "bg-gray-800/50 text-gray-600"
               }`}
             >
-              {isCompleted ? "\u2713" : ""}
+              {isCompleted ? "\u2713" : isSkipped ? "\u2013" : ""}
             </div>
           </div>
         );

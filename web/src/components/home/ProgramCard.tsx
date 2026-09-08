@@ -26,21 +26,27 @@ interface ProgramCardProps {
   todaysWorkout: Workout | null;
   availableDays: string[];
   completedDays: Set<string>;
+  skippedDays?: Set<string>;
   // Returns whether the workout actually started, so the button knows
   // whether to keep showing its loading state or release it.
   onStartWorkout: (workout: Workout) => boolean;
   onSelectDay: (day: string) => boolean;
+  // Marks a scheduled day as deliberately skipped rather than leaving it as
+  // silence in history. Optional so callers that don't support it (e.g. tests
+  // pinned to the old prop set) still render.
+  onSkipDay?: (day: string) => void;
 }
 
 export function ProgramCard({
-  program, week, todaysWorkout, availableDays, completedDays,
-  onStartWorkout, onSelectDay,
+  program, week, todaysWorkout, availableDays, completedDays, skippedDays,
+  onStartWorkout, onSelectDay, onSkipDay,
 }: ProgramCardProps) {
   const [showDays, setShowDays] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const weekDates = getThisWeekDates();
   const todayISO = new Date().toLocaleDateString("en-CA");
   const isCompleted = todaysWorkout ? completedDays.has(todayISO) : false;
+  const isTodaySkipped = todaysWorkout ? (skippedDays?.has(todayISO) ?? false) : false;
 
   // Starting a workout is otherwise a synchronous local state flip with no
   // network round-trip, so React batches it into the same commit as this
@@ -83,17 +89,20 @@ export function ProgramCard({
       <WeeklyOverview
         availableDays={availableDays}
         completedDays={completedDays}
+        skippedDays={skippedDays}
       />
 
       {/* Today's Workout Button */}
       {todaysWorkout && (
         <button
           onClick={() => handleStart(todaysWorkout)}
-          disabled={isCompleted || isStarting}
+          disabled={isCompleted || isTodaySkipped || isStarting}
           aria-busy={isStarting}
           className={`w-full mt-4 p-4 rounded-xl font-semibold flex items-center justify-between transition ${
             isCompleted
               ? "bg-green-700 cursor-default"
+              : isTodaySkipped
+              ? "bg-amber-950/60 cursor-default"
               : "bg-indigo-600 hover:bg-indigo-500 disabled:opacity-70"
           }`}
         >
@@ -101,9 +110,11 @@ export function ProgramCard({
             <div className="font-bold">
               {isCompleted
                 ? "Today's Workout Completed"
-                : isStarting
-                  ? "Starting..."
-                  : `Start ${todaysWorkout.dayOfWeek}`}
+                : isTodaySkipped
+                  ? "Today's Workout Skipped"
+                  : isStarting
+                    ? "Starting..."
+                    : `Start ${todaysWorkout.dayOfWeek}`}
             </div>
             <div className="text-sm opacity-80">
               {todaysWorkout.exercises.length} exercises
@@ -117,9 +128,18 @@ export function ProgramCard({
             />
           ) : (
             <span className="text-2xl">
-              {isCompleted ? "\u2713" : "\u25B6"}
+              {isCompleted ? "\u2713" : isTodaySkipped ? "\u2013" : "\u25B6"}
             </span>
           )}
+        </button>
+      )}
+
+      {todaysWorkout && !isCompleted && !isTodaySkipped && onSkipDay && (
+        <button
+          onClick={() => onSkipDay(todaysWorkout.dayOfWeek)}
+          className="w-full mt-1 text-xs text-gray-500 hover:text-gray-300 py-1"
+        >
+          Mark today as skipped
         </button>
       )}
 
@@ -133,19 +153,32 @@ export function ProgramCard({
 
       {showDays && (
         <div className="mt-2 space-y-1">
-          {availableDays.map((day) => (
-            <button
-              key={day}
-              onClick={() => handleSelectDay(day)}
-              disabled={isStarting}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm flex justify-between items-center disabled:opacity-50"
-            >
-              <span>{day}</span>
-              {completedDays.has(weekDates[day] ?? "") && (
-                <span className="text-green-400 text-xs">Done</span>
-              )}
-            </button>
-          ))}
+          {availableDays.map((day) => {
+            const dayDone = completedDays.has(weekDates[day] ?? "");
+            const daySkipped = !dayDone && (skippedDays?.has(weekDates[day] ?? "") ?? false);
+            return (
+              <div key={day} className="flex items-center gap-1">
+                <button
+                  onClick={() => handleSelectDay(day)}
+                  disabled={isStarting}
+                  className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm flex justify-between items-center disabled:opacity-50"
+                >
+                  <span>{day}</span>
+                  {dayDone && <span className="text-green-400 text-xs">Done</span>}
+                  {daySkipped && <span className="text-amber-500 text-xs">Skipped</span>}
+                </button>
+                {!dayDone && !daySkipped && onSkipDay && (
+                  <button
+                    onClick={() => onSkipDay(day)}
+                    disabled={isStarting}
+                    className="px-2 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    Skip
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

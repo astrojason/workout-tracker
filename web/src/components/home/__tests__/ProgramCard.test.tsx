@@ -34,21 +34,27 @@ const todaysWorkout: Workout = {
 function renderCard(overrides: {
   onStartWorkout?: (w: Workout) => boolean;
   onSelectDay?: (day: string) => boolean;
+  onSkipDay?: (day: string) => void;
+  completedDays?: Set<string>;
+  skippedDays?: Set<string>;
 } = {}) {
   const onStartWorkout = overrides.onStartWorkout ?? vi.fn().mockReturnValue(true);
   const onSelectDay = overrides.onSelectDay ?? vi.fn().mockReturnValue(true);
+  const onSkipDay = overrides.onSkipDay ?? vi.fn();
   render(
     <ProgramCard
       program={program}
       week={1}
       todaysWorkout={todaysWorkout}
       availableDays={["Monday", "Wednesday"]}
-      completedDays={new Set()}
+      completedDays={overrides.completedDays ?? new Set()}
+      skippedDays={overrides.skippedDays}
       onStartWorkout={onStartWorkout}
       onSelectDay={onSelectDay}
+      onSkipDay={onSkipDay}
     />
   );
-  return { onStartWorkout, onSelectDay };
+  return { onStartWorkout, onSelectDay, onSkipDay };
 }
 
 describe("ProgramCard", () => {
@@ -94,5 +100,57 @@ describe("ProgramCard", () => {
 
     expect(button).not.toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("calls onSkipDay when 'Mark today as skipped' is clicked", () => {
+    const { onSkipDay } = renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: /mark today as skipped/i }));
+
+    expect(onSkipDay).toHaveBeenCalledWith("Monday");
+  });
+
+  it("shows today's workout as skipped and hides the skip link once skipped", () => {
+    renderCard({ skippedDays: new Set([new Date().toLocaleDateString("en-CA")]) });
+
+    expect(screen.getByText(/today's workout skipped/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mark today as skipped/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /today's workout skipped/i })).toBeDisabled();
+  });
+
+  it("a completed day takes priority over a skipped one for today's button", () => {
+    const todayISO = new Date().toLocaleDateString("en-CA");
+    renderCard({ completedDays: new Set([todayISO]), skippedDays: new Set([todayISO]) });
+
+    expect(screen.getByText(/today's workout completed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/today's workout skipped/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a Skip button for a day not yet completed and calls onSkipDay when clicked", () => {
+    const { onSkipDay } = renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: /choose different day/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Skip" })[0]);
+
+    expect(onSkipDay).toHaveBeenCalledWith("Monday");
+  });
+
+  it("shows a Skipped tag instead of a Skip button once a day is marked skipped", () => {
+    // Mirrors ProgramCard's internal getThisWeekDates() so "Monday" maps to the
+    // same ISO date the component computes for the current week.
+    const today = new Date();
+    const dayIdx = today.getDay();
+    const mondayOffset = dayIdx === 0 ? -6 : 1 - dayIdx;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const mondayISO = monday.toLocaleDateString("en-CA");
+
+    renderCard({ skippedDays: new Set([mondayISO]) });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose different day/i }));
+
+    const mondayRow = screen.getByText("Monday").closest("button")!;
+    expect(mondayRow).toHaveTextContent("Skipped");
+    expect(screen.queryAllByRole("button", { name: "Skip" })).toHaveLength(1); // only Wednesday
   });
 });

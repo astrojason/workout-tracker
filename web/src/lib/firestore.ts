@@ -323,6 +323,26 @@ export async function saveSession(userId: string, session: Omit<WorkoutSessionDo
   return ref.id;
 }
 
+// Records a deliberate "I didn't train this day" marker so it shows up distinctly
+// in history instead of as silence. No sets, no duration — just a dated placeholder.
+export async function saveSkippedSession(
+  userId: string,
+  session: { programId: string; programName: string; week: number; dayOfWeek: string; date?: Date }
+): Promise<string> {
+  const ref = await addDoc(sessionsCol(userId), {
+    programId: session.programId,
+    programName: session.programName,
+    week: session.week,
+    dayOfWeek: session.dayOfWeek,
+    date: session.date ? Timestamp.fromDate(session.date) : Timestamp.now(),
+    completed: false,
+    skipped: true,
+    durationSeconds: 0,
+    sets: [],
+  });
+  return ref.id;
+}
+
 export async function getTodayChecklistSession(
   userId: string, programId: string, dayOfWeek: string
 ): Promise<(WorkoutSessionDoc & { firestoreId: string }) | null> {
@@ -435,6 +455,29 @@ export async function getCompletedDays(
     where("programId", "==", programId),
     where("week", "==", week),
     where("completed", "==", true)
+  );
+  const snap = await getDocs(q);
+  const days = new Set<string>();
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    if (!data.dayOfWeek) return;
+    const sessionDate = data.date instanceof Timestamp
+      ? data.date.toDate()
+      : new Date(data.date);
+    if (since && sessionDate < since) return;
+    days.add(sessionDate.toLocaleDateString("en-CA")); // YYYY-MM-DD in local time
+  });
+  return days;
+}
+
+export async function getSkippedDays(
+  userId: string, programId: string, week: number, since?: Date
+): Promise<Set<string>> {
+  const q = query(
+    sessionsCol(userId),
+    where("programId", "==", programId),
+    where("week", "==", week),
+    where("skipped", "==", true)
   );
   const snap = await getDocs(q);
   const days = new Set<string>();

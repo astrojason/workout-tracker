@@ -5,7 +5,7 @@ import type { Program, Workout, UserSettings } from "@/lib/types";
 import {
   getPrograms, getSettings, updateSettings,
   getWorkoutsForProgram,
-  getCompletedDays, saveProgram, saveWorkout,
+  getCompletedDays, getSkippedDays, saveSkippedSession, saveProgram, saveWorkout,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
   renameProgram as renameProgramDoc, migrateProgramIds,
 } from "@/lib/firestore";
@@ -23,6 +23,7 @@ export function usePrograms(userId: string | null) {
   });
   const [workoutsCache, setWorkoutsCache] = useState<Record<string, Workout[]>>({});
   const [completedDaysCache, setCompletedDaysCache] = useState<Record<string, Set<string>>>({});
+  const [skippedDaysCache, setSkippedDaysCache] = useState<Record<string, Set<string>>>({});
   const [loading, setLoading] = useState(true);
 
   // Load programs and settings
@@ -70,6 +71,10 @@ export function usePrograms(userId: string | null) {
         const completed = await getCompletedDays(userId!, prog.id, week, since);
         if (cancelled) return;
         setCompletedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: completed }));
+
+        const skipped = await getSkippedDays(userId!, prog.id, week, since);
+        if (cancelled) return;
+        setSkippedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: skipped }));
       }
       setLoading(false);
     }
@@ -97,6 +102,8 @@ export function usePrograms(userId: string | null) {
       : prog?.createdAt instanceof Date ? prog.createdAt : undefined;
     const completed = await getCompletedDays(userId, programId, week, since);
     setCompletedDaysCache((prev) => ({ ...prev, [`${programId}_${week}`]: completed }));
+    const skipped = await getSkippedDays(userId, programId, week, since);
+    setSkippedDaysCache((prev) => ({ ...prev, [`${programId}_${week}`]: skipped }));
   }, [userId, settings, programs]);
 
   const getWorkoutsForDay = useCallback((programId: string, day: string): Workout | null => {
@@ -123,6 +130,11 @@ export function usePrograms(userId: string | null) {
     const week = settings.currentWeeks[programId] || 1;
     return completedDaysCache[`${programId}_${week}`] || new Set();
   }, [completedDaysCache, settings]);
+
+  const getSkippedDaysForProgram = useCallback((programId: string): Set<string> => {
+    const week = settings.currentWeeks[programId] || 1;
+    return skippedDaysCache[`${programId}_${week}`] || new Set();
+  }, [skippedDaysCache, settings]);
 
   async function _cacheWorkoutsForProgram(progId: string) {
     if (!userId) return;
@@ -278,7 +290,29 @@ export function usePrograms(userId: string | null) {
         : prog.createdAt instanceof Date ? prog.createdAt : undefined;
       const completed = await getCompletedDays(userId, prog.id, week, since);
       setCompletedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: completed }));
+      const skipped = await getSkippedDays(userId, prog.id, week, since);
+      setSkippedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: skipped }));
     }
+  }, [userId, programs, settings]);
+
+  // Records a deliberate skip for a scheduled day — distinct from silence in
+  // history — then refreshes the cache backing the weekly overview UI.
+  const markDaySkipped = useCallback(async (programId: string, day: string) => {
+    if (!userId) return;
+    const program = programs.find((p) => p.id === programId);
+    if (!program) return;
+    const week = settings.currentWeeks[programId] || 1;
+    await saveSkippedSession(userId, {
+      programId,
+      programName: program.name,
+      week,
+      dayOfWeek: day,
+    });
+    const since = program.createdAt instanceof Timestamp
+      ? program.createdAt.toDate()
+      : program.createdAt instanceof Date ? program.createdAt : undefined;
+    const skipped = await getSkippedDays(userId, programId, week, since);
+    setSkippedDaysCache((prev) => ({ ...prev, [`${programId}_${week}`]: skipped }));
   }, [userId, programs, settings]);
 
   const activePrograms = programs.filter((p) => !p.archived);
@@ -296,6 +330,8 @@ export function usePrograms(userId: string | null) {
     getWorkoutsForDay,
     getAvailableDays,
     getCompletedDaysForProgram,
+    getSkippedDaysForProgram,
+    markDaySkipped,
     importXLSX,
     reimportProgram,
     archiveProgram,
