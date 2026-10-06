@@ -293,7 +293,7 @@ export async function getWorkoutsForProgram(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Workout));
 }
 
-async function getAllWorkoutsForProgram(
+export async function getAllWorkoutsForProgram(
   userId: string, programId: string
 ): Promise<Workout[]> {
   const q = query(workoutsCol(userId), where("programId", "==", programId));

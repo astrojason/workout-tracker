@@ -9,6 +9,9 @@ import { cleanWeight, formatDuration, formatTimeValue } from "@/lib/types";
 import type { WorkoutSessionDoc, CompletedSet } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
+import { CoachSection } from "@/components/workout/CoachSection";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { useHistory } from "@/hooks/useHistory";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 const RATING_STYLES: Record<string, string> = {
@@ -31,6 +34,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const { user } = useAuth();
   const { showError } = useError();
   const router = useRouter();
+  const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const { sessions } = useHistory(user?.uid ?? null);
   const [session, setSession] = useState<WorkoutSessionDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -192,6 +197,24 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </div>
             );
           })}
+        </div>
+      )}
+
+      {completedSets.length > 0 && !session.skipped && (
+        <div className="mt-6">
+          <CoachSection
+            programId={session.programId}
+            programName={session.programName}
+            week={session.week}
+            dayOfWeek={session.dayOfWeek}
+            durationSeconds={session.durationSeconds}
+            sets={completedSets}
+            prs={[]}
+            sessionDate={date}
+            sessions={sessions}
+            definitions={definitions}
+            onApplied={reloadDefinitions}
+          />
         </div>
       )}
 

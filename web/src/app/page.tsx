@@ -10,6 +10,7 @@ import { ProgramCard } from "@/components/home/ProgramCard";
 import { ConsistencyCard } from "@/components/home/ConsistencyCard";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
+import { CoachSection } from "@/components/workout/CoachSection";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
 import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
 import type { ResolvedWorkout, Workout } from "@/lib/types";
@@ -23,7 +24,7 @@ export default function HomePage() {
   const {
     activePrograms, settings, loading, getTodaysWorkout, getAvailableDays,
     getCompletedDaysForProgram, getSkippedDaysForProgram, markDaySkipped,
-    currentWeek, refreshCompletedDays, getWorkoutsForDay,
+    currentWeek, refreshCompletedDays, getWorkoutsForDay, updateWorkout,
   } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
@@ -70,6 +71,22 @@ export default function HomePage() {
           isSaving={workout.isSaving}
           saveError={workout.saveError}
           onRetrySave={workout.retrySave}
+          coachSlot={
+            <CoachSection
+              programId={workout.session.workout.programId}
+              programName={workout.session.workout.programName}
+              week={workout.session.workout.week}
+              dayOfWeek={workout.session.workout.dayOfWeek}
+              durationSeconds={Math.round((Date.now() - workout.session.startTime.getTime()) / 1000)}
+              sets={workout.session.completedSets.filter((s) => s.completed)}
+              prs={workout.session.prsAchieved.map((p) => ({ exerciseName: p.exerciseName, type: p.type, value: p.value }))}
+              sessionDate={workout.session.startTime}
+              sessions={sessions}
+              definitions={definitions}
+              onSaveWorkout={updateWorkout}
+              onApplied={reloadDefinitions}
+            />
+          }
           onDone={() => {
             workout.dismissWorkout();
             refreshCompletedDays();

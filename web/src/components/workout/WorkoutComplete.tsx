@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { ActiveSession } from "@/lib/types";
 import { cleanWeight, formatDuration, isTimeBased, formatTimeValue } from "@/lib/types";
 
@@ -9,9 +10,10 @@ interface WorkoutCompleteProps {
   isSaving?: boolean;
   saveError?: string | null;
   onRetrySave?: () => void;
+  coachSlot?: ReactNode; // shown once the session is saved, so the coach sees persisted results
 }
 
-export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetrySave }: WorkoutCompleteProps) {
+export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetrySave, coachSlot }: WorkoutCompleteProps) {
   const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
   const completedSets = session.completedSets.filter((s) => s.completed);
   const exerciseNames = [...new Set(session.completedSets.map((s) => s.exerciseName))];
@@ -106,6 +108,8 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
           </div>
         </div>
 
+        {!isSaving && !saveError && coachSlot}
+
         {/* View details link */}
         <div className="mb-4 text-center">
           <a href="#session-details" className="text-indigo-400 text-sm hover:text-indigo-300 transition">
@@ -148,26 +152,33 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
         {/* Session details table */}
         <div id="session-details" className="mt-6">
           <h2 className="font-bold mb-3">Set Details</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-gray-500 uppercase">
-                <th className="py-2 text-left">Set</th>
-                <th className="py-2 text-right">Weight</th>
-                <th className="py-2 text-right">Reps</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {session.completedSets.map((s) => (
-                <tr key={s.id}>
-                  <td className="py-2 text-gray-400">{s.setNumber}</td>
-                  <td className="py-2 text-right font-mono">
-                    {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lbs` : "BW"}
-                  </td>
-                  <td className="py-2 text-right font-mono">{s.actualReps}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-4">
+            {grouped.map((group) => (
+              <div key={group.name}>
+                <h3 className="text-sm font-semibold text-gray-300 mb-1">{group.name}</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 uppercase">
+                      <th className="py-2 text-left">Set</th>
+                      <th className="py-2 text-right">Weight</th>
+                      <th className="py-2 text-right">Reps</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {group.sets.map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-2 text-gray-400">{s.setNumber}</td>
+                        <td className="py-2 text-right font-mono">
+                          {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lbs` : "BW"}
+                        </td>
+                        <td className="py-2 text-right font-mono">{s.actualReps}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
