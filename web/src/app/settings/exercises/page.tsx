@@ -198,7 +198,7 @@ function ExerciseDefinitionEditRow({
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Current Weight (lbs)" noMargin>
+        <Field label="Default Weight (lbs) — programs track their own" noMargin>
           <input type="number" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} step="2.5" className="input-field" />
         </Field>
         <Field label="Hard Streak (0-2)" noMargin>

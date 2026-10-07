@@ -58,7 +58,12 @@ function PlateLoadGuide({ equipmentDisplay }: { equipmentDisplay: EquipmentDispl
 }
 
 function previousPerformanceText(exercise: ResolvedExercise, performance: PreviousExercisePerformance): string {
-  if (isTimeBased(exercise)) return formatTimeValue(performance.reps);
+  // Assisted exercises store the band count in weight; show it instead of lb (and alongside the time for holds).
+  const bands = exercise.equipmentType === "assisted_pullup" && performance.weight > 0
+    ? `${cleanWeight(performance.weight)} ${performance.weight === 1 ? "band" : "bands"}`
+    : null;
+  if (isTimeBased(exercise)) return bands ? `${bands} × ${formatTimeValue(performance.reps)}` : formatTimeValue(performance.reps);
+  if (bands) return `${bands} × ${performance.reps}`;
   if (exercise.equipmentType === "bodyweight" || performance.weight <= 0) return `${performance.reps} reps`;
   return `${cleanWeight(performance.weight)} lb × ${performance.reps}`;
 }

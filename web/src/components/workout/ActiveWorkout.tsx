@@ -79,7 +79,8 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
   onCancel: () => void;
 }) {
   const isPowerBlock = exercise.equipmentType === "powerblock";
-  const step = isPowerBlock ? 2.5 : 5;
+  const isAssisted = exercise.equipmentType === "assisted_pullup";
+  const step = isPowerBlock ? 2.5 : isAssisted ? 1 : 5;
   const [weight, setWeight] = useState(
     isPowerBlock ? nearestPowerBlock(currentWeight, equipmentConfig) : currentWeight
   );
@@ -103,7 +104,7 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
             -
           </button>
           <div>
-            <label htmlFor="weight-editor-input" className="sr-only">Weight (lbs)</label>
+            <label htmlFor="weight-editor-input" className="sr-only">{isAssisted ? "Bands" : "Weight (lbs)"}</label>
             <input
               id="weight-editor-input"
               type="number"
@@ -120,7 +121,7 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
             +
           </button>
         </div>
-        <p className="text-xs text-gray-500 text-center mb-6">lbs</p>
+        <p className="text-xs text-gray-500 text-center mb-6">{isAssisted ? "bands" : "lbs"}</p>
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition">
             Cancel
@@ -267,7 +268,7 @@ export function ActiveWorkout({
           weight={weight}
           equipmentDisplay={equipDisplay}
           previousPerformance={session.previousPerformances?.[exercise.id]}
-          onEditWeight={weight > 0 ? () => setShowWeightEditor(true) : undefined}
+          onEditWeight={weight > 0 || exercise.equipmentType === "assisted_pullup" ? () => setShowWeightEditor(true) : undefined}
           onEditSets={() => setShowSetsEditor(true)}
         />
 
@@ -325,7 +326,7 @@ export function ActiveWorkout({
 
       {/* Action Buttons */}
       <div className="p-4 space-y-3">
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {timedExercise && timerRunning ? (
             <button
               onClick={() => { setTimerRunning(false); setShowSwitchSides(false); setTimerSide(1); setShowCompletion(true); }}
@@ -358,13 +359,13 @@ export function ActiveWorkout({
               </button>
               <button
                 onClick={startTimer}
-                className="flex-1 py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
+                className="order-first basis-full sm:order-none sm:basis-0 flex-1 py-4 rounded-xl bg-teal-600 hover:bg-teal-500 font-bold transition text-lg"
               >
                 Start Timer
               </button>
               <button
                 onClick={() => setShowCompletion(true)}
-                className="flex-1 py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
+                className="flex-[2] sm:flex-1 py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
               >
                 Complete Set
               </button>

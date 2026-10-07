@@ -20,8 +20,14 @@ function bestSet(sets: CompletedSet[], exercise: ResolvedExercise): CompletedSet
     exercise.equipmentType === "bodyweight" ||
     sets.every((set) => set.actualWeight <= 0);
 
+  // Assisted weight is a band count: fewer bands means less help, so it is the stronger set.
+  const fewerIsBetter = exercise.equipmentType === "assisted_pullup" && !compareByReps;
+
   return sets.reduce((best, candidate) => {
     if (compareByReps) return candidate.actualReps > best.actualReps ? candidate : best;
+    if (fewerIsBetter && candidate.actualWeight !== best.actualWeight) {
+      return candidate.actualWeight < best.actualWeight ? candidate : best;
+    }
     if (candidate.actualWeight !== best.actualWeight) {
       return candidate.actualWeight > best.actualWeight ? candidate : best;
     }
@@ -53,4 +59,19 @@ export function buildPreviousPerformanceMap(
   }
 
   return performances;
+}
+
+// Assisted exercises have no stored working weight (their "weight" is a band count the
+// lifter logs each time), so start them at the band count used last session.
+export function seedAssistedWeights(
+  exercises: ResolvedExercise[],
+  previous: Record<string, PreviousExercisePerformance>,
+): Record<string, number> {
+  const seeded: Record<string, number> = {};
+  for (const exercise of exercises) {
+    if (exercise.equipmentType !== "assisted_pullup" || exercise.currentWeight > 0) continue;
+    const bands = previous[exercise.id]?.weight ?? 0;
+    if (bands > 0) seeded[exercise.id] = bands;
+  }
+  return seeded;
 }

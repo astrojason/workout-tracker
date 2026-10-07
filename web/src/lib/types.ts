@@ -120,12 +120,34 @@ export function resolveWorkout(
   return { ...workout, exercises: workout.exercises.map((e) => resolveExercise(e, definitions)) };
 }
 
+// Working weight and hard-streak for one exercise within one program. The same exercise
+// can sit at a different weight in each program, so progress is tracked per program.
+export interface ProgramExerciseWeight {
+  currentWeight: number;
+  hardStreak: number;
+}
+
 export interface Program {
   id: string;
   name: string;
   totalWeeks: number;
   createdAt: Timestamp | Date;
   archived?: boolean;
+  weights?: Record<string, ProgramExerciseWeight>; // keyed by exercise definition id
+}
+
+// The exercise library with this program's weights laid over it. Exercises the program has
+// no weight for (e.g. programs from before per-program weights) keep the library's value.
+export function scopeDefinitions(
+  definitions: Record<string, ExerciseDefinition>,
+  program: Pick<Program, "weights"> | undefined,
+): Record<string, ExerciseDefinition> {
+  if (!program?.weights) return definitions;
+  const scoped: Record<string, ExerciseDefinition> = { ...definitions };
+  for (const [definitionId, w] of Object.entries(program.weights)) {
+    if (scoped[definitionId]) scoped[definitionId] = { ...scoped[definitionId], ...w };
+  }
+  return scoped;
 }
 
 export interface UserSettings {

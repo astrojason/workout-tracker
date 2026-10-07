@@ -7,7 +7,7 @@ import { db } from "./firebase";
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
   CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig, ExerciseDefinition,
-  EquipmentType, ProgressionRule, BodyMeasurementDoc, BodyMeasurementInput,
+  EquipmentType, ProgressionRule, BodyMeasurementDoc, BodyMeasurementInput, ProgramExerciseWeight,
 } from "./types";
 
 // ── Path helpers ──
@@ -83,15 +83,36 @@ export async function getPrograms(userId: string): Promise<Program[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Program));
 }
 
+export async function getProgram(userId: string, programId: string): Promise<Program | null> {
+  const snap = await getDoc(doc(programsCol(userId), programId));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Program) : null;
+}
+
 export async function saveProgram(userId: string, program: Omit<Program, "id"> & { id?: string }) {
   const id = program.id || program.name.toLowerCase().replace(/\s+/g, "-");
+  // merge: re-saving a program (re-import, rename) must not wipe its per-exercise weights.
   await setDoc(doc(programsCol(userId), id), {
     name: program.name,
     totalWeeks: program.totalWeeks,
     createdAt: program.createdAt || Timestamp.now(),
     archived: program.archived ?? false,
-  });
+  }, { merge: true });
   return id;
+}
+
+// Replaces every per-exercise weight for a program (used by import, where the spreadsheet wins).
+export async function setProgramWeights(
+  userId: string, programId: string, weights: Record<string, ProgramExerciseWeight>
+): Promise<void> {
+  await updateDoc(doc(programsCol(userId), programId), { weights });
+}
+
+export async function updateProgramExerciseWeight(
+  userId: string, programId: string, definitionId: string, currentWeight: number, hardStreak: number
+): Promise<void> {
+  await updateDoc(doc(programsCol(userId), programId), {
+    [`weights.${definitionId}`]: { currentWeight, hardStreak },
+  });
 }
 
 export async function setProgramArchived(userId: string, programId: string, archived: boolean) {

@@ -6,9 +6,9 @@ import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
-import { createExerciseDefinition, updateExerciseDefinitionWeight } from "@/lib/firestore";
+import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
-import { PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
+import { scopeDefinitions, PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
@@ -18,9 +18,9 @@ import { useError } from "@/components/providers/ErrorProvider";
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: programId } = use(params);
   const { user } = useAuth();
-  const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout } = usePrograms(user?.uid ?? null);
+  const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout, refreshPrograms } = usePrograms(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
-  const { definitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const { definitions: libraryDefinitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
   const { showError } = useError();
 
   // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
@@ -33,6 +33,8 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }, [programsLoading]);
 
   const program = programs.find((p) => p.id === programId);
+  // Weights are per program: show and edit this program's, falling back to the library's.
+  const definitions = scopeDefinitions(libraryDefinitions, program);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loadingWorkouts, setLoadingWorkouts] = useState(false);
@@ -95,10 +97,10 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       exercise = result.occurrence;
       const def = definitions[result.definitionId];
       if (def && result.weight !== def.currentWeight) {
-        await updateExerciseDefinitionWeight(user.uid, result.definitionId, result.weight, def.hardStreak);
+        await updateProgramExerciseWeight(user.uid, programId, result.definitionId, result.weight, def.hardStreak);
       }
     }
-    await reloadDefinitions();
+    await Promise.all([reloadDefinitions(), refreshPrograms()]);
 
     let updatedExercises: Exercise[];
     if (isNew) {

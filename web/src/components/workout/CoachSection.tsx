@@ -4,8 +4,9 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { auth } from "@/lib/firebase";
 import {
   getAllWorkoutsForProgram,
+  getProgram,
   saveWorkout,
-  updateExerciseDefinitionWeight,
+  updateProgramExerciseWeight,
 } from "@/lib/firestore";
 import {
   applyStructureAdjustment,
@@ -14,6 +15,7 @@ import {
   type CoachInput,
   type CoachResponse,
 } from "@/lib/coach";
+import { scopeDefinitions } from "@/lib/types";
 import type { CompletedSet, ExerciseDefinition, Workout, WorkoutSessionDoc } from "@/lib/types";
 import { CoachPanel } from "./CoachPanel";
 
@@ -34,9 +36,13 @@ interface CoachSectionProps {
 
 export function CoachSection(props: CoachSectionProps) {
   const { user } = useAuth();
-  const { programId, week, definitions } = props;
+  const { programId, week } = props;
 
-  const defByName = (name: string) => Object.values(definitions).find((d) => d.name === name);
+  // The library with this program's weights laid over it, read fresh so suggestions and
+  // applied changes always work from the program's current weights.
+  async function programDefinitions(userId: string): Promise<Record<string, ExerciseDefinition>> {
+    return scopeDefinitions(props.definitions, (await getProgram(userId, programId)) ?? undefined);
+  }
 
   async function upcomingWorkouts(userId: string): Promise<Workout[]> {
     const all = await getAllWorkoutsForProgram(userId, programId);
@@ -45,6 +51,8 @@ export function CoachSection(props: CoachSectionProps) {
 
   async function ask() {
     if (!user) throw new Error("Sign in to ask the coach");
+    const definitions = await programDefinitions(user.uid);
+    const defByName = (name: string) => Object.values(definitions).find((d) => d.name === name);
     const upcoming = await upcomingWorkouts(user.uid);
     const input: CoachInput = {
       programName: props.programName,
@@ -94,10 +102,11 @@ export function CoachSection(props: CoachSectionProps) {
 
   async function apply(s: { exerciseName: string; field: "weight" | "sets" | "repMin"; to: number }) {
     if (!user) throw new Error("Sign in to apply coach changes");
-    const def = defByName(s.exerciseName);
+    const definitions = await programDefinitions(user.uid);
+    const def = Object.values(definitions).find((d) => d.name === s.exerciseName);
     if (!def) throw new Error(`Exercise "${s.exerciseName}" not found in your library`);
     if (s.field === "weight") {
-      await updateExerciseDefinitionWeight(user.uid, def.id, s.to, def.hardStreak);
+      await updateProgramExerciseWeight(user.uid, programId, def.id, s.to, def.hardStreak);
     } else {
       const changed = applyStructureAdjustment(await upcomingWorkouts(user.uid), def.id, s.field, s.to, week);
       for (const w of changed) await (props.onSaveWorkout ?? ((x) => saveWorkout(user.uid, x)))(w);

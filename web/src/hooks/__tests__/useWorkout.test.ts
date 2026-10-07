@@ -3,8 +3,8 @@ import { renderHook, act } from "@testing-library/react";
 import { useWorkout } from "../useWorkout";
 import type { Workout, Exercise, ExerciseDefinition, EquipmentType, ProgressionRule, WorkoutSessionDoc } from "@/lib/types";
 
-const { updateExerciseDefinitionWeightMock } = vi.hoisted(() => ({
-  updateExerciseDefinitionWeightMock: vi.fn().mockResolvedValue(undefined),
+const { updateProgramExerciseWeightMock } = vi.hoisted(() => ({
+  updateProgramExerciseWeightMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock all external dependencies. progression-service itself is NOT mocked —
@@ -12,7 +12,7 @@ const { updateExerciseDefinitionWeightMock } = vi.hoisted(() => ({
 // liveEasyBump logic (already unit-tested in progression-service.test.ts).
 vi.mock("@/lib/firestore", () => ({
   saveSession: vi.fn().mockResolvedValue("session-id"),
-  updateExerciseDefinitionWeight: updateExerciseDefinitionWeightMock,
+  updateProgramExerciseWeight: updateProgramExerciseWeightMock,
 }));
 
 vi.mock("@/lib/pr-detector", () => ({
@@ -954,7 +954,7 @@ describe("useWorkout", () => {
     expect(result.current.currentWeight).toBe(100);
   });
 
-  it("endWorkout writes the progression result back to the exercise's definition", async () => {
+  it("endWorkout writes the progression result back to the workout's program", async () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
@@ -968,8 +968,8 @@ describe("useWorkout", () => {
       await Promise.resolve();
     });
 
-    expect(updateExerciseDefinitionWeightMock).toHaveBeenCalledWith(
-      "user-1", exercise.definitionId, 105, 0
+    expect(updateProgramExerciseWeightMock).toHaveBeenCalledWith(
+      "user-1", workout.programId, exercise.definitionId, 105, 0
     );
   });
 
@@ -986,7 +986,7 @@ describe("useWorkout", () => {
       await Promise.resolve();
     });
 
-    expect(updateExerciseDefinitionWeightMock).not.toHaveBeenCalled();
+    expect(updateProgramExerciseWeightMock).not.toHaveBeenCalled();
   });
 
   it("endWorkout applies a 3rd consecutive hard rating as a weight drop", async () => {
@@ -1002,8 +1002,8 @@ describe("useWorkout", () => {
       await Promise.resolve();
     });
 
-    expect(updateExerciseDefinitionWeightMock).toHaveBeenCalledWith(
-      "user-1", exercise.definitionId, 95, 0
+    expect(updateProgramExerciseWeightMock).toHaveBeenCalledWith(
+      "user-1", workout.programId, exercise.definitionId, 95, 0
     );
   });
 });

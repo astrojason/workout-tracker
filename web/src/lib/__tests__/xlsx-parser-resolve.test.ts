@@ -73,7 +73,7 @@ describe("resolveExerciseDefinitions — new exercise", () => {
     getExerciseDefinitionsMock.mockResolvedValue([]);
     createExerciseDefinitionMock.mockResolvedValue("new-def-id");
 
-    const workouts = await resolveExerciseDefinitions("user-1", [
+    const { workouts } = await resolveExerciseDefinitions("user-1", [
       makeParsedWorkout([makeParsedExercise({ name: "Squat", seedWeight: 225 })]),
     ]);
 
@@ -100,7 +100,7 @@ describe("resolveExerciseDefinitions — new exercise", () => {
     getExerciseDefinitionsMock.mockResolvedValue([]);
     createExerciseDefinitionMock.mockResolvedValue("new-def-id");
 
-    const workouts = await resolveExerciseDefinitions("user-1", [
+    const { workouts } = await resolveExerciseDefinitions("user-1", [
       makeParsedWorkout([makeParsedExercise({ name: "Squat" })]),
     ]);
 
@@ -114,7 +114,7 @@ describe("resolveExerciseDefinitions — existing exercise match", () => {
   it("matches case-insensitively/trimmed and reuses the existing definition id", async () => {
     getExerciseDefinitionsMock.mockResolvedValue([makeDefinition({ id: "def-existing", name: "Bench Press" })]);
 
-    const workouts = await resolveExerciseDefinitions("user-1", [
+    const { workouts } = await resolveExerciseDefinitions("user-1", [
       makeParsedWorkout([makeParsedExercise({ name: "  bench press  " })]),
     ]);
 
@@ -154,7 +154,7 @@ describe("resolveExerciseDefinitions — same-name exercise across multiple days
     getExerciseDefinitionsMock.mockResolvedValue([]);
     createExerciseDefinitionMock.mockResolvedValue("shared-def-id");
 
-    const workouts = await resolveExerciseDefinitions("user-1", [
+    const { workouts } = await resolveExerciseDefinitions("user-1", [
       makeParsedWorkout([makeParsedExercise({ name: "Bench Press" })], { dayOfWeek: "Monday", id: "w-mon" }),
       makeParsedWorkout([makeParsedExercise({ name: "Bench Press" })], { dayOfWeek: "Thursday", id: "w-thu" }),
     ]);

@@ -1,4 +1,4 @@
-import type { Exercise, Workout, Phase, EquipmentType, ProgressionRule, RepTarget } from "./types";
+import type { Exercise, Workout, Phase, EquipmentType, ProgressionRule, RepTarget, ProgramExerciseWeight } from "./types";
 import {
   getExerciseDefinitions, updateExerciseDefinitionMeta, createExerciseDefinition,
 } from "./firestore";
@@ -15,7 +15,7 @@ export interface ParsedExercise {
   phase: Phase;
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
-  seedWeight?: number;   // only used when creating a brand-new definition
+  seedWeight?: number;   // the program's starting weight for this exercise (also seeds a brand-new definition)
   sets: number;
   repMin: number;
   repMax: RepTarget;
@@ -38,18 +38,43 @@ export interface ParsedWorkout {
   isChecklist?: boolean;
 }
 
+// Which spreadsheet row's Total Weight seeds each exercise's weight for the program. The
+// earliest week wins, and within it a working row beats a warm-up row (a lighter warm-up
+// of the same lift must not set the working weight). Keyed by trimmed lowercase name.
+export function pickSeedWeights(parsedWorkouts: ParsedWorkout[]): Map<string, number> {
+  const best = new Map<string, { rank: [number, number, number]; weight: number }>();
+  let seen = 0;
+  for (const pw of parsedWorkouts) {
+    for (const pe of pw.exercises) {
+      seen++;
+      if (pe.seedWeight === undefined) continue;
+      const key = pe.name.trim().toLowerCase();
+      const rank: [number, number, number] = [pw.week, pe.phase === "warmup" ? 1 : 0, seen];
+      const current = best.get(key);
+      const better = !current || rank[0] < current.rank[0] ||
+        (rank[0] === current.rank[0] && (rank[1] < current.rank[1] ||
+          (rank[1] === current.rank[1] && rank[2] < current.rank[2])));
+      if (better) best.set(key, { rank, weight: pe.seedWeight });
+    }
+  }
+  return new Map([...best].map(([key, v]) => [key, v.weight]));
+}
+
 // Matches each row's exercise name (case-insensitive/trimmed, no stored normalized
-// field) against the user's existing global exercise library. Existing match:
-// metadata (equipment/progression rule/etc.) is refreshed but currentWeight/hardStreak
-// are left untouched — re-importing a program must never erase progress already made
-// in-app. No match: a new definition is created, seeded from this row's weight if present.
+// field) against the user's existing global exercise library. Existing match: only
+// metadata (equipment/progression rule/etc.) is refreshed; the library's weight is left
+// alone. No match: a new definition is created, seeded from this row's weight if present.
+// Weights that matter for training live on the program: the returned `weights` map
+// (definition id → starting weight) is what the caller stores on the program, and the
+// spreadsheet's Total Weight always wins there.
 export async function resolveExerciseDefinitions(
   userId: string,
   parsedWorkouts: ParsedWorkout[]
-): Promise<Workout[]> {
+): Promise<{ workouts: Workout[]; weights: Record<string, ProgramExerciseWeight> }> {
   const existingDefs = await getExerciseDefinitions(userId);
   const byName = new Map(existingDefs.map((d) => [d.name.trim().toLowerCase(), d]));
   const resolvedIdByName = new Map<string, string>();
+  const seedByName = pickSeedWeights(parsedWorkouts);
 
   const workouts: Workout[] = [];
   for (const pw of parsedWorkouts) {
@@ -112,5 +137,11 @@ export async function resolveExerciseDefinitions(
     });
   }
 
-  return workouts;
+  const weights: Record<string, ProgramExerciseWeight> = {};
+  for (const [key, definitionId] of resolvedIdByName) {
+    const seed = seedByName.get(key);
+    if (seed !== undefined) weights[definitionId] = { currentWeight: seed, hardStreak: 0 };
+  }
+
+  return { workouts, weights };
 }

@@ -5,6 +5,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useWorkout } from "@/hooks/useWorkout";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
+import { scopeDefinitions } from "@/lib/types";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ConsistencyCard } from "@/components/home/ConsistencyCard";
@@ -24,7 +25,7 @@ export default function HomePage() {
   const {
     activePrograms, settings, loading, getTodaysWorkout, getAvailableDays,
     getCompletedDaysForProgram, getSkippedDaysForProgram, markDaySkipped,
-    currentWeek, refreshCompletedDays, getWorkoutsForDay, updateWorkout,
+    currentWeek, refreshCompletedDays, getWorkoutsForDay, updateWorkout, refreshPrograms,
   } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
@@ -33,12 +34,17 @@ export default function HomePage() {
   const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
   const { showError } = useError();
 
+  // Weights live on the program, so each workout resolves against the library with its own
+  // program's weights laid over it.
+  const definitionsFor = (programId: string) =>
+    scopeDefinitions(definitions, activePrograms.find((p) => p.id === programId));
+
   // Resolves before committing to checklistWorkout state, so a stale/incomplete
   // definitions map (see the effect above) surfaces via the error modal instead
   // of throwing straight out of render the moment this screen mounts.
   function startChecklistWorkout(w: Workout): boolean {
     try {
-      setChecklistWorkout(resolveWorkout(w, definitions));
+      setChecklistWorkout(resolveWorkout(w, definitionsFor(w.programId)));
       return true;
     } catch (err) {
       showError(err);
@@ -84,12 +90,13 @@ export default function HomePage() {
               sessions={sessions}
               definitions={definitions}
               onSaveWorkout={updateWorkout}
-              onApplied={reloadDefinitions}
+              onApplied={() => { reloadDefinitions(); refreshPrograms(); }}
             />
           }
           onDone={() => {
             workout.dismissWorkout();
             refreshCompletedDays();
+            refreshPrograms();
           }}
         />
       );
@@ -271,7 +278,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined, sessions);
+                return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, sessions);
               }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.id, day);
@@ -279,7 +286,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitions, equipmentConfig ?? undefined, sessions);
+                return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, sessions);
               }}
             />
           ))}

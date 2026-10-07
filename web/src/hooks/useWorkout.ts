@@ -8,11 +8,11 @@ import type {
 import { resolveWorkout } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
-import { saveSession, updateExerciseDefinitionWeight } from "@/lib/firestore";
+import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
-import { buildPreviousPerformanceMap } from "@/lib/last-performance";
+import { buildPreviousPerformanceMap, seedAssistedWeights } from "@/lib/last-performance";
 
 // Returns the rest duration in seconds before moving to the NEXT exercise.
 // restAfter === false → 0 (no rest); restAfter is a number → use it;
@@ -241,10 +241,13 @@ export function useWorkout(userId: string | null) {
         resolvedWeights[exercise.id] = exercise.currentWeight;
       }
 
+      const previousPerformances = buildPreviousPerformanceMap(resolvedWorkout.exercises, previousSessions);
+      Object.assign(resolvedWeights, seedAssistedWeights(resolvedWorkout.exercises, previousPerformances));
+
       setSession({
         workout: resolvedWorkout,
         resolvedWeights,
-        previousPerformances: buildPreviousPerformanceMap(resolvedWorkout.exercises, previousSessions),
+        previousPerformances,
         currentExerciseIndex: 0,
         currentSetNumber: 1,
         completedSets: [],
@@ -365,9 +368,12 @@ export function useWorkout(userId: string | null) {
       // Live autoregulation: an "easy" set bumps the weight for the very next
       // set of this same exercise, right now — separate from (and in addition
       // to) the end-of-session progression write-back below.
+      // Assisted exercises carry the band count just logged into the next set.
       const bumpedWeights = rating === "easy"
         ? { ...updatedSession.resolvedWeights, [currentExercise.id]: liveEasyBump(currentWeight, currentExercise) }
-        : updatedSession.resolvedWeights;
+        : currentExercise.equipmentType === "assisted_pullup" && actualWeight > 0
+          ? { ...updatedSession.resolvedWeights, [currentExercise.id]: actualWeight }
+          : updatedSession.resolvedWeights;
       const nextSession = { ...updatedSession, resolvedWeights: bumpedWeights, currentSetNumber: session.currentSetNumber + 1 };
       if (betweenSetRest > 0) {
         setSession(nextSession);
@@ -460,8 +466,9 @@ export function useWorkout(userId: string | null) {
 
     // Progression is best-effort too — for each exercise occurrence, run the
     // rating/AMRAP-driven engine against the LAST set logged for it this session
-    // and write the result back to its shared definition (every occurrence of
-    // that exercise, in every program, resolves to the new weight going forward).
+    // and write the result back to this workout's program (every occurrence of that
+    // exercise within the program resolves to the new weight going forward; other
+    // programs keep their own).
     // Historical CompletedSet records above are never touched.
     try {
       for (const exercise of session.workout.exercises) {
@@ -470,7 +477,7 @@ export function useWorkout(userId: string | null) {
         const finalSet = setsForExercise.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
         const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current);
         if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak) continue;
-        await updateExerciseDefinitionWeight(userId, exercise.definitionId, result.currentWeight, result.hardStreak);
+        await updateProgramExerciseWeight(userId, session.workout.programId, exercise.definitionId, result.currentWeight, result.hardStreak);
       }
     } catch (err) {
       showError(err); // Show but proceed — progression failure must not block the save

@@ -230,9 +230,9 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
           </Field>
         )}
 
-        {/* Weight — always editable; for an existing exercise this is the shared
-            currentWeight, so the change affects every occurrence in every program. */}
-        <Field label={selectedDef ? "Weight (updates every occurrence of this exercise)" : "Starting Weight"}>
+        {/* Weight — always editable; for an existing exercise the change applies to this
+            program only (weights are tracked per program). */}
+        <Field label={selectedDef ? "Weight (this program only)" : "Starting Weight"}>
           <EquipmentWeightInput
             equipmentType={effectiveEquipmentType}
             weightValue={weightValue}

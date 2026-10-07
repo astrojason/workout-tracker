@@ -5,7 +5,7 @@ import type { Program, Workout, UserSettings } from "@/lib/types";
 import {
   getPrograms, getSettings, updateSettings,
   getWorkoutsForProgram,
-  getCompletedDays, getSkippedDays, saveSkippedSession, saveProgram, saveWorkout,
+  getCompletedDays, getSkippedDays, saveSkippedSession, saveProgram, saveWorkout, setProgramWeights,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
   renameProgram as renameProgramDoc, migrateProgramIds,
 } from "@/lib/firestore";
@@ -161,10 +161,11 @@ export function usePrograms(userId: string | null) {
     }));
     // Matches each exercise name against the user's global exercise library
     // (creating or updating definitions as needed) before anything is saved.
-    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
+    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
     for (const prog of finalPrograms) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
+    await setProgramWeights(userId, programId, weights);
     for (const workout of finalWorkouts) {
       await saveWorkout(userId, workout);
     }
@@ -192,7 +193,7 @@ export function usePrograms(userId: string | null) {
     const parsed = parseXLSX(data, programName);
 
     const finalParsedWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
-    const finalWorkouts = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
+    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
 
     // Update the program doc (totalWeeks may change) but preserve createdAt.
     for (const prog of parsed.programs) {
@@ -204,6 +205,8 @@ export function usePrograms(userId: string | null) {
         archived: existing?.archived ?? false,
       });
     }
+    // The spreadsheet's weights replace this program's weights (other programs are untouched).
+    await setProgramWeights(userId, programId, weights);
     for (const workout of finalWorkouts) {
       await saveWorkout(userId, workout);
     }
@@ -275,6 +278,12 @@ export function usePrograms(userId: string | null) {
     return getWorkoutsForProgram(userId, programId, week);
   }, [userId]);
 
+  // Re-reads program docs, e.g. after a workout or the coach changed a program's weights.
+  const refreshPrograms = useCallback(async () => {
+    if (!userId) return;
+    setPrograms(await getPrograms(userId));
+  }, [userId]);
+
   const updateUserSettings = useCallback(async (updates: Partial<UserSettings>) => {
     if (!userId) return;
     setSettingsState((prev) => ({ ...prev, ...updates }));
@@ -339,6 +348,7 @@ export function usePrograms(userId: string | null) {
     deleteProgram,
     renameProgram,
     updateWorkout,
+    refreshPrograms,
     loadWorkoutsForWeek,
     updateUserSettings,
     refreshCompletedDays,

@@ -68,7 +68,7 @@ export function SetCompletionModal({
         </div>
 
         {/* Weight */}
-        {targetWeight > 0 && (
+        {(targetWeight > 0 || isAssistedPullup) && (
           <div className="mb-5">
             <label htmlFor="modal-weight-input" className="text-sm text-gray-400 block mb-2">
               {isAssistedPullup ? "Bands" : "Weight (lbs)"}
