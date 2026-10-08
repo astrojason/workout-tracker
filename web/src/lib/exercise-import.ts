@@ -121,6 +121,8 @@ export async function resolveExerciseDefinitions(
         repMax: pe.repMax,
         restSeconds: pe.restSeconds,
         notes: pe.notes,
+        ...(pe.seedWeight !== undefined ? { weight: pe.seedWeight } : {}),
+        ...(pe.equipmentDetail !== null ? { equipmentDetail: pe.equipmentDetail } : {}),
         ...(pe.lastSetAmrap ? { lastSetAmrap: true } : {}),
         ...(pe.restAfter !== undefined ? { restAfter: pe.restAfter } : {}),
       });

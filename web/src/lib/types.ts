@@ -80,6 +80,8 @@ export interface Exercise {
   notes: string | null;
   lastSetAmrap?: boolean;        // when true, the final set is AMRAP regardless of repMax
   restAfter?: false | number;    // rest before the NEXT exercise only: false = skip it, number = override its duration. Never affects rest between this exercise's own sets — that always uses restSeconds.
+  weight?: number;               // this row's own planned weight from the spreadsheet; wins over the definition/program weight
+  equipmentDetail?: string | null; // this row's own band colour/size etc.; wins over the definition's
 }
 
 // An Exercise occurrence merged with its definition — the shape the workout UI actually works with.
@@ -96,7 +98,13 @@ export function resolveExercise(
     throw new Error(`Exercise definition ${exercise.definitionId} not found for exercise ${exercise.id}`);
   }
   const { id: _defId, createdAt: _createdAt, updatedAt: _updatedAt, ...defRest } = def;
-  return { ...exercise, ...defRest };
+  return {
+    ...exercise,
+    ...defRest,
+    // The same lift can sit at a different weight/band in each row (warm-up vs working, week to week).
+    ...(exercise.weight !== undefined ? { currentWeight: exercise.weight } : {}),
+    ...(exercise.equipmentDetail !== undefined ? { equipmentDetail: exercise.equipmentDetail } : {}),
+  };
 }
 
 export interface Workout {
