@@ -12,6 +12,7 @@ import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
+import { notifyRestComplete } from "@/lib/rest-notifications";
 import { buildPreviousPerformanceMap, seedAssistedWeights } from "@/lib/last-performance";
 
 // Returns the rest duration in seconds before moving to the NEXT exercise.
@@ -95,6 +96,7 @@ export function useWorkout(userId: string | null) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const pendingSaveRef = useRef<{ sets: CompletedSet[]; prs: PRResult[]; duration: number; date: import("firebase/firestore").Timestamp } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notificationGenerationRef = useRef(0);
   const restEndRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   // Captured at startWorkout, read again at endWorkout for progression's equipment rounding.
@@ -213,6 +215,7 @@ export function useWorkout(userId: string | null) {
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
+      notificationGenerationRef.current++;
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -276,6 +279,10 @@ export function useWorkout(userId: string | null) {
   );
 
   function startRestTimerFromEnd(endDate: Date) {
+    const generation = ++notificationGenerationRef.current;
+    function notify() {
+      void notifyRestComplete(() => notificationGenerationRef.current === generation).catch(showError);
+    }
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -289,6 +296,7 @@ export function useWorkout(userId: string | null) {
     if (remaining <= 0) {
       restEndRef.current = null;
       playTimerComplete();
+      notify();
       setSession((prev) => prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev);
       return;
     }
@@ -308,6 +316,7 @@ export function useWorkout(userId: string | null) {
         timerRef.current = null;
         restEndRef.current = null;
         playTimerComplete();
+        notify();
         // Only flip the resting flag — position in the workout is already correct.
         setSession((prev) => prev ? { ...prev, isResting: false, restTimeRemaining: 0 } : prev);
       }
@@ -435,6 +444,7 @@ export function useWorkout(userId: string | null) {
   }, [session, currentExercise, currentWeight]);
 
   const skipRest = useCallback(() => {
+    notificationGenerationRef.current++;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -511,6 +521,8 @@ export function useWorkout(userId: string | null) {
   }
 
   const endWorkout = useCallback(async () => {
+    notificationGenerationRef.current++;
+    restEndRef.current = null;
     if (!session) return;
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -520,6 +532,8 @@ export function useWorkout(userId: string | null) {
   }, [session, userId]);
 
   const dismissWorkout = useCallback(() => {
+    notificationGenerationRef.current++;
+    restEndRef.current = null;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -530,6 +544,7 @@ export function useWorkout(userId: string | null) {
   }, []);
 
   const pauseWorkout = useCallback(() => {
+    notificationGenerationRef.current++;
     if (!session) return;
     if (timerRef.current) {
       clearInterval(timerRef.current);

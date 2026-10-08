@@ -24,8 +24,10 @@ a checklist-vs-set workout mode, a rest timer, CSV/XLSX import, and PR detection
    export/import of a full program (not just history via `week-export.ts`).
 5. **Multi-metric dashboard on History.** Cross-exercise volume/1RM trends,
     extending existing Recharts infrastructure.
-6. **Push notifications** for rest-timer-done and "time to train" reminders
-    (service worker + permission flow).
+6. **Push notifications.** Rest-timer browser alerts implemented with an opt-in
+    permission flow and service worker. The app must remain open; background
+    suspension can delay alerts. Server-scheduled push for closed/locked devices
+    and "time to train" reminders remain deferred.
 
 ## Equipment coverage (loose threads from reference/equipment.md)
 

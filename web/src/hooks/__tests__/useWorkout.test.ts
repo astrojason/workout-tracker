@@ -19,6 +19,11 @@ vi.mock("@/lib/pr-detector", () => ({
   checkForPRs: vi.fn().mockResolvedValue([]),
 }));
 
+const notifyRestCompleteMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/lib/rest-notifications", () => ({
+  notifyRestComplete: (...args: unknown[]) => notifyRestCompleteMock(...args),
+}));
+
 const playTimerCompleteMock = vi.fn();
 const playSetCompleteMock = vi.fn();
 const initAudioMock = vi.fn();
@@ -146,6 +151,31 @@ beforeEach(() => {
 });
 
 describe("useWorkout", () => {
+  it("notifies exactly once when a rest timer expires", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 5 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    act(() => { result.current.startWorkout(workout, getDefinitions()); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+    await act(async () => { vi.advanceTimersByTime(10000); });
+    expect(notifyRestCompleteMock).toHaveBeenCalledTimes(1);
+    expect(result.current.session!.isResting).toBe(false);
+  });
+
+  it.each(["skipRest", "pauseWorkout", "endWorkout", "dismissWorkout"] as const)(
+    "%s cancels rest notifications",
+    async (action) => {
+      const exercise = makeExercise({ sets: 3, restSeconds: 5 });
+      const workout = makeWorkout({ exercises: [exercise] });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      act(() => { result.current.startWorkout(workout, getDefinitions()); });
+      act(() => { result.current.completeSet(10, 135, false, "normal"); });
+      await act(async () => { await result.current[action](); });
+      await act(async () => { vi.advanceTimersByTime(10000); });
+      expect(notifyRestCompleteMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("initializes with null session", () => {
     const { result } = renderHook(() => useWorkout("user-1"));
     expect(result.current.session).toBeNull();
@@ -886,6 +916,7 @@ describe("useWorkout", () => {
 
     expect(result.current.session!.isResting).toBe(false);
     expect(playTimerCompleteMock).toHaveBeenCalledTimes(1);
+    expect(notifyRestCompleteMock).toHaveBeenCalledTimes(1);
   });
 
   it("reacquires the wake lock if it is released unexpectedly while the session is still active", async () => {

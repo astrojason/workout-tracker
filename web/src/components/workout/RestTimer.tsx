@@ -2,6 +2,7 @@
 
 import type { ActiveSession, UserEquipmentConfig } from "@/lib/types";
 import { getEquipmentDisplay, equipmentDisplayText } from "@/lib/equipment-calculator";
+import { RestNotificationControl } from "./RestNotificationControl";
 
 interface RestTimerProps {
   session: ActiveSession;
@@ -82,6 +83,7 @@ export function RestTimer({ session, onSkipRest, equipmentConfig }: RestTimerPro
         >
           Skip
         </button>
+        <RestNotificationControl />
       </div>
     </div>
   );
