@@ -51,32 +51,53 @@ export const COACH_SYSTEM_PROMPT =
   "(2-4 sentences) and, only where the data clearly supports it, propose small adjustments to future " +
   "workouts. Never propose more than one change per exercise and field. Weight is in lbs. " +
   "Ratings: 'easy' means the set felt easy, 'hard' means near failure. Prefer no adjustment over a guess. " +
-  "Respond only by calling the submit_coaching tool.";
+  "Respond only by calling the submit_coaching function.";
 
 export const COACH_TOOL = {
-  name: "submit_coaching",
-  description: "Submit coaching feedback and suggested adjustments to upcoming workouts.",
-  input_schema: {
-    type: "object",
-    properties: {
-      feedback: { type: "string" },
-      adjustments: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            exerciseName: { type: "string", description: "Exact exercise name from the data" },
-            field: { type: "string", enum: ["weight", "sets", "repMin"] },
-            to: { type: "number", description: "New value (weight in lbs, set count, or minimum reps)" },
-            reason: { type: "string" },
+  type: "function" as const,
+  function: {
+    name: "submit_coaching",
+    description: "Submit coaching feedback and suggested adjustments to upcoming workouts.",
+    parameters: {
+      type: "object",
+      properties: {
+        feedback: { type: "string" },
+        adjustments: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              exerciseName: { type: "string", description: "Exact exercise name from the data" },
+              field: { type: "string", enum: ["weight", "sets", "repMin"] },
+              to: { type: "number", description: "New value (weight in lbs, set count, or minimum reps)" },
+              reason: { type: "string" },
+            },
+            required: ["exerciseName", "field", "to", "reason"],
           },
-          required: ["exerciseName", "field", "to", "reason"],
         },
       },
+      required: ["feedback", "adjustments"],
     },
-    required: ["feedback", "adjustments"],
   },
 };
+
+// Pulls the forced tool call's JSON arguments out of an OpenAI chat completion, plus the
+// total tokens it consumed (prompt + completion) for the shared token tracker.
+export function parseOpenAIToolCall(completion: unknown): { args: unknown; tokensUsed: number } {
+  const c = completion as {
+    choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  const raw = c.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  if (typeof raw !== "string") throw new Error("Coach response had no tool call");
+  let args: unknown;
+  try {
+    args = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Could not parse coach response: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return { args, tokensUsed: (c.usage?.prompt_tokens ?? 0) + (c.usage?.completion_tokens ?? 0) };
+}
 
 function fmtSets(sets: CoachSetResult[]): string {
   return sets

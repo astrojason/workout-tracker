@@ -10,7 +10,7 @@ export function CoachPreview({ fail }: { fail: boolean }) {
     <>
       <CoachPanel
         onAsk={async () => {
-          if (fail) throw new Error("Anthropic API error 529: overloaded");
+          if (fail) throw new Error("OpenAI API error 529: overloaded");
           return {
             feedback: "Strong session — squats moved fast.",
             adjustments: [

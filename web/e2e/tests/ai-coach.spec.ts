@@ -25,6 +25,6 @@ test.describe("AI coach panel", () => {
 
     await page.getByRole("button", { name: /ask coach/i }).click();
 
-    await expect(page.getByText("Anthropic API error 529: overloaded")).toBeVisible();
+    await expect(page.getByText("OpenAI API error 529: overloaded")).toBeVisible();
   });
 });
