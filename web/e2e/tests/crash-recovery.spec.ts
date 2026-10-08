@@ -49,7 +49,7 @@ test.describe("Crash recovery", () => {
         await page.goto("/");
 
         // Should resume the rest timer, not be on Set 1
-        await expect(page.getByText(/rest/i)).toBeVisible();
+        await expect(page.getByText("REST", { exact: true })).toBeVisible();
 
         // Skip rest — should land on Set 2, not Set 1 or Set 3
         await page.getByRole("button", { name: /skip rest/i }).click();
@@ -82,7 +82,7 @@ test.describe("Crash recovery", () => {
 
         // Should show Set 2, not Set 1 or Set 3
         await expect(page.getByText("Set 2 of 3")).toBeVisible();
-        await expect(page.getByText(/rest/i)).not.toBeVisible();
+        await expect(page.getByText("REST", { exact: true })).not.toBeVisible();
     });
 
     test("shows resume banner when workout was paused", async ({ page }) => {

@@ -42,7 +42,7 @@ test.describe("Set progression with rest timer", () => {
         await page.getByRole("button", { name: /save/i }).click();
 
         // Rest timer should be visible
-        await expect(page.getByText(/rest/i)).toBeVisible();
+        await expect(page.getByText("REST", { exact: true })).toBeVisible();
         await expect(page.getByText(/2:00|1:5\d/)).toBeVisible();
     });
 
