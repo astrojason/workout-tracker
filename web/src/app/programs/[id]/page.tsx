@@ -8,7 +8,7 @@ import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
 import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
-import { scopeDefinitions, PHASE_COLORS, DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
+import { scopeDefinitions, PHASE_COLORS, DAY_ORDER, repTargetDisplay, finalSetAmrapNote, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
@@ -282,6 +282,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                           {exercise.sets} x {repTargetDisplay(exercise.repMin, exercise.repMax, exercise)}
                           {" | "}{weightDisplay}
                           {exercise.restSeconds > 0 && <> | {formatRestTime(exercise.restSeconds)} rest</>}
+                          {finalSetAmrapNote(exercise) && <> | <span className="text-amber-400">{finalSetAmrapNote(exercise)}</span></>}
                         </div>
                         {exercise.notes && (
                           <div className="text-xs text-gray-600 mt-1 truncate">{exercise.notes}</div>

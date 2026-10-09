@@ -387,6 +387,13 @@ export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: R
   return `${repMin}–${repMax.value} reps`;
 }
 
+// Shown where all sets display the normal rep range, so the AMRAP final set isn't a surprise.
+// Null when every set is already AMRAP (the rep target itself says so) or none are.
+export function finalSetAmrapNote(exercise: Pick<Exercise, "lastSetAmrap" | "repMax">): string | null {
+  if (!exercise.lastSetAmrap || exercise.repMax.type === "failure") return null;
+  return "Final set AMRAP";
+}
+
 export function cleanWeight(w: number): string {
   if (w === Math.round(w)) return w.toString();
   return parseFloat(w.toFixed(2)).toString();

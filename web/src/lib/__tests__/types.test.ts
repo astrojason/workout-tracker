@@ -295,3 +295,18 @@ describe("isChecklistWorkout", () => {
     expect(isChecklistWorkout(workout)).toBe(false);
   });
 });
+
+describe("finalSetAmrapNote", () => {
+  const base = { sets: 3, repMin: 8, repMax: { type: "count", value: 10 } } as const;
+
+  it("notes that only the final set is AMRAP", async () => {
+    const { finalSetAmrapNote } = await import("../types");
+    expect(finalSetAmrapNote({ ...base, lastSetAmrap: true })).toBe("Final set AMRAP");
+  });
+
+  it("is empty when the exercise has no AMRAP final set, or every set is already AMRAP", async () => {
+    const { finalSetAmrapNote } = await import("../types");
+    expect(finalSetAmrapNote({ ...base })).toBeNull();
+    expect(finalSetAmrapNote({ ...base, repMax: { type: "failure" }, lastSetAmrap: true })).toBeNull();
+  });
+});
