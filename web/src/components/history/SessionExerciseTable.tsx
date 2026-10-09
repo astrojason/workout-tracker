@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cleanWeight, formatTimeValue } from "@/lib/types";
+import { formatTimeValue, isSkippedSet, setLoadLabel } from "@/lib/types";
 import type { CompletedSet } from "@/lib/types";
 
 const RATING_STYLES: Record<string, string> = {
@@ -45,18 +45,25 @@ export function SessionExerciseTable({ name, sets, hasRatings }: { name: string;
 
 function SetRows({ s, exerciseTimeBased, hasRatings, colCount }: { s: CompletedSet; exerciseTimeBased: boolean; hasRatings: boolean; colCount: number }) {
   const dim = s.completed ? "" : "opacity-40";
+  const skipped = isSkippedSet(s);
+  // A skipped set's only note is the automatic "Skipped", already shown in the row.
+  const note = skipped && s.notes === "Skipped" ? null : s.notes;
   return (
     <>
       <tr className={dim}>
         <td className="px-4 py-2 text-gray-400">{s.setNumber}</td>
-        {!exerciseTimeBased && (
-          <td className="px-4 py-2 text-right font-mono">
-            {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lb` : "BW"}
-          </td>
+        {skipped ? (
+          <td colSpan={exerciseTimeBased ? 1 : 2} className="px-4 py-2 text-right text-gray-500">Skipped</td>
+        ) : (
+          <>
+            {!exerciseTimeBased && (
+              <td className="px-4 py-2 text-right font-mono">{setLoadLabel(s)}</td>
+            )}
+            <td className="px-4 py-2 text-right font-mono">
+              {exerciseTimeBased ? formatTimeValue(s.actualReps) : s.actualReps}
+            </td>
+          </>
         )}
-        <td className="px-4 py-2 text-right font-mono">
-          {exerciseTimeBased ? formatTimeValue(s.actualReps) : s.actualReps}
-        </td>
         {hasRatings && (
           <td className={`px-4 py-2 text-right capitalize ${s.rating ? RATING_STYLES[s.rating] : "text-gray-500"}`}>
             {s.rating ?? "—"}
@@ -70,10 +77,10 @@ function SetRows({ s, exerciseTimeBased, hasRatings, colCount }: { s: CompletedS
           )}
         </td>
       </tr>
-      {s.notes && (
+      {note && (
         <tr className={dim}>
           <td colSpan={colCount} data-testid="set-note" className="px-4 pb-2 text-xs text-gray-400 italic">
-            {s.notes}
+            {note}
           </td>
         </tr>
       )}

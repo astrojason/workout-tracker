@@ -1037,4 +1037,67 @@ describe("useWorkout", () => {
       "user-1", workout.programId, exercise.definitionId, 95, 0
     );
   });
+
+  // Regression: a weight typed into the set dialog only applied to that one set,
+  // so set 2 snapped back to the planned weight (pushdowns: 50 on set 1, set 2 showed 45).
+  it("carries a weight changed in the set dialog forward to the next set", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0, equipmentType: "pulley", progressionRule: "none", currentWeight: 45 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(12, 50, false, "normal"); });
+
+    expect(result.current.currentWeight).toBe(50);
+  });
+
+  it("an 'easy' rating bumps from the weight actually lifted, not the planned one", async () => {
+    const exercise = makeExercise({ sets: 3, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 110, false, "easy"); });
+
+    expect(result.current.currentWeight).toBe(115);
+  });
+
+  it("skipSet marks the set as skipped so summaries don't show it as a 0-rep set", async () => {
+    const exercise = makeExercise({ sets: 1, restSeconds: 0 });
+    const workout = makeWorkout({ exercises: [exercise, makeExercise({ order: 2 })] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.skipSet(); });
+
+    expect(result.current.session!.completedSets[0].skipped).toBe(true);
+  });
+
+  it("records the band so history can show it instead of 'BW'", async () => {
+    const exercise = makeExercise({ sets: 2, restSeconds: 0, equipmentType: "band", currentWeight: 0, equipmentDetail: "Purple" });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(12, 0, false, "normal"); });
+
+    expect(result.current.session!.completedSets[0].equipmentDetail).toBe("Purple");
+  });
+
+  // Regression: the 45x10 landmine warmup counted toward the Landmine Squat volume PR.
+  it("leaves warmup sets out of PR detection", async () => {
+    const { checkForPRs } = await import("@/lib/pr-detector");
+    const warmup = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "warmup", order: 1, sets: 1, restSeconds: 0, currentWeight: 45, weight: 45 });
+    const main = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "main", order: 2, sets: 1, restSeconds: 0, currentWeight: 65, weight: 65 });
+    const workout = makeWorkout({ exercises: [warmup, main] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 45, false, "normal"); });
+    await act(async () => { result.current.completeSet(8, 65, false, "normal"); });
+
+    expect(checkForPRs).toHaveBeenCalledTimes(1);
+    const sets = vi.mocked(checkForPRs).mock.calls[0][2];
+    expect(sets.map((s) => s.actualWeight)).toEqual([65]);
+  });
 });

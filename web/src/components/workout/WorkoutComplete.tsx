@@ -1,8 +1,49 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { ActiveSession } from "@/lib/types";
-import { cleanWeight, formatDuration, isTimeBased, formatTimeValue } from "@/lib/types";
+import type { ActiveSession, CompletedSet } from "@/lib/types";
+import { cleanWeight, formatDuration, formatTimeValue, isSkippedSet, setLoadLabel } from "@/lib/types";
+
+interface ExerciseGroup {
+  key: number;
+  label: string;
+  timeBased: boolean;
+  sets: CompletedSet[];
+}
+
+// One group per exercise occurrence, not per name: a lift's warmup and working
+// sets are separate rows, so the warmup weight never stands in for the working one.
+function groupByOccurrence(session: ActiveSession): ExerciseGroup[] {
+  const groups: ExerciseGroup[] = [];
+  for (const set of session.completedSets) {
+    let group = groups.find((g) => g.key === set.exerciseOrder);
+    if (!group) {
+      const exercise = session.workout.exercises.find((e) => e.order === set.exerciseOrder);
+      const sameNameElsewhere = session.workout.exercises.some(
+        (e) => e.name === set.exerciseName && e.order !== set.exerciseOrder,
+      );
+      group = {
+        key: set.exerciseOrder,
+        label: exercise?.phase === "warmup" && sameNameElsewhere ? `${set.exerciseName} (warmup)` : set.exerciseName,
+        timeBased: exercise?.isTimeBased ?? set.isTimeBased === true,
+        sets: [],
+      };
+      groups.push(group);
+    }
+    group.sets.push(set);
+  }
+  return groups;
+}
+
+function summaryText(group: ExerciseGroup): string {
+  if (group.sets.every(isSkippedSet)) return "Skipped";
+  const done = group.sets.filter((s) => s.completed);
+  const reps = done.map((s) => (group.timeBased ? formatTimeValue(s.actualReps) : s.actualReps)).join(", ");
+  // The heaviest set is the working weight when it moved mid-exercise (50/45/45 reads as 50).
+  const top = done.reduce<CompletedSet | null>((best, s) => (!best || s.actualWeight > best.actualWeight ? s : best), null);
+  const load = !top ? "" : top.actualWeight > 0 ? ` @ ${cleanWeight(top.actualWeight)} lbs` : setLoadLabel(top) === "BW" ? "" : ` · ${setLoadLabel(top)}`;
+  return `${done.length}/${group.sets.length} [${reps}]${load}`;
+}
 
 interface WorkoutCompleteProps {
   session: ActiveSession;
@@ -16,20 +57,8 @@ interface WorkoutCompleteProps {
 export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetrySave, coachSlot }: WorkoutCompleteProps) {
   const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
   const completedSets = session.completedSets.filter((s) => s.completed);
-  const exerciseNames = [...new Set(session.completedSets.map((s) => s.exerciseName))];
-
-  // Group sets by exercise
-  const grouped: { name: string; sets: typeof session.completedSets }[] = [];
-  const order: string[] = [];
-  for (const set of session.completedSets) {
-    if (!order.includes(set.exerciseName)) order.push(set.exerciseName);
-  }
-  for (const name of order) {
-    grouped.push({
-      name,
-      sets: session.completedSets.filter((s) => s.exerciseName === name),
-    });
-  }
+  const grouped = groupByOccurrence(session);
+  const exerciseCount = new Set(session.completedSets.map((s) => s.exerciseName)).size;
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
@@ -54,7 +83,7 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
             <div className="text-xs text-gray-400">Sets</div>
           </div>
           <div className="bg-gray-900 rounded-xl p-4 text-center border border-gray-800">
-            <div className="text-2xl font-bold">{exerciseNames.length}</div>
+            <div className="text-2xl font-bold">{exerciseCount}</div>
             <div className="text-xs text-gray-400">Exercises</div>
           </div>
         </div>
@@ -88,23 +117,13 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
         {/* Summary */}
         <div className="mb-6">
           <h2 className="font-bold mb-3">Summary</h2>
-          <div className="space-y-1">
-            {grouped.map((group) => {
-              const done = group.sets.filter((s) => s.completed);
-              const exercise = session.workout.exercises.find((e) => e.name === group.name);
-              const timeBased = exercise ? isTimeBased(exercise) : false;
-              const reps = done.map((s) => timeBased ? formatTimeValue(s.actualReps) : s.actualReps).join(", ");
-              const w = done[0]?.actualWeight ?? 0;
-              return (
-                <div key={group.name} className="flex justify-between text-sm py-1">
-                  <span className="text-gray-300">{group.name}</span>
-                  <span className="text-gray-500">
-                    {done.length}/{group.sets.length} [{reps}]
-                    {w > 0 ? ` @ ${cleanWeight(w)} lbs` : ""}
-                  </span>
-                </div>
-              );
-            })}
+          <div className="space-y-1" data-testid="summary">
+            {grouped.map((group) => (
+              <div key={group.key} data-label={group.label} className="flex justify-between text-sm py-1">
+                <span className="text-gray-300">{group.label}</span>
+                <span className="text-gray-500">{summaryText(group)}</span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -154,24 +173,30 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
           <h2 className="font-bold mb-3">Set Details</h2>
           <div className="space-y-4">
             {grouped.map((group) => (
-              <div key={group.name}>
-                <h3 className="text-sm font-semibold text-gray-300 mb-1">{group.name}</h3>
+              <div key={group.key} data-testid={`set-details-${group.label}`}>
+                <h3 className="text-sm font-semibold text-gray-300 mb-1">{group.label}</h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-xs text-gray-500 uppercase">
                       <th className="py-2 text-left">Set</th>
                       <th className="py-2 text-right">Weight</th>
-                      <th className="py-2 text-right">Reps</th>
+                      <th className="py-2 text-right">{group.timeBased ? "Time" : "Reps"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {group.sets.map((s) => (
                       <tr key={s.id}>
                         <td className="py-2 text-gray-400">{s.setNumber}</td>
-                        <td className="py-2 text-right font-mono">
-                          {s.actualWeight > 0 ? `${cleanWeight(s.actualWeight)} lbs` : "BW"}
-                        </td>
-                        <td className="py-2 text-right font-mono">{s.actualReps}</td>
+                        {isSkippedSet(s) ? (
+                          <td colSpan={2} className="py-2 text-right text-gray-500">Skipped</td>
+                        ) : (
+                          <>
+                            <td className="py-2 text-right font-mono">{setLoadLabel(s)}</td>
+                            <td className="py-2 text-right font-mono">
+                              {group.timeBased ? formatTimeValue(s.actualReps) : s.actualReps}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>

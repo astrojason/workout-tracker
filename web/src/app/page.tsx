@@ -18,14 +18,14 @@ import type { ResolvedWorkout, Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
-import { calculateWorkoutConsistency } from "@/lib/workout-consistency";
+import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
+import { Timestamp } from "firebase/firestore";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const {
-    activePrograms, settings, loading, getTodaysWorkout, getAvailableDays,
-    getCompletedDaysForProgram, getSkippedDaysForProgram, markDaySkipped,
-    currentWeek, refreshCompletedDays, getWorkoutsForDay, updateWorkout, refreshPrograms,
+    activePrograms, loading, getTodaysWorkout, getAvailableDays, markDaySkipped,
+    currentWeek, getWorkoutsForDay, updateWorkout, refreshPrograms,
   } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
@@ -95,7 +95,6 @@ export default function HomePage() {
           }
           onDone={() => {
             workout.dismissWorkout();
-            refreshCompletedDays();
             refreshPrograms();
           }}
         />
@@ -185,10 +184,7 @@ export default function HomePage() {
       <ChecklistWorkout
         workout={checklistWorkout}
         userId={user.uid}
-        onClose={() => {
-          setChecklistWorkout(null);
-          refreshCompletedDays();
-        }}
+        onClose={() => setChecklistWorkout(null)}
       />
     );
   }
@@ -258,15 +254,22 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {activePrograms.map((program) => (
+          {activePrograms.map((program) => {
+            // Read from the live session list (same as the streak above), so a workout
+            // that was just saved shows as done without a reload.
+            const since = program.createdAt instanceof Timestamp
+              ? program.createdAt.toDate()
+              : program.createdAt instanceof Date ? program.createdAt : undefined;
+            const week = currentWeek(program.id);
+            return (
             <ProgramCard
               key={program.id}
               program={program}
-              week={currentWeek(program.id)}
+              week={week}
               todaysWorkout={getTodaysWorkout(program.id)}
               availableDays={getAvailableDays(program.id)}
-              completedDays={getCompletedDaysForProgram(program.id)}
-              skippedDays={getSkippedDaysForProgram(program.id)}
+              completedDays={sessionDaysForWeek(sessions, program.id, week, "completed", since)}
+              skippedDays={sessionDaysForWeek(sessions, program.id, week, "skipped", since)}
               onSkipDay={async (day) => {
                 try {
                   await markDaySkipped(program.id, day);
@@ -289,7 +292,8 @@ export default function HomePage() {
                 return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, sessions);
               }}
             />
-          ))}
+            );
+          })}
         </div>
       )}
 

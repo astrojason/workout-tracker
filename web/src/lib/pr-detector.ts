@@ -1,13 +1,18 @@
 import type { CompletedSet, PRResult } from "./types";
 import { getPR, savePR } from "./firestore";
 
+// Epley drifts badly past ~12 reps (a 25-rep calf raise set projected a 174 lb 1RM),
+// so higher-rep sets still count toward weight and volume PRs but not the 1RM estimate.
+const MAX_REPS_FOR_1RM = 12;
+
 export async function checkForPRs(
   userId: string,
   exerciseName: string,
   newSets: CompletedSet[]
 ): Promise<PRResult[]> {
   const prs: PRResult[] = [];
-  const weightedSets = newSets.filter((s) => s.actualWeight > 0 && s.completed);
+  // Time-based sets log seconds in actualReps, so weight x "reps" means nothing here.
+  const weightedSets = newSets.filter((s) => s.actualWeight > 0 && s.completed && !s.isTimeBased);
   if (weightedSets.length === 0) return prs;
 
   // 1. Max weight PR
@@ -25,9 +30,10 @@ export async function checkForPRs(
 
   // 2. Estimated 1RM (Epley formula)
   const best1RM = Math.max(
-    ...weightedSets.map((s) =>
-      s.actualReps === 1 ? s.actualWeight : s.actualWeight * (1 + s.actualReps / 30)
-    )
+    0,
+    ...weightedSets
+      .filter((s) => s.actualReps <= MAX_REPS_FOR_1RM)
+      .map((s) => (s.actualReps === 1 ? s.actualWeight : s.actualWeight * (1 + s.actualReps / 30)))
   );
   if (best1RM > 0) {
     const prev1RM = await getPR(userId, exerciseName, "estimated1RM");

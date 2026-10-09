@@ -94,3 +94,24 @@ export function calculateWorkoutConsistency(
     plannedThisWeek: plannedSlots.size,
   };
 }
+
+// Local YYYY-MM-DD dates on which this program's week was completed (or deliberately
+// skipped). Same rules as getCompletedDays/getSkippedDays in firestore.ts, but over the
+// live session list, so Home's week grid can't lag behind the streak after a workout.
+export function sessionDaysForWeek(
+  sessions: WorkoutSessionDoc[],
+  programId: string,
+  week: number,
+  kind: "completed" | "skipped",
+  since?: Date,
+): Set<string> {
+  const days = new Set<string>();
+  for (const s of sessions) {
+    if (s.programId !== programId || s.week !== week || !s.dayOfWeek) continue;
+    if (kind === "completed" ? s.completed !== true : s.skipped !== true) continue;
+    const date = sessionDate(s.date);
+    if (since && date < since) continue;
+    days.add(dateKey(date));
+  }
+  return days;
+}
