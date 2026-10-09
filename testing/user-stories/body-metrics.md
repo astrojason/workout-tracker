@@ -28,3 +28,10 @@
 - STOMACH is saved as waist; left/right bicep, thigh, and calf are saved per side; fractions like `12 7/8"` become 12.875 in
 - The baseline has no body weight; it shows in Latest check-in and the history list without a weight, and weight is not required for imported entries
 - Re-importing an existing program does not add another baseline
+
+## Importing Measurements From a Spreadsheet Later
+
+- On History I can choose "Import from spreadsheet" and pick a program XLSX with a `Measurements` sheet
+- Every column with readings (Baseline, Week 4, ...) is listed; I set the date for each, and a blank date skips that column
+- The first column defaults to today; each imported column becomes a check-in without body weight
+- A file with no Measurements sheet or no readings shows the error modal

@@ -12,6 +12,7 @@ vi.mock("firebase/firestore", () => ({
 }));
 
 import { parseBaselineMeasurements, parseInches } from "../xlsx-parser";
+import { parseMeasurementColumns } from "../measurements-import";
 
 function workbook(sheets: Record<string, unknown[][]>): Uint8Array {
   const wb = XLSX.utils.book_new();
@@ -78,5 +79,25 @@ describe("parseBaselineMeasurements", () => {
       const buf = readFileSync(resolve(__dirname, "../../../../data", file));
       expect(parseBaselineMeasurements(buf)).toMatchObject({ chest: 43.75, waist: 47, leftCalf: 15.5 });
     }
+  });
+});
+
+describe("parseMeasurementColumns", () => {
+  const rows = [
+    ["Measurement", "Baseline (Wk2 C3)", "Week 4", "Week 8"],
+    ["CHEST", '43 6/8"', '44"', ""],
+    ["STOMACH", '47"', '46 4/8"', ""],
+    ["LEFT CALF", "", '15"', ""],
+  ];
+
+  it("returns one entry per column that has readings, skipping empty columns", () => {
+    expect(parseMeasurementColumns(workbook({ Measurements: rows }))).toEqual([
+      { label: "Baseline (Wk2 C3)", values: { chest: 43.75, waist: 47 } },
+      { label: "Week 4", values: { chest: 44, waist: 46.5, leftCalf: 15 } },
+    ]);
+  });
+
+  it("returns an empty list when there is no Measurements sheet", () => {
+    expect(parseMeasurementColumns(workbook({ Monday: [["Exercise"]] }))).toEqual([]);
   });
 });
