@@ -1049,14 +1049,14 @@ describe("useWorkout", () => {
     expect(updateProgramExerciseWeightMock).not.toHaveBeenCalled();
   });
 
-  it("endWorkout applies a 3rd consecutive hard rating as a weight drop", async () => {
+  it("endWorkout applies a 3rd consecutive failed final set as a weight drop", async () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
     const workout = makeWorkout({ exercises: [exercise] });
     const { result } = renderHook(() => useWorkout("user-1"));
     await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
 
     await act(async () => {
-      result.current.completeSet(6, 100, false, "hard");
+      result.current.completeSet(6, 100, true, "hard");
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
