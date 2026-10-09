@@ -21,7 +21,7 @@ export default function HistoryPage() {
   const { user } = useAuth();
   const { showError } = useError();
   const { sessions, exerciseStats, loading } = useHistory(user?.uid ?? null);
-  const { programs } = usePrograms(user?.uid ?? null);
+  const { programs, loading: programsLoading } = usePrograms(user?.uid ?? null);
   const bodyMetrics = useBodyMeasurements(user?.uid ?? null);
   const [showAllExercises, setShowAllExercises] = useState(false);
   const [showAllSessions, setShowAllSessions] = useState(false);
@@ -38,6 +38,17 @@ export default function HistoryPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400">Sign in to view history.</p>
+      </div>
+    );
+  }
+
+  // Every section above Recent Workouts appears only once its data arrives, so rendering
+  // piecemeal pushed the list down mid-tap and the tap landed on the wrong workout.
+  if (loading || programsLoading || bodyMetrics.loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
+        <BottomNav active="history" />
       </div>
     );
   }
@@ -151,11 +162,7 @@ export default function HistoryPage() {
       {/* Session List */}
       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Recent Workouts</h2>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
-        </div>
-      ) : sessions.length === 0 ? (
+      {sessions.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           No workouts yet. Complete a workout to see it here.
         </div>

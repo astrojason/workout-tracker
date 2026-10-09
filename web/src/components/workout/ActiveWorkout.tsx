@@ -147,6 +147,8 @@ export function ActiveWorkout({
   const [timerRemaining, setTimerRemaining] = useState(0);
   const [timerSide, setTimerSide] = useState<1 | 2>(1);
   const [showSwitchSides, setShowSwitchSides] = useState(false);
+  // Seconds the exercise timer actually ran, to prefill the set dialog; null when it wasn't used.
+  const [timedSeconds, setTimedSeconds] = useState<number | null>(null);
 
   const { playTimerComplete, initAudio } = useSound();
   const exercise = session.workout.exercises[session.currentExerciseIndex];
@@ -180,10 +182,11 @@ export function ActiveWorkout({
         setShowSwitchSides(true);
       } else {
         setTimerSide(1);
+        setTimedSeconds(timerDuration);
         setShowCompletion(true);
       }
     }
-  }, [timerRemaining, timerRunning, playTimerComplete, exercise.isUnilateral, timerSide]);
+  }, [timerRemaining, timerRunning, playTimerComplete, exercise.isUnilateral, timerSide, timerDuration]);
 
   const startTimer = () => {
     initAudio();
@@ -329,7 +332,13 @@ export function ActiveWorkout({
         <div className="flex flex-wrap gap-3">
           {timedExercise && timerRunning ? (
             <button
-              onClick={() => { setTimerRunning(false); setShowSwitchSides(false); setTimerSide(1); setShowCompletion(true); }}
+              onClick={() => {
+                setTimerRunning(false);
+                setShowSwitchSides(false);
+                setTimerSide(1);
+                setTimedSeconds(timerDuration - timerRemaining);
+                setShowCompletion(true);
+              }}
               className="flex-1 py-4 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-lg"
             >
               Done Early
@@ -337,7 +346,7 @@ export function ActiveWorkout({
           ) : timedExercise && showSwitchSides ? (
             <>
               <button
-                onClick={() => { setShowSwitchSides(false); setTimerSide(1); setShowCompletion(true); }}
+                onClick={() => { setShowSwitchSides(false); setTimerSide(1); setTimedSeconds(timerDuration); setShowCompletion(true); }}
                 className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
               >
                 Skip Side 2
@@ -404,11 +413,13 @@ export function ActiveWorkout({
           exercise={exercise}
           setNumber={session.currentSetNumber}
           targetWeight={weight}
+          initialReps={timedSeconds ?? undefined}
           onSave={(reps, w, failed, rating, notes) => {
             setShowCompletion(false);
+            setTimedSeconds(null);
             onCompleteSet(reps, w, failed, rating, notes);
           }}
-          onCancel={() => setShowCompletion(false)}
+          onCancel={() => { setShowCompletion(false); setTimedSeconds(null); }}
         />
       )}
 

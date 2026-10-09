@@ -217,6 +217,8 @@ export interface CompletedSet {
   rating?: "easy" | "normal" | "hard";
   isTimeBased?: boolean;
   equipmentType?: EquipmentType;
+  equipmentDetail?: string | null; // band colour/size etc., so band sets don't read as bodyweight
+  skipped?: boolean;               // the Skip button, as opposed to a set attempted and failed
 }
 
 export interface WorkoutSessionDoc {
@@ -420,4 +422,21 @@ export function formatDuration(seconds: number): string {
   const hours = Math.floor(min / 60);
   const rem = min % 60;
   return `${hours}h ${rem}m`;
+}
+
+// Sets from the Skip button. Older sessions predate the flag and only carry the "Skipped" note.
+export function isSkippedSet(set: CompletedSet): boolean {
+  return set.skipped === true || (!set.completed && set.actualReps === 0 && set.notes === "Skipped");
+}
+
+// What was on the bar / in hand for one logged set, for summaries and history.
+export function setLoadLabel(set: CompletedSet): string {
+  if (set.equipmentType === "assisted_pullup" && set.actualWeight > 0) {
+    return `${cleanWeight(set.actualWeight)} ${set.actualWeight === 1 ? "band" : "bands"}`;
+  }
+  if (set.actualWeight > 0) return `${cleanWeight(set.actualWeight)} lb`;
+  if (set.equipmentType === "band" || set.equipmentType === "loop_band") {
+    return set.equipmentDetail ? `${set.equipmentDetail} band` : "Band";
+  }
+  return "BW";
 }

@@ -353,6 +353,7 @@ export function useWorkout(userId: string | null) {
       rating,
       isTimeBased: currentExercise.isTimeBased,
       equipmentType: currentExercise.equipmentType,
+      equipmentDetail: currentExercise.equipmentDetail ?? null,
     };
 
     playSetComplete();
@@ -374,15 +375,14 @@ export function useWorkout(userId: string | null) {
     const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
     if (setsRemaining > 0) {
-      // Live autoregulation: an "easy" set bumps the weight for the very next
-      // set of this same exercise, right now — separate from (and in addition
-      // to) the end-of-session progression write-back below.
-      // Assisted exercises carry the band count just logged into the next set.
-      const bumpedWeights = rating === "easy"
-        ? { ...updatedSession.resolvedWeights, [currentExercise.id]: liveEasyBump(currentWeight, currentExercise) }
-        : currentExercise.equipmentType === "assisted_pullup" && actualWeight > 0
-          ? { ...updatedSession.resolvedWeights, [currentExercise.id]: actualWeight }
-          : updatedSession.resolvedWeights;
+      // The weight just logged (edited in the set dialog or not) carries into
+      // the next set of this exercise; for assisted exercises that's the band count.
+      // Live autoregulation: an "easy" set also bumps it for the very next set,
+      // right now — separate from (and in addition to) the end-of-session
+      // progression write-back below.
+      const loggedWeight = actualWeight > 0 ? actualWeight : currentWeight;
+      const nextWeight = rating === "easy" ? liveEasyBump(loggedWeight, currentExercise) : loggedWeight;
+      const bumpedWeights = { ...updatedSession.resolvedWeights, [currentExercise.id]: nextWeight };
       const nextSession = { ...updatedSession, resolvedWeights: bumpedWeights, currentSetNumber: session.currentSetNumber + 1 };
       if (betweenSetRest > 0) {
         setSession(nextSession);
@@ -427,6 +427,8 @@ export function useWorkout(userId: string | null) {
       notes: "Skipped",
       isTimeBased: currentExercise.isTimeBased,
       equipmentType: currentExercise.equipmentType,
+      equipmentDetail: currentExercise.equipmentDetail ?? null,
+      skipped: true,
     };
 
     const newSets = [...session.completedSets, skipped];
@@ -464,9 +466,14 @@ export function useWorkout(userId: string | null) {
     // PR detection is best-effort — don't let it block the save
     let allPRs: PRResult[] = [];
     try {
-      const exerciseNames = [...new Set(sets.map((s) => s.exerciseName))];
+      // Warmup sets aren't attempts at a record — a 45x10 warmup must not pad the volume PR.
+      const warmupOrders = new Set(
+        session.workout.exercises.filter((e) => e.phase === "warmup").map((e) => e.order),
+      );
+      const workingSets = sets.filter((s) => !warmupOrders.has(s.exerciseOrder));
+      const exerciseNames = [...new Set(workingSets.map((s) => s.exerciseName))];
       for (const name of exerciseNames) {
-        const setsForExercise = sets.filter((s) => s.exerciseName === name);
+        const setsForExercise = workingSets.filter((s) => s.exerciseName === name);
         const prs = await checkForPRs(userId, name, setsForExercise);
         allPRs.push(...prs);
       }

@@ -9,14 +9,15 @@ interface SetCompletionModalProps {
   exercise: ResolvedExercise;
   setNumber: number;
   targetWeight: number;
+  initialReps?: number; // e.g. the seconds an exercise timer actually ran
   onSave: (actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => void;
   onCancel: () => void;
 }
 
 export function SetCompletionModal({
-  exercise, setNumber, targetWeight, onSave, onCancel,
+  exercise, setNumber, targetWeight, initialReps, onSave, onCancel,
 }: SetCompletionModalProps) {
-  const defaultReps = exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin;
+  const defaultReps = initialReps ?? (exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin);
   const [reps, setReps] = useState(defaultReps);
   const [weight, setWeight] = useState(targetWeight);
   const [failed, setFailed] = useState(false);

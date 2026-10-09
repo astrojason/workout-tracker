@@ -38,11 +38,11 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (!user) return;
-    getSession(user.uid, id).then((s) => {
-      setSession(s);
-      setLoading(false);
-    });
-  }, [user, id]);
+    getSession(user.uid, id)
+      .then((s) => setSession(s))
+      .catch(showError)
+      .finally(() => setLoading(false));
+  }, [user, id, showError]);
 
   async function handleDelete() {
     if (!user) return;

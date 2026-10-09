@@ -218,4 +218,28 @@ describe("checkForPRs", () => {
     expect(result).toEqual([]);
     expect(mockSavePR).not.toHaveBeenCalled();
   });
+
+  // Epley is only meaningful at low reps — a 25-rep calf raise set projected a 174 lb "1RM".
+  it("does not estimate a 1RM from sets above 12 reps", async () => {
+    const sets = [makeSet({ actualWeight: 100, actualReps: 25 })];
+    const result = await checkForPRs("user-1", "Calf Raises", sets);
+    expect(result.map((r) => r.type)).not.toContain("estimated1RM");
+    expect(result.map((r) => r.type)).toContain("weight");
+  });
+
+  it("estimates the 1RM from the low-rep sets when a session mixes rep ranges", async () => {
+    const sets = [
+      makeSet({ actualWeight: 100, actualReps: 25 }),
+      makeSet({ actualWeight: 90, actualReps: 6 }),
+    ];
+    const result = await checkForPRs("user-1", "Calf Raises", sets);
+    expect(result.find((r) => r.type === "estimated1RM")?.value).toBeCloseTo(108);
+  });
+
+  // A weighted hold logs seconds in actualReps, so weight x "reps" isn't volume or a 1RM.
+  it("ignores time-based sets", async () => {
+    const sets = [makeSet({ actualWeight: 25, actualReps: 60, isTimeBased: true })];
+    const result = await checkForPRs("user-1", "Weighted Plank", sets);
+    expect(result).toEqual([]);
+  });
 });
