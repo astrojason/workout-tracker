@@ -72,8 +72,10 @@ function SetRows({ s, exerciseTimeBased, hasRatings, colCount }: { s: CompletedS
         <td className="px-4 py-2 text-right">
           {s.completed ? (
             <span className="text-green-400">&#x2713;</span>
-          ) : (
+          ) : skipped ? (
             <span className="text-gray-600">&#x2013;</span>
+          ) : (
+            <span className="text-red-400 text-xs font-medium">Failed</span>
           )}
         </td>
       </tr>

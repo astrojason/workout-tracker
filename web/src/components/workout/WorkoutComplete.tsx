@@ -187,7 +187,12 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
                   <tbody className="divide-y divide-gray-800">
                     {group.sets.map((s) => (
                       <tr key={s.id} className={s.completed ? "" : "opacity-40"}>
-                        <td className="py-2 text-gray-400">{s.setNumber}</td>
+                        <td className="py-2 text-gray-400">
+                          {s.setNumber}
+                          {!s.completed && !isSkippedSet(s) && (
+                            <span className="ml-2 text-xs font-medium text-red-400">Failed</span>
+                          )}
+                        </td>
                         {isSkippedSet(s) ? (
                           <td colSpan={2} className="py-2 text-right text-gray-500">Skipped</td>
                         ) : (

@@ -168,4 +168,18 @@ describe("WorkoutComplete counts and failed sets", () => {
     expect(rows[1]).not.toHaveClass("opacity-40");
     expect(rows[2]).toHaveClass("opacity-40");
   });
+
+  it("labels a failed set 'Failed' in Set Details, but not a completed or skipped one", () => {
+    renderComplete(
+      [makeExercise({ sets: 3 })],
+      [
+        makeSet({ setNumber: 1 }),
+        makeSet({ setNumber: 2, completed: false, actualReps: 4 }),
+        makeSet({ setNumber: 3, completed: false, skipped: true, notes: "Skipped" }),
+      ],
+    );
+
+    const details = within(screen.getByTestId("set-details-Landmine Squat"));
+    expect(details.getAllByText("Failed")).toHaveLength(1);
+  });
 });
