@@ -58,7 +58,8 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
   const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
   const completedSets = session.completedSets.filter((s) => s.completed);
   const grouped = groupByOccurrence(session);
-  const exerciseCount = new Set(session.completedSets.map((s) => s.exerciseName)).size;
+  // Counts occurrences so the number matches the rows listed (a warmup is its own row).
+  const exerciseCount = grouped.length;
 
   return (
     <div className="min-h-screen bg-gray-950 p-6">
@@ -185,7 +186,7 @@ export function WorkoutComplete({ session, onDone, isSaving, saveError, onRetryS
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {group.sets.map((s) => (
-                      <tr key={s.id}>
+                      <tr key={s.id} className={s.completed ? "" : "opacity-40"}>
                         <td className="py-2 text-gray-400">{s.setNumber}</td>
                         {isSkippedSet(s) ? (
                           <td colSpan={2} className="py-2 text-right text-gray-500">Skipped</td>

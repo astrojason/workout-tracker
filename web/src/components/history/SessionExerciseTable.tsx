@@ -8,7 +8,7 @@ const RATING_STYLES: Record<string, string> = {
   hard: "text-red-400",
 };
 
-export function SessionExerciseTable({ name, sets, hasRatings }: { name: string; sets: CompletedSet[]; hasRatings: boolean }) {
+export function SessionExerciseTable({ name, exerciseName = name, sets, hasRatings }: { name: string; exerciseName?: string; sets: CompletedSet[]; hasRatings: boolean }) {
   const exerciseTimeBased = sets[0]?.isTimeBased === true;
   const colCount = 2 + (exerciseTimeBased ? 0 : 1) + (hasRatings ? 1 : 0) + 1;
 
@@ -17,7 +17,7 @@ export function SessionExerciseTable({ name, sets, hasRatings }: { name: string;
       <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
         <span className="font-semibold">{name}</span>
         <Link
-          href={`/exercise/${encodeURIComponent(name)}`}
+          href={`/exercise/${encodeURIComponent(exerciseName)}`}
           className="text-xs text-indigo-400 hover:text-indigo-300"
         >
           Progress &rarr;

@@ -33,6 +33,7 @@ const PAUSED_KEY = "workoutPaused";
 function serializeSession(session: ActiveSession): string {
   return JSON.stringify({
     ...session,
+    ended: undefined, // a restored session is active again, with no pending save to retry
     startTime: session.startTime.toISOString(),
     completedSets: session.completedSets.map((s) => ({
       ...s,
@@ -94,6 +95,8 @@ export function useWorkout(userId: string | null) {
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // True once endWorkoutInternal has started, so repeated taps can't save duplicate sessions.
+  const endingRef = useRef(false);
   const pendingSaveRef = useRef<{ sets: CompletedSet[]; prs: PRResult[]; duration: number; date: import("firebase/firestore").Timestamp } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationGenerationRef = useRef(0);
@@ -234,6 +237,7 @@ export function useWorkout(userId: string | null) {
     previousSessions: WorkoutSessionDoc[] = [],
   ): boolean => {
     if (!userId) return false;
+    endingRef.current = false;
     try {
       initAudio();
       equipmentConfigRef.current = equipmentConfig;
@@ -354,6 +358,7 @@ export function useWorkout(userId: string | null) {
       isTimeBased: currentExercise.isTimeBased,
       equipmentType: currentExercise.equipmentType,
       equipmentDetail: currentExercise.equipmentDetail ?? null,
+      phase: currentExercise.phase,
     };
 
     playSetComplete();
@@ -428,6 +433,7 @@ export function useWorkout(userId: string | null) {
       isTimeBased: currentExercise.isTimeBased,
       equipmentType: currentExercise.equipmentType,
       equipmentDetail: currentExercise.equipmentDetail ?? null,
+      phase: currentExercise.phase,
       skipped: true,
     };
 
@@ -458,10 +464,13 @@ export function useWorkout(userId: string | null) {
   }, []);
 
   async function endWorkoutInternal(sets: CompletedSet[]) {
-    if (!session || !userId) return;
+    if (!session || !userId || endingRef.current) return;
+    endingRef.current = true;
 
     setSaveError(null);
     setIsSaving(true);
+    // Show the summary immediately, even if no PR is achieved and sets remain.
+    setSession((prev) => prev ? { ...prev, ended: true, isResting: false, restTimeRemaining: 0 } : prev);
 
     // PR detection is best-effort — don't let it block the save
     let allPRs: PRResult[] = [];
@@ -546,6 +555,7 @@ export function useWorkout(userId: string | null) {
       timerRef.current = null;
     }
     clearPersistedSession();
+    endingRef.current = false;
     setPausedSession(null);
     setSession(null);
   }, []);

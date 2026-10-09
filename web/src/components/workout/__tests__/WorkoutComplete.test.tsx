@@ -133,3 +133,39 @@ describe("WorkoutComplete set details", () => {
     expect(details.getByText("1:15")).toBeInTheDocument();
   });
 });
+
+describe("WorkoutComplete counts and failed sets", () => {
+  it("counts a warmup and its working sets as separate exercises, matching the rows listed", () => {
+    renderComplete(
+      [
+        makeExercise({ id: "wu", order: 1, phase: "warmup", currentWeight: 45, sets: 1 }),
+        makeExercise({ id: "main", order: 2, phase: "main", sets: 1 }),
+        makeExercise({ id: "other", order: 3, name: "Pushdowns", sets: 1 }),
+      ],
+      [
+        makeSet({ exerciseOrder: 1, actualWeight: 45 }),
+        makeSet({ exerciseOrder: 2 }),
+        makeSet({ exerciseOrder: 3, exerciseName: "Pushdowns" }),
+      ],
+    );
+
+    expect(screen.getByTestId("summary").children).toHaveLength(3);
+    const exercisesStat = screen.getByText("Exercises").previousElementSibling;
+    expect(exercisesStat).toHaveTextContent("3");
+  });
+
+  it("dims a failed set in Set Details, like History does", () => {
+    renderComplete(
+      [makeExercise({ sets: 2 })],
+      [
+        makeSet({ setNumber: 1 }),
+        makeSet({ setNumber: 2, completed: false, actualReps: 4 }),
+      ],
+    );
+
+    const rows = within(screen.getByTestId("set-details-Landmine Squat")).getAllByRole("row");
+    // rows[0] is the header
+    expect(rows[1]).not.toHaveClass("opacity-40");
+    expect(rows[2]).toHaveClass("opacity-40");
+  });
+});

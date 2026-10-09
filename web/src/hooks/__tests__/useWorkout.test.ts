@@ -985,6 +985,35 @@ describe("useWorkout", () => {
     expect(result.current.currentWeight).toBe(100);
   });
 
+  it("endWorkout mid-session marks the session ended so the summary shows", async () => {
+    const workout = makeWorkout({ exercises: [makeExercise({ sets: 3, restSeconds: 0 }), makeExercise({ sets: 3, restSeconds: 0 })] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+
+    await act(async () => { await result.current.endWorkout(); });
+
+    expect(result.current.session!.ended).toBe(true);
+    expect(result.current.session!.isResting).toBe(false);
+  });
+
+  it("endWorkout saves the session only once even if triggered repeatedly", async () => {
+    const { saveSession } = await import("@/lib/firestore");
+    vi.mocked(saveSession).mockClear();
+    const workout = makeWorkout({ exercises: [makeExercise({ sets: 3, restSeconds: 0 }), makeExercise({ sets: 3, restSeconds: 0 })] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+    act(() => { result.current.completeSet(10, 135, false, "normal"); });
+
+    await act(async () => {
+      await result.current.endWorkout();
+      await result.current.endWorkout();
+      await result.current.endWorkout();
+    });
+
+    expect(saveSession).toHaveBeenCalledTimes(1);
+  });
+
   it("endWorkout writes the progression result back to the workout's program", async () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
     const workout = makeWorkout({ exercises: [exercise] });
@@ -1082,6 +1111,19 @@ describe("useWorkout", () => {
     act(() => { result.current.completeSet(12, 0, false, "normal"); });
 
     expect(result.current.session!.completedSets[0].equipmentDetail).toBe("Purple");
+  });
+
+  it("records each set's phase so History can separate warmup from working sets", () => {
+    const warmup = makeExercise({ name: "Landmine Squat", phase: "warmup", order: 1, sets: 1, restSeconds: 0 });
+    const main = makeExercise({ name: "Landmine Squat", phase: "main", order: 2, sets: 2, restSeconds: 0 });
+    const workout = makeWorkout({ exercises: [warmup, main] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    act(() => { result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 45, false, "normal"); });
+    act(() => { result.current.skipSet(); });
+
+    expect(result.current.session!.completedSets.map((s) => s.phase)).toEqual(["warmup", "main"]);
   });
 
   // Regression: the 45x10 landmine warmup counted toward the Landmine Squat volume PR.

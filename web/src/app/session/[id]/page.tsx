@@ -6,7 +6,8 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useError } from "@/components/providers/ErrorProvider";
 import { getSession, deleteSession } from "@/lib/firestore";
 import { formatDuration } from "@/lib/types";
-import type { WorkoutSessionDoc, CompletedSet } from "@/lib/types";
+import type { WorkoutSessionDoc } from "@/lib/types";
+import { groupSetsByOccurrence } from "@/lib/set-groups";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 import { CoachSection } from "@/components/workout/CoachSection";
@@ -14,15 +15,6 @@ import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { useHistory } from "@/hooks/useHistory";
 import { SessionExerciseTable } from "@/components/history/SessionExerciseTable";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
-
-function groupByExercise(sets: CompletedSet[]): { name: string; sets: CompletedSet[] }[] {
-  const seen = new Map<string, CompletedSet[]>();
-  for (const s of sets) {
-    if (!seen.has(s.exerciseName)) seen.set(s.exerciseName, []);
-    seen.get(s.exerciseName)!.push(s);
-  }
-  return Array.from(seen.entries()).map(([name, sets]) => ({ name, sets }));
-}
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -86,7 +78,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     ? session.date.toDate()
     : new Date(session.date as unknown as string);
 
-  const groups = groupByExercise(session.sets ?? []);
+  const groups = groupSetsByOccurrence(session.sets ?? []);
   const completedSets = session.sets?.filter((s) => s.completed) ?? [];
   const hasRatings = session.sets?.some((s) => s.rating) ?? false;
 
@@ -137,9 +129,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         </p>
       ) : (
         <div className="space-y-4">
-          {groups.map(({ name, sets }) => {
-            return <SessionExerciseTable key={name} name={name} sets={sets} hasRatings={hasRatings} />;
-          })}
+          {groups.map(({ order, name, exerciseName, sets }) => (
+            <SessionExerciseTable key={order} name={name} exerciseName={exerciseName} sets={sets} hasRatings={hasRatings} />
+          ))}
         </div>
       )}
 

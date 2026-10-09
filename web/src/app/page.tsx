@@ -68,7 +68,8 @@ export default function HomePage() {
   if (workout.session) {
     const lastExercise = workout.session.workout.exercises[workout.session.workout.exercises.length - 1];
     const lastExerciseSets = workout.session.completedSets.filter(s => s.exerciseOrder === lastExercise?.order).length;
-    const workoutDone = lastExerciseSets >= (lastExercise?.sets ?? 0) || workout.session.prsAchieved.length > 0;
+    const workoutDone = lastExerciseSets >= (lastExercise?.sets ?? 0) || workout.session.prsAchieved.length > 0
+      || workout.session.ended === true;
 
     if (workoutDone && !workout.session.isResting) {
       return (

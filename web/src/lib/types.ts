@@ -219,6 +219,7 @@ export interface CompletedSet {
   equipmentType?: EquipmentType;
   equipmentDetail?: string | null; // band colour/size etc., so band sets don't read as bodyweight
   skipped?: boolean;               // the Skip button, as opposed to a set attempted and failed
+  phase?: Phase;                   // lets History split a lift's warmup from its working sets; absent on older sessions
 }
 
 export interface WorkoutSessionDoc {
@@ -323,6 +324,9 @@ export interface ActiveSession {
   restTimeRemaining: number;
   startTime: Date;
   prsAchieved: PRResult[];
+  // Set once the user ends the workout (mid-session or after the last set) so the summary
+  // shows even when no PR was achieved. In-memory only: never persisted.
+  ended?: boolean;
 }
 
 export interface PreviousExercisePerformance {
