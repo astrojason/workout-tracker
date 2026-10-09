@@ -47,6 +47,34 @@ describe("BodyMetricsSection", () => {
     expect(screen.getByTestId("metrics-chart")).toBeInTheDocument();
   });
 
+  it("shows an imported baseline check-in that has no body weight", () => {
+    const baseline: BodyMeasurementDoc[] = [
+      {
+        id: "baseline",
+        date: new Date("2026-09-01T12:00:00"),
+        chest: 43.75,
+        waist: 47,
+        rightBicep: 12.875,
+        leftBicep: 12.75,
+        rightThigh: 23.25,
+        leftThigh: 23.625,
+        rightCalf: 15.75,
+        leftCalf: 15.5,
+      },
+    ];
+    render(
+      <BodyMetricsSection entries={baseline} loading={false} saving={false} onSave={vi.fn()} onDelete={vi.fn()} />,
+    );
+
+    expect(screen.queryByText(/undefined|NaN/)).not.toBeInTheDocument();
+    expect(screen.getByText("47 in waist")).toBeInTheDocument();
+    expect(screen.getByText("12.875 in right bicep")).toBeInTheDocument();
+    expect(screen.getByText("15.5 in left calf")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Right thigh" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Body weight" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("metrics-chart")).toBeInTheDocument();
+  });
+
   it("collects a dated weight with optional measurements", async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     render(

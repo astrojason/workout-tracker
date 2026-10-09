@@ -31,6 +31,12 @@ const CIRCUMFERENCE_METRICS: MetricDefinition[] = [
   { key: "hips", label: "Hips", unit: "in", inputLabel: "Hips (in)", step: "0.01" },
   { key: "arm", label: "Arm", unit: "in", inputLabel: "Arm (in)", step: "0.01" },
   { key: "thigh", label: "Thigh", unit: "in", inputLabel: "Thigh (in)", step: "0.01" },
+  { key: "rightBicep", label: "Right bicep", unit: "in", inputLabel: "Right bicep (in)", step: "0.01" },
+  { key: "leftBicep", label: "Left bicep", unit: "in", inputLabel: "Left bicep (in)", step: "0.01" },
+  { key: "rightThigh", label: "Right thigh", unit: "in", inputLabel: "Right thigh (in)", step: "0.01" },
+  { key: "leftThigh", label: "Left thigh", unit: "in", inputLabel: "Left thigh (in)", step: "0.01" },
+  { key: "rightCalf", label: "Right calf", unit: "in", inputLabel: "Right calf (in)", step: "0.01" },
+  { key: "leftCalf", label: "Left calf", unit: "in", inputLabel: "Left calf (in)", step: "0.01" },
 ];
 
 const SMART_SCALE_METRICS: MetricDefinition[] = [
@@ -75,8 +81,13 @@ function optionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+// Tape measurements are recorded in eighths of an inch, so keep three decimals.
+function cleanValue(metric: MetricDefinition, value: number): string {
+  return metric.unit === "in" ? parseFloat(value.toFixed(3)).toString() : cleanWeight(value);
+}
+
 function formatMetric(metric: MetricDefinition, value: number): string {
-  const number = cleanWeight(value);
+  const number = cleanValue(metric, value);
   const label = metric.label.toLowerCase();
   switch (metric.unit) {
     case "%": return `${number}% ${label}`;
@@ -86,7 +97,7 @@ function formatMetric(metric: MetricDefinition, value: number): string {
 }
 
 function tooltipValue(value: number, metric: MetricDefinition): string {
-  const number = cleanWeight(value);
+  const number = cleanValue(metric, value);
   if (metric.unit === "%") return `${number}%`;
   return metric.unit ? `${number} ${metric.unit}` : number;
 }
@@ -121,9 +132,11 @@ export function BodyMetricsSection({
   );
   const latest = sortedEntries.at(-1);
   const availableMetrics = METRICS.filter(({ key }) =>
-    key === "weight" || sortedEntries.some((entry) => entry[key] !== undefined),
+    sortedEntries.some((entry) => entry[key] !== undefined),
   );
-  const selectedMetric = availableMetrics.some((item) => item.key === metric) ? metric : "weight";
+  const selectedMetric = availableMetrics.some((item) => item.key === metric)
+    ? metric
+    : (availableMetrics[0]?.key ?? "weight");
   const selectedDefinition = METRICS.find((item) => item.key === selectedMetric) ?? METRICS[0];
   const chartData = sortedEntries
     .filter((entry) => entry[selectedMetric] !== undefined)
@@ -269,7 +282,9 @@ export function BodyMetricsSection({
               <div className="mb-4">
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Latest check-in</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-2xl font-bold">{cleanWeight(latest.weight)} lbs</span>
+                  {latest.weight !== undefined && (
+                    <span className="text-2xl font-bold">{cleanWeight(latest.weight)} lbs</span>
+                  )}
                   {METRICS.filter(({ key }) => key !== "weight" && latest[key] !== undefined).map((definition) => (
                     <span key={definition.key} className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-300">
                       {formatMetric(definition, latest[definition.key] as number)}
@@ -311,7 +326,9 @@ export function BodyMetricsSection({
                 return (
                   <div key={entry.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                     <div>
-                      <p className="font-semibold">{cleanWeight(entry.weight)} lbs</p>
+                      <p className="font-semibold">
+                        {entry.weight !== undefined ? `${cleanWeight(entry.weight)} lbs` : "Baseline measurements"}
+                      </p>
                       <p className="text-xs text-gray-500">{dateLabel}</p>
                     </div>
                     <button

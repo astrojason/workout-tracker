@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Program, Phase, EquipmentType, ProgressionRule, RepTarget } from "./types";
+import type { Program, Phase, EquipmentType, ProgressionRule, RepTarget, BodyMeasurementInput } from "./types";
 import { PHASE_ORDER } from "./types";
 import type { ParsedExercise, ParsedWorkout } from "./exercise-import";
 
@@ -258,4 +258,50 @@ export function parseXLSX(
     programs,
     workouts,
   };
+}
+
+
+// ── Baseline body measurements ───────────────────────────────────────────────
+//
+// The optional "Measurements" sheet lists tape measurements down column A and
+// check-in dates across the top. Its first value column is the baseline.
+
+const MEASUREMENT_ROWS: Record<string, keyof Omit<BodyMeasurementInput, "date" | "weight">> = {
+  "RIGHT BICEP": "rightBicep",
+  "LEFT BICEP": "leftBicep",
+  "CHEST": "chest",
+  "STOMACH": "waist",
+  "RIGHT THIGH": "rightThigh",
+  "LEFT THIGH": "leftThigh",
+  "RIGHT CALF": "rightCalf",
+  "LEFT CALF": "leftCalf",
+};
+
+// Accepts 47, "47\"", "12 7/8\"" and "15.5". Returns undefined for blank/unparseable cells.
+export function parseInches(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)(?:\s+(\d+)\/(\d+))?\s*(?:"|in)?$/);
+  if (!match) return undefined;
+  const fraction = match[2] && match[3] && Number(match[3]) > 0 ? Number(match[2]) / Number(match[3]) : 0;
+  const inches = Number(match[1]) + fraction;
+  return inches > 0 ? inches : undefined;
+}
+
+export function parseBaselineMeasurements(
+  data: ArrayBuffer | Uint8Array | Buffer,
+): Omit<BodyMeasurementInput, "date" | "weight"> | null {
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheet = workbook.Sheets["Measurements"];
+  if (!sheet) return null;
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+  const result: Omit<BodyMeasurementInput, "date" | "weight"> = {};
+  for (const row of rows.slice(1)) {
+    const field = MEASUREMENT_ROWS[String(row[0] ?? "").trim().toUpperCase()];
+    if (!field) continue;
+    const inches = parseInches(row[1]);
+    if (inches !== undefined) result[field] = inches;
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }

@@ -239,12 +239,19 @@ export interface WorkoutSessionDoc {
 
 export interface BodyMeasurementInput {
   date: Date;
-  weight: number;
+  // Absent on a baseline imported from a program spreadsheet (tape measurements only).
+  weight?: number;
   chest?: number;
   waist?: number;
   hips?: number;
   arm?: number;
   thigh?: number;
+  rightBicep?: number;
+  leftBicep?: number;
+  rightThigh?: number;
+  leftThigh?: number;
+  rightCalf?: number;
+  leftCalf?: number;
   bodyFatPercentage?: number;
   bmi?: number;
   heartRate?: number;

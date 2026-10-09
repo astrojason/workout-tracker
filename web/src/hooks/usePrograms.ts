@@ -7,10 +7,10 @@ import {
   getWorkoutsForProgram,
   getCompletedDays, getSkippedDays, saveSkippedSession, saveProgram, saveWorkout, setProgramWeights,
   deleteProgramDoc, deleteAllWorkoutsForProgram, setProgramArchived,
-  renameProgram as renameProgramDoc, migrateProgramIds,
+  renameProgram as renameProgramDoc, migrateProgramIds, saveBodyMeasurement,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
-import { parseXLSX } from "@/lib/xlsx-parser";
+import { parseBaselineMeasurements, parseXLSX } from "@/lib/xlsx-parser";
 import { resolveExerciseDefinitions } from "@/lib/exercise-import";
 import { DAY_ORDER } from "@/lib/types";
 
@@ -178,7 +178,12 @@ export function usePrograms(userId: string | null) {
 
   const importXLSX = useCallback(async (buffer: ArrayBuffer, nameOverride?: string) => {
     if (!userId) return;
-    await _saveAndReload(parseXLSX(buffer), nameOverride);
+    const parsed = parseXLSX(buffer);
+    const baseline = parseBaselineMeasurements(buffer);
+    await _saveAndReload(parsed, nameOverride);
+    // The spreadsheet's Measurements sheet is the user's starting point: record it as
+    // the first check-in. Re-imports skip this so refreshing a program never duplicates it.
+    if (baseline) await saveBodyMeasurement(userId, { date: new Date(), ...baseline });
   }, [userId, settings]);
 
   // Re-import: replaces workout definitions for an existing program without
