@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_VERSION } from "@/lib/version";
 
 type ActiveTab = "home" | "history" | "settings" | null;
 
@@ -22,6 +23,7 @@ export function BottomNav({ active }: { active: ActiveTab }) {
           <span className="text-xs mt-1">Settings</span>
         </Link>
       </div>
+      <div className="text-center text-[10px] text-gray-600 mt-2">v{APP_VERSION}</div>
     </nav>
   );
 }

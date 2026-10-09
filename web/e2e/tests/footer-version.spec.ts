@@ -1,11 +1,14 @@
-// The app version is shown in a footer rendered by the root layout, so every page has it.
+// The app version is shown inside the bottom navigation bar (the footer with the controls),
+// not as a separate line beneath it.
 import { expect, test } from "@playwright/test";
 import { version } from "../../package.json";
 
-for (const path of ["/test-preview/program-card", "/test-preview/session-notes", "/settings"]) {
-  test(`shows the app version in the footer on ${path}`, async ({ page }) => {
-    await page.goto(path);
-    await expect(page.getByRole("contentinfo")).toContainText(`v${version}`);
-    await expect(page.getByText(`Workout Tracker v${version}`)).toHaveCount(1);
-  });
-}
+test("shows the app version inside the bottom nav, alongside its controls", async ({ page }) => {
+  await page.goto("/test-preview/bottom-nav");
+
+  const nav = page.getByRole("navigation");
+  await expect(nav).toContainText(`v${version}`);
+  await expect(nav.getByRole("link", { name: /settings/i })).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  await expect(page.getByText(`v${version}`)).toHaveCount(1);
+});
