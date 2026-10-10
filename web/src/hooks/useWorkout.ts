@@ -6,6 +6,7 @@ import type {
   WorkoutSessionDoc,
 } from "@/lib/types";
 import { resolveWorkout } from "@/lib/types";
+import type { ProgressionChange } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
@@ -97,7 +98,7 @@ export function useWorkout(userId: string | null) {
   const [saveError, setSaveError] = useState<string | null>(null);
   // True once endWorkoutInternal has started, so repeated taps can't save duplicate sessions.
   const endingRef = useRef(false);
-  const pendingSaveRef = useRef<{ sets: CompletedSet[]; prs: PRResult[]; duration: number; date: import("firebase/firestore").Timestamp } | null>(null);
+  const pendingSaveRef = useRef<{ sets: CompletedSet[]; prs: PRResult[]; duration: number; date: import("firebase/firestore").Timestamp; progressionChanges: ProgressionChange[] } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationGenerationRef = useRef(0);
   const restEndRef = useRef<Date | null>(null);
@@ -496,6 +497,10 @@ export function useWorkout(userId: string | null) {
     // exercise within the program resolves to the new weight going forward; other
     // programs keep their own).
     // Historical CompletedSet records above are never touched.
+    // Remembered on the session so deleting it can restore the weights it changed. An
+    // exercise appearing twice writes twice from the same start, so keep the first
+    // `before` and the last `after`.
+    const changes = new Map<string, ProgressionChange>();
     try {
       for (const exercise of session.workout.exercises) {
         const setsForExercise = sets.filter((s) => s.exerciseOrder === exercise.order);
@@ -504,6 +509,13 @@ export function useWorkout(userId: string | null) {
         const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current);
         if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak) continue;
         await updateProgramExerciseWeight(userId, session.workout.programId, exercise.definitionId, result.currentWeight, result.hardStreak);
+        const after = { currentWeight: result.currentWeight, hardStreak: result.hardStreak };
+        const earlier = changes.get(exercise.definitionId);
+        changes.set(exercise.definitionId, {
+          definitionId: exercise.definitionId,
+          before: earlier?.before ?? { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak },
+          after,
+        });
       }
     } catch (err) {
       showError(err); // Show but proceed — progression failure must not block the save
@@ -511,7 +523,8 @@ export function useWorkout(userId: string | null) {
 
     const duration = Math.round((Date.now() - session.startTime.getTime()) / 1000);
     const saveDate = Timestamp.now();
-    pendingSaveRef.current = { sets, prs: allPRs, duration, date: saveDate };
+    const progressionChanges = [...changes.values()];
+    pendingSaveRef.current = { sets, prs: allPRs, duration, date: saveDate, progressionChanges };
 
     try {
       await saveSession(userId, {
@@ -523,6 +536,7 @@ export function useWorkout(userId: string | null) {
         completed: true,
         durationSeconds: duration,
         sets,
+        progressionChanges,
       });
       pendingSaveRef.current = null;
       clearPersistedSession();
@@ -597,7 +611,7 @@ export function useWorkout(userId: string | null) {
 
   const retrySave = useCallback(async () => {
     if (!session || !userId || !pendingSaveRef.current) return;
-    const { sets, prs, duration, date } = pendingSaveRef.current;
+    const { sets, prs, duration, date, progressionChanges } = pendingSaveRef.current;
     setSaveError(null);
     setIsSaving(true);
     try {
@@ -610,6 +624,7 @@ export function useWorkout(userId: string | null) {
         completed: true,
         durationSeconds: duration,
         sets,
+        progressionChanges,
       });
       pendingSaveRef.current = null;
       clearPersistedSession();

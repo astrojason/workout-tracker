@@ -1033,6 +1033,31 @@ describe("useWorkout", () => {
     );
   });
 
+  it("endWorkout records the before/after weights on the saved session so a delete can undo them", async () => {
+    const { saveSession } = await import("@/lib/firestore");
+    vi.mocked(saveSession).mockClear();
+    const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 100, hardStreak: 1 });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    await act(async () => {
+      result.current.completeSet(10, 100, false, "normal");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const saved = vi.mocked(saveSession).mock.calls[0][1];
+    expect(saved.progressionChanges).toEqual([
+      {
+        definitionId: exercise.definitionId,
+        before: { currentWeight: 100, hardStreak: 1 },
+        after: { currentWeight: 105, hardStreak: 0 },
+      },
+    ]);
+  });
+
   it("endWorkout does not write back when the progression rule has no numeric increment", async () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "maintain", currentWeight: 100 });
     const workout = makeWorkout({ exercises: [exercise] });

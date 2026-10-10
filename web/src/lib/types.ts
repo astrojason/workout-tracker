@@ -222,6 +222,14 @@ export interface CompletedSet {
   phase?: Phase;                   // lets History split a lift's warmup from its working sets; absent on older sessions
 }
 
+// One exercise's weight change caused by saving a session, kept so deleting the session
+// can undo it. `before` is the program's weight when the session started.
+export interface ProgressionChange {
+  definitionId: string;
+  before: ProgramExerciseWeight;
+  after: ProgramExerciseWeight;
+}
+
 export interface WorkoutSessionDoc {
   id: string;
   programId: string; // stable foreign key — query/filter by this, not programName
@@ -232,6 +240,7 @@ export interface WorkoutSessionDoc {
   completed: boolean;
   durationSeconds: number;
   sets: CompletedSet[];
+  progressionChanges?: ProgressionChange[];
   // Explicit "I didn't train this day" marker — distinguishes a deliberate skip
   // (no sets, completed: false) from silence in history or a partially-finished
   // session. Never true alongside completed: true.

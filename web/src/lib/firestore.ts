@@ -441,8 +441,24 @@ export async function getSession(
   return { id: snap.id, ...snap.data() } as WorkoutSessionDoc;
 }
 
+// Deleting a session also undoes the weight changes it caused, so a mistaken or test
+// session doesn't leave the program's weights bumped. A weight is restored only if it
+// still holds the value this session wrote; if a later session has moved it on, that
+// later progress stands. The undo runs first so a failure leaves the session in place.
 export async function deleteSession(userId: string, sessionId: string): Promise<void> {
-  await deleteDoc(doc(sessionsCol(userId), sessionId));
+  const sessionRef = doc(sessionsCol(userId), sessionId);
+  const session = (await getDoc(sessionRef)).data() as Partial<WorkoutSessionDoc> | undefined;
+  const changes = session?.progressionChanges ?? [];
+  if (session?.programId && changes.length > 0) {
+    const programRef = doc(programsCol(userId), session.programId);
+    const program = (await getDoc(programRef)).data() as Partial<Program> | undefined;
+    for (const { definitionId, before, after } of changes) {
+      const current = program?.weights?.[definitionId];
+      if (current?.currentWeight !== after.currentWeight || current?.hardStreak !== after.hardStreak) continue;
+      await updateDoc(programRef, { [`weights.${definitionId}`]: before });
+    }
+  }
+  await deleteDoc(sessionRef);
 }
 
 // ── Body measurements ──
