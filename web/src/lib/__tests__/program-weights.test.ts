@@ -114,11 +114,12 @@ describe("per-row weight and band", () => {
 });
 
 describe("resolveExercise row overrides", () => {
-  it("prefers the row's weight and band over the shared definition", async () => {
+  it("a warm-up row keeps its own weight, but a working row takes the program's weight (the sheet only seeds it)", async () => {
     const { resolveExercise } = await import("../types");
     const d = { ...def("d", 45), equipmentDetail: "Orange" };
     const base = { id: "e", definitionId: "d", order: 1, phase: "main", sets: 3, repMin: 8, repMax: { type: "count", value: 10 }, restSeconds: 60, notes: null } as const;
-    expect(resolveExercise({ ...base, weight: 135, equipmentDetail: "Purple" }, { d })).toMatchObject({ currentWeight: 135, equipmentDetail: "Purple" });
+    expect(resolveExercise({ ...base, phase: "warmup", weight: 135, equipmentDetail: "Purple" }, { d })).toMatchObject({ currentWeight: 135, equipmentDetail: "Purple" });
+    expect(resolveExercise({ ...base, weight: 135, equipmentDetail: "Purple" }, { d })).toMatchObject({ currentWeight: 45, equipmentDetail: "Purple" });
     expect(resolveExercise({ ...base }, { d })).toMatchObject({ currentWeight: 45, equipmentDetail: "Orange" });
   });
 });

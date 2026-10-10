@@ -74,3 +74,24 @@ The following order is always enforced, regardless of `Order` values in the XLSX
 
 Within each phase, exercises are sorted by their `Order` value ascending.
 After sorting, all exercises are re-indexed 1–N globally within the workout.
+
+---
+
+## Warm-Up Ramp (barbell and PowerBlock lifts)
+
+**As a user starting a workout where a lift has a warm-up row and a work row:**
+
+Given Bench Press has a warm-up row and a work row, and its current work weight is 200 lbs:
+
+- The warm-up row is replaced by a ramp built from the work weight: the empty bar x8,
+  then 40% x5, 60% x3 and 80% x2 (so 45x8, 80x5, 120x3, 160x2), each a single set
+- Every ramp weight is **below** the work weight and **at most 85%** of it, rounds
+  **down** to something the equipment can load, and strictly increases
+- If the work weight is about the bar, no ramp is possible and the warm-up is dropped
+- Ramp steps rest 60s between them; after the last one the sheet's own transition
+  into the work set applies (normally no rest)
+- When the work weight goes up (progression), the next workout's warm-up ramps from
+  the new weight; it never stays at the spreadsheet's old warm-up weight
+- Warm-up sets never change any stored weight, whatever their progression rule
+- Other equipment (e.g. a kettlebell warm-up sharing a lift with a work row) keeps the
+  sheet's warm-up as written, capped so it never exceeds the work weight

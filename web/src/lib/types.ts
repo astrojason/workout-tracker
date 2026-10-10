@@ -80,7 +80,7 @@ export interface Exercise {
   notes: string | null;
   lastSetAmrap?: boolean;        // when true, the final set is AMRAP regardless of repMax
   restAfter?: false | number;    // rest before the NEXT exercise only: false = skip it, number = override its duration. Never affects rest between this exercise's own sets — that always uses restSeconds.
-  weight?: number;               // this row's own planned weight from the spreadsheet; wins over the definition/program weight
+  weight?: number;               // this row's own planned weight from the spreadsheet; only a warm-up row uses it — working rows follow the program weight
   equipmentDetail?: string | null; // this row's own band colour/size etc.; wins over the definition's
 }
 
@@ -101,8 +101,10 @@ export function resolveExercise(
   return {
     ...exercise,
     ...defRest,
-    // The same lift can sit at a different weight/band in each row (warm-up vs working, week to week).
-    ...(exercise.weight !== undefined ? { currentWeight: exercise.weight } : {}),
+    // The spreadsheet only seeds a lift's starting weight; after that the app owns it, so a
+    // working row never takes its own sheet weight. A warm-up row keeps its own (lighter)
+    // weight, which warmup-ramp.ts replaces or caps. A band/size can still differ per row.
+    ...(exercise.weight !== undefined && exercise.phase === "warmup" ? { currentWeight: exercise.weight } : {}),
     ...(exercise.equipmentDetail !== undefined ? { equipmentDetail: exercise.equipmentDetail } : {}),
   };
 }

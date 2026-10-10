@@ -7,7 +7,7 @@ import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIG
 // search downward for an exact plate match). PowerBlock needs the explicit roundDown
 // flag since its default behavior rounds to nearest. Equipment types with no snap
 // function (dumbbell, kettlebell, band, bodyweight, gripper, assisted_pullup) pass through.
-function roundDownToAchievable(weight: number, exercise: ResolvedExercise, config?: UserEquipmentConfig): number {
+export function roundDownToAchievable(weight: number, exercise: ResolvedExercise, config?: UserEquipmentConfig): number {
   if (weight <= 0) return 0;
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {

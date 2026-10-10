@@ -27,7 +27,8 @@ app. Everything else requires the user to change weight manually.
 Runs once when a workout is saved, against the **last set logged** for each
 exercise, and updates the program's stored weight for that exercise (shared by
 every appearance of it in the program; other programs are unaffected). The
-spreadsheet's planned weights after the earliest week are not used. Deleting the
+spreadsheet's `Total Weight` only seeds a lift's starting weight (earliest week); after
+that the app owns it, and later weeks' sheet weights are not used for working sets. Deleting the
 session restores the weight it changed, unless a later session has moved it on.
 
 **Non-AMRAP exercises** follow the last set's rating (step = the rule's increment):
@@ -50,3 +51,10 @@ the rating and project from reps (Epley):
 `estimated1RM = actualWeight × (1 + reps / 30)` (reps capped at 2× the target — more
 means the weight was too light), then
 `next = estimated1RM × 30 / (30 + targetReps)`, rounded down to loadable.
+
+## Warm-ups
+
+Warm-up rows never write progression. For barbell and PowerBlock lifts, a warm-up is
+replaced at workout start by a ramp built from the current work weight (empty bar x8,
+then 40% x5, 60% x3, 80% x2, each rounded down to loadable and never above 85% of
+the work weight). See `testing/user-stories/warm-up-phase-behavior.md`.

@@ -8,6 +8,7 @@ import type {
 import { resolveWorkout } from "@/lib/types";
 import type { ProgressionChange } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
+import { rampWarmups } from "@/lib/warmup-ramp";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -243,7 +244,8 @@ export function useWorkout(userId: string | null) {
       initAudio();
       equipmentConfigRef.current = equipmentConfig;
 
-      const resolvedWorkout = resolveWorkout(workout, definitions);
+      const baseWorkout = resolveWorkout(workout, definitions);
+      const resolvedWorkout = { ...baseWorkout, exercises: rampWarmups(baseWorkout.exercises, equipmentConfig) };
       const resolvedWeights: Record<string, number> = {};
       for (const exercise of resolvedWorkout.exercises) {
         resolvedWeights[exercise.id] = exercise.currentWeight;
@@ -503,6 +505,8 @@ export function useWorkout(userId: string | null) {
     const changes = new Map<string, ProgressionChange>();
     try {
       for (const exercise of session.workout.exercises) {
+        // A warm-up is lighter than the work set by design; it must never move a weight.
+        if (exercise.phase === "warmup") continue;
         const setsForExercise = sets.filter((s) => s.exerciseOrder === exercise.order);
         if (setsForExercise.length === 0) continue;
         const finalSet = setsForExercise.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));

@@ -1058,6 +1058,24 @@ describe("useWorkout", () => {
     ]);
   });
 
+  it("endWorkout never writes progression for a warm-up, even one with a numeric rule", async () => {
+    const warmup = makeExercise({ id: "wu", order: 1, phase: "warmup", sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 45, definitionId: "def-wu" });
+    const main = makeExercise({ id: "main", order: 2, sets: 1, restSeconds: 0, progressionRule: "none", currentWeight: 100, definitionId: "def-main" });
+    const workout = makeWorkout({ exercises: [warmup, main] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    act(() => { result.current.completeSet(10, 45, false, "easy"); });
+    await act(async () => {
+      result.current.completeSet(10, 100, false, "easy");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateProgramExerciseWeightMock).not.toHaveBeenCalled();
+  });
+
   it("endWorkout does not write back when the progression rule has no numeric increment", async () => {
     const exercise = makeExercise({ sets: 1, restSeconds: 0, progressionRule: "maintain", currentWeight: 100 });
     const workout = makeWorkout({ exercises: [exercise] });
@@ -1154,8 +1172,8 @@ describe("useWorkout", () => {
   // Regression: the 45x10 landmine warmup counted toward the Landmine Squat volume PR.
   it("leaves warmup sets out of PR detection", async () => {
     const { checkForPRs } = await import("@/lib/pr-detector");
-    const warmup = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "warmup", order: 1, sets: 1, restSeconds: 0, currentWeight: 45, weight: 45 });
-    const main = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "main", order: 2, sets: 1, restSeconds: 0, currentWeight: 65, weight: 65 });
+    const warmup = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "warmup", order: 1, sets: 1, restSeconds: 0, currentWeight: 45, weight: 45, equipmentType: "kettlebell" });
+    const main = makeExercise({ name: "Landmine Squat", definitionId: "def-ls", phase: "main", order: 2, sets: 1, restSeconds: 0, currentWeight: 65, weight: 65, equipmentType: "kettlebell" });
     const workout = makeWorkout({ exercises: [warmup, main] });
     const { result } = renderHook(() => useWorkout("user-1"));
     await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
