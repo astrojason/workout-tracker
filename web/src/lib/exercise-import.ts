@@ -38,9 +38,10 @@ export interface ParsedWorkout {
   isChecklist?: boolean;
 }
 
-// Which spreadsheet row's Total Weight seeds each exercise's weight for the program. The
-// earliest week wins, and within it a working row beats a warm-up row (a lighter warm-up
-// of the same lift must not set the working weight). Keyed by trimmed lowercase name.
+// Which spreadsheet row's Total Weight seeds each exercise's weight for the program. A
+// working row beats a warm-up row in ANY week (a lighter warm-up of the same lift must not
+// set the working weight, even if the working row's weight only appears in a later week);
+// within the same kind of row, the earliest week wins. Keyed by trimmed lowercase name.
 export function pickSeedWeights(parsedWorkouts: ParsedWorkout[]): Map<string, number> {
   const best = new Map<string, { rank: [number, number, number]; weight: number }>();
   let seen = 0;
@@ -49,7 +50,7 @@ export function pickSeedWeights(parsedWorkouts: ParsedWorkout[]): Map<string, nu
       seen++;
       if (pe.seedWeight === undefined) continue;
       const key = pe.name.trim().toLowerCase();
-      const rank: [number, number, number] = [pw.week, pe.phase === "warmup" ? 1 : 0, seen];
+      const rank: [number, number, number] = [pe.phase === "warmup" ? 1 : 0, pw.week, seen];
       const current = best.get(key);
       const better = !current || rank[0] < current.rank[0] ||
         (rank[0] === current.rank[0] && (rank[1] < current.rank[1] ||

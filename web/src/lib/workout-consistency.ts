@@ -95,8 +95,22 @@ export function calculateWorkoutConsistency(
   };
 }
 
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// The local date of a session's scheduled day, within the Monday-to-Sunday week it was done
+// in. Thursday's workout done on Saturday is still Thursday's, so the week grid checks off
+// Thursday. A day that isn't a weekday name (e.g. "Daily") falls back to the date done.
+function scheduledDate(done: Date, dayOfWeek: string): Date {
+  const index = WEEKDAYS.indexOf(dayOfWeek);
+  if (index === -1) return done;
+  const monday = startOfLocalDay(done);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  monday.setDate(monday.getDate() + index);
+  return monday;
+}
+
 // Local YYYY-MM-DD dates on which this program's week was completed (or deliberately
-// skipped). Same rules as getCompletedDays/getSkippedDays in firestore.ts, but over the
+// skipped), keyed by the day each workout was scheduled for. Same rules as getCompletedDays/getSkippedDays in firestore.ts, but over the
 // live session list, so Home's week grid can't lag behind the streak after a workout.
 export function sessionDaysForWeek(
   sessions: WorkoutSessionDoc[],
@@ -111,7 +125,7 @@ export function sessionDaysForWeek(
     if (kind === "completed" ? s.completed !== true : s.skipped !== true) continue;
     const date = sessionDate(s.date);
     if (since && date < since) continue;
-    days.add(dateKey(date));
+    days.add(dateKey(scheduledDate(date, s.dayOfWeek)));
   }
   return days;
 }

@@ -1058,6 +1058,16 @@ describe("useWorkout", () => {
     ]);
   });
 
+  it("startWorkout drops the sheet's warm-up when the work weight is just the bar", async () => {
+    const warmup = makeExercise({ id: "wu", order: 1, phase: "warmup", sets: 1, repMin: 10, restSeconds: 0, equipmentType: "barbell_45", currentWeight: 45, weight: 45, definitionId: "def-bench", name: "Flat Bench Press" });
+    const main = makeExercise({ id: "main", order: 2, phase: "main", sets: 3, restSeconds: 0, equipmentType: "barbell_45", currentWeight: 45, definitionId: "def-bench", name: "Flat Bench Press" });
+    const workout = makeWorkout({ exercises: [warmup, main] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    expect(result.current.session!.workout.exercises.map((e) => e.phase)).toEqual(["main"]);
+  });
+
   it("endWorkout never writes progression for a warm-up, even one with a numeric rule", async () => {
     const warmup = makeExercise({ id: "wu", order: 1, phase: "warmup", sets: 1, restSeconds: 0, progressionRule: "add_5lb", currentWeight: 45, definitionId: "def-wu" });
     const main = makeExercise({ id: "main", order: 2, sets: 1, restSeconds: 0, progressionRule: "none", currentWeight: 100, definitionId: "def-main" });

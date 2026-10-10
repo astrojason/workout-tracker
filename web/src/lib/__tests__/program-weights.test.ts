@@ -46,6 +46,20 @@ describe("pickSeedWeights", () => {
     expect(seeds.get("flat bench press")).toBe(135);
   });
 
+  it("seeds from a later week's working row rather than an earlier week's warm-up", () => {
+    // Week 1's working row has no weight, so its 45 lb warm-up must not become the working weight.
+    const seeds = pickSeedWeights([
+      wk(1, [ex("Flat Bench Press", 45, "warmup"), ex("Flat Bench Press", undefined)]),
+      wk(2, [ex("Flat Bench Press", 45, "warmup"), ex("Flat Bench Press", 135)]),
+    ]);
+    expect(seeds.get("flat bench press")).toBe(135);
+  });
+
+  it("falls back to a warm-up's weight when no working row has one", () => {
+    const seeds = pickSeedWeights([wk(1, [ex("Band Pull-Apart", 10, "warmup")])]);
+    expect(seeds.get("band pull-apart")).toBe(10);
+  });
+
   it("uses the earliest week, matching names case-insensitively", () => {
     const seeds = pickSeedWeights([wk(2, [ex("Barbell Row", 80)]), wk(1, [ex("barbell row ", 75)])]);
     expect(seeds.get("barbell row")).toBe(75);

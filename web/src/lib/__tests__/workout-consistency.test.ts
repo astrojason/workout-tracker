@@ -88,12 +88,15 @@ describe("calculateWorkoutConsistency", () => {
 describe("sessionDaysForWeek", () => {
   // The Home week grid and today button read these from the live session list, the
   // same source as the streak, so finishing a workout updates all three together.
+  // 2026-10-08 is a Thursday, 2026-10-09 a Friday, 2026-10-10 a Saturday.
+  const thu = { dayOfWeek: "Thursday" };
+
   it("returns the local dates of completed sessions for the program's current week", () => {
     const days = sessionDaysForWeek([
-      session("a", "2026-10-08"),
-      session("b", "2026-10-01", { week: 1 }),
-      session("c", "2026-10-07", { programId: "other" }),
-      session("d", "2026-10-06", { completed: false }),
+      session("a", "2026-10-08", thu),
+      session("b", "2026-10-01", { ...thu, week: 1 }),
+      session("c", "2026-10-07", { ...thu, programId: "other" }),
+      session("d", "2026-10-06", { ...thu, completed: false }),
     ], "program-1", 2, "completed");
 
     expect([...days]).toEqual(["2026-10-08"]);
@@ -101,8 +104,8 @@ describe("sessionDaysForWeek", () => {
 
   it("returns skipped days separately", () => {
     const sessions = [
-      session("a", "2026-10-08"),
-      session("b", "2026-10-09", { completed: false, skipped: true }),
+      session("a", "2026-10-08", thu),
+      session("b", "2026-10-09", { dayOfWeek: "Friday", completed: false, skipped: true }),
     ];
 
     expect([...sessionDaysForWeek(sessions, "program-1", 2, "skipped")]).toEqual(["2026-10-09"]);
@@ -110,10 +113,39 @@ describe("sessionDaysForWeek", () => {
 
   it("ignores sessions from before the program was created", () => {
     const days = sessionDaysForWeek(
-      [session("a", "2026-10-01"), session("b", "2026-10-08")],
+      [session("a", "2026-10-01", thu), session("b", "2026-10-08", thu)],
       "program-1", 2, "completed", new Date("2026-10-05T00:00:00"),
     );
 
     expect([...days]).toEqual(["2026-10-08"]);
+  });
+
+  // "Choose different day": Thursday's workout done on Saturday is Thursday's, not Saturday's.
+  it("marks the day a workout was scheduled for, not the day it was done", () => {
+    const days = sessionDaysForWeek([session("a", "2026-10-10", thu)], "program-1", 2, "completed");
+    expect([...days]).toEqual(["2026-10-08"]);
+  });
+
+  it("marks a later scheduled day when a workout is done early", () => {
+    const days = sessionDaysForWeek([session("a", "2026-10-08", { dayOfWeek: "Saturday" })], "program-1", 2, "completed");
+    expect([...days]).toEqual(["2026-10-10"]);
+  });
+
+  it("places a Sunday session in the Monday-to-Sunday week it was done in", () => {
+    // Sunday 2026-10-11 belongs to the week of Monday 2026-10-05, so Thursday is 2026-10-08.
+    const days = sessionDaysForWeek([session("a", "2026-10-11", thu)], "program-1", 2, "completed");
+    expect([...days]).toEqual(["2026-10-08"]);
+  });
+
+  it("marks a skipped day by its scheduled day too", () => {
+    const days = sessionDaysForWeek(
+      [session("a", "2026-10-10", { ...thu, completed: false, skipped: true })], "program-1", 2, "skipped",
+    );
+    expect([...days]).toEqual(["2026-10-08"]);
+  });
+
+  it("falls back to the date done for a Daily workout", () => {
+    const days = sessionDaysForWeek([session("a", "2026-10-10", { dayOfWeek: "Daily" })], "program-1", 2, "completed");
+    expect([...days]).toEqual(["2026-10-10"]);
   });
 });
