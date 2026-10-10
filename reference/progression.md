@@ -42,7 +42,8 @@ session restores the weight it changed, unless a later session has moved it on.
 **`add_weight` on kettlebells** holds the bell until the last set reaches the top of the
 rep range (`rep_max`) **and** is rated Easy; then the next heavier bell in your equipment
 config (default 15/25/45) is used. Normal, Hard, short reps or a skipped set all hold.
-At your heaviest bell it holds too.
+If the last set is **AMRAP** there is no top of the range, so the bell moves up once the
+reps reach **2× the target** (whatever the rating). At your heaviest bell it holds too.
 
 **AMRAP exercises** (`failure` rep max, or `last_set_amrap` on the final set) ignore
 the rating and project from reps (Epley):

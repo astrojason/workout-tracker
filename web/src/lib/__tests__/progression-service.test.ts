@@ -100,6 +100,33 @@ describe("computeNextWeight — add_weight on a kettlebell (add reps until the b
     expect(result.currentWeight).toBe(25);
   });
 
+  describe("when the last set is AMRAP", () => {
+    // Goblet Squat style: 8 planned reps, last set to failure.
+    const amrap = (overrides: Partial<ResolvedExercise> = {}) =>
+      bell({ repMax: { type: "failure" }, repMin: 8, ...overrides });
+
+    it("moves up a bell once reps reach 2x the target, whatever the rating — the bell is far too light", () => {
+      const set = makeSet({ actualWeight: 25, actualReps: 16, targetReps: 8, rating: "hard" });
+      expect(computeNextWeight(amrap(), set, config)).toEqual({ currentWeight: 45, hardStreak: 0 });
+    });
+
+    it("holds the bell below 2x the target", () => {
+      const set = makeSet({ actualWeight: 25, actualReps: 15, targetReps: 8, rating: "easy" });
+      expect(computeNextWeight(amrap(), set, config).currentWeight).toBe(25);
+    });
+
+    it("works the same when only the final set is flagged AMRAP on a count rep max", () => {
+      const exercise = bell({ lastSetAmrap: true, sets: 3, repMin: 8, repMax: { type: "count", value: 12 } });
+      const set = makeSet({ setNumber: 3, actualWeight: 25, actualReps: 16, targetReps: 8, rating: "normal" });
+      expect(computeNextWeight(exercise, set, config).currentWeight).toBe(45);
+    });
+
+    it("falls back to repMin when the set has no target reps", () => {
+      const set = makeSet({ actualWeight: 25, actualReps: 16, targetReps: 0, rating: "normal" });
+      expect(computeNextWeight(amrap(), set, config).currentWeight).toBe(45);
+    });
+  });
+
   it("leaves add_weight on non-kettlebell equipment alone", () => {
     const exercise = makeExercise({ progressionRule: "add_weight", equipmentType: "dumbbell", currentWeight: 25 });
     expect(computeNextWeight(exercise, makeSet({ actualReps: 12, rating: "easy" }), config).currentWeight).toBe(25);

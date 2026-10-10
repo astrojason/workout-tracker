@@ -52,11 +52,24 @@ export function computeNextWeight(
   finalSet: CompletedSet,
   config?: UserEquipmentConfig
 ): ProgressionResult {
+  const isAmrapFinalSet =
+    exercise.repMax.type === "failure" ||
+    (exercise.lastSetAmrap === true && finalSet.setNumber === exercise.sets);
+
   // Kettlebells only come in fixed bells, so the weight can't creep up: it holds while
-  // you add reps, then jumps to the next bell once the top of the range felt Easy.
+  // you add reps, then jumps to the next bell. A normal last set must reach the top of
+  // the rep range AND be rated Easy. An AMRAP last set has no top, and its rating is
+  // inherently "hard", so it moves up once reps reach 2x the target (far too light).
   if (exercise.progressionRule === "add_weight" && exercise.equipmentType === "kettlebell") {
-    const topOfRange = exercise.repMax.type === "count" ? exercise.repMax.value : Infinity;
-    if (finalSet.completed && finalSet.rating === "easy" && finalSet.actualReps >= topOfRange) {
+    let readyToMoveUp = false;
+    if (finalSet.completed) {
+      if (isAmrapFinalSet) {
+        readyToMoveUp = finalSet.actualReps >= (finalSet.targetReps || exercise.repMin) * 2;
+      } else if (exercise.repMax.type === "count") {
+        readyToMoveUp = finalSet.rating === "easy" && finalSet.actualReps >= exercise.repMax.value;
+      }
+    }
+    if (readyToMoveUp) {
       const bells = [...(config?.kettlebells ?? KETTLEBELL_WEIGHTS)].sort((a, b) => a - b);
       const nextBell = bells.find((w) => w > exercise.currentWeight);
       if (nextBell !== undefined) return { currentWeight: nextBell, hardStreak: 0 };
@@ -68,10 +81,6 @@ export function computeNextWeight(
   if (!increment) {
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
   }
-
-  const isAmrapFinalSet =
-    exercise.repMax.type === "failure" ||
-    (exercise.lastSetAmrap === true && finalSet.setNumber === exercise.sets);
 
   if (finalSet.completed && isAmrapFinalSet) {
     const targetReps = finalSet.targetReps || exercise.repMin;
