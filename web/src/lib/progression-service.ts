@@ -33,13 +33,20 @@ export interface ProgressionResult {
 // add_2.5lb, add_10lb) are auto-progressed here; band/rep/time-based rules are
 // left untouched (no numeric weight to move).
 //
-// Driven by what was achieved, not by the easy/normal/hard rating:
-//   completed final set → Epley 1RM from the actual weight and reps
-//     (estimated1RM = actualWeight * (1 + actualReps/30)), then the standard percentage
-//     of it for the target reps (30 / (30 + reps)). AMRAP sets target the planned reps;
-//     other sets target repMin, so extra reps earn a bump and the weight never drops.
-//   skipped/failed final set → weight holds, hardStreak++; the 3rd consecutive miss
-//     drops it by 1x increment and resets the streak.
+// State machine (final set NOT AMRAP):
+//   normal → +1x increment, hardStreak resets to 0
+//   easy   → +2x increment (it's the final set), hardStreak resets to 0
+//   hard   → hardStreak++; on the 3rd consecutive hard, -1x increment and reset to 0;
+//            otherwise weight holds
+//   skipped/failed → treated the same as "hard" (no rating to read, and the set
+//     wasn't actually completed at target, so it can't count as a success signal)
+//
+// AMRAP final set (lastSetAmrap or repMax.type === "failure"): the set's easy/normal/hard
+// rating is ignored — AMRAP is inherently supposed to feel hard. Instead, projects a 1RM
+// via Epley (estimated1RM = actualWeight * (1 + reps/30), reps capped at 2x the target) from the AMRAP performance,
+// then targets the standard percentage of that 1RM for the set's target rep count — the
+// Epley formula's own inverse (30 / (30 + reps)), reusing the same formula already used
+// for 1RM PRs elsewhere rather than maintaining a separate %1RM table.
 export function computeNextWeight(
   exercise: ResolvedExercise,
   finalSet: CompletedSet,
@@ -54,24 +61,34 @@ export function computeNextWeight(
     exercise.repMax.type === "failure" ||
     (exercise.lastSetAmrap === true && finalSet.setNumber === exercise.sets);
 
-  if (finalSet.completed) {
-    const estimated1RM = finalSet.actualWeight * (1 + finalSet.actualReps / 30);
-    // AMRAP targets the planned reps; other sets target the bottom of the rep range, so
-    // reps beyond repMin earn a bump and hitting repMin exactly holds the weight.
-    const targetReps = isAmrapFinalSet ? (finalSet.targetReps || exercise.repMin) : exercise.repMin;
+  if (finalSet.completed && isAmrapFinalSet) {
+    const targetReps = finalSet.targetReps || exercise.repMin;
+    // Epley overestimates at high reps, and doing more than 2x the target means the
+    // weight was far too light — so count at most 2x the target reps.
+    const reps = Math.min(finalSet.actualReps, targetReps * 2);
+    const estimated1RM = finalSet.actualWeight * (1 + reps / 30);
     const rawNext = estimated1RM * (30 / (30 + targetReps));
-    // Falling short of repMin on a non-AMRAP set is not a reason to drop the weight.
-    const next = isAmrapFinalSet ? rawNext : Math.max(rawNext, exercise.currentWeight);
-    return { currentWeight: roundDownToAchievable(next, exercise, config), hardStreak: 0 };
+    return { currentWeight: roundDownToAchievable(rawNext, exercise, config), hardStreak: 0 };
   }
 
-  // Skipped/failed final set: nothing was achieved, so it can't earn a bump. The weight
-  // holds; the 3rd consecutive miss drops it by 1x increment.
-  const hardStreak = exercise.hardStreak + 1;
-  if (hardStreak >= 3) {
-    return { currentWeight: roundDownToAchievable(exercise.currentWeight - increment, exercise, config), hardStreak: 0 };
+  // Skipped/failed final set: no valid rating to read, and it wasn't actually
+  // completed at target — treat the same as a "hard" outcome.
+  const rating = finalSet.completed ? finalSet.rating : "hard";
+
+  if (rating === "easy") {
+    return { currentWeight: roundDownToAchievable(exercise.currentWeight + increment * 2, exercise, config), hardStreak: 0 };
   }
-  return { currentWeight: exercise.currentWeight, hardStreak };
+
+  if (rating === "hard") {
+    const hardStreak = exercise.hardStreak + 1;
+    if (hardStreak >= 3) {
+      return { currentWeight: roundDownToAchievable(exercise.currentWeight - increment, exercise, config), hardStreak: 0 };
+    }
+    return { currentWeight: exercise.currentWeight, hardStreak };
+  }
+
+  // "normal" (or unrated, treated as normal)
+  return { currentWeight: roundDownToAchievable(exercise.currentWeight + increment, exercise, config), hardStreak: 0 };
 }
 
 // Live, same-session bump: called right after a set is rated "easy" (and more sets

@@ -5,9 +5,9 @@
 
 | Rule | Effect |
 |---|---|
-| `add_5lb` | Auto weight progression (see below); 5 lb is the drop size after 3 misses |
-| `add_2.5lb` | Auto weight progression; 2.5 lb drop size (typical for PowerBlock) |
-| `add_10lb` | Auto weight progression; 10 lb drop size (barbell rows, hip thrusts, etc.) |
+| `add_5lb` | Auto +5 lbs per step (see below) |
+| `add_2.5lb` | Auto +2.5 lbs per step (typical for PowerBlock) |
+| `add_10lb` | Auto +10 lbs per step (barbell rows, hip thrusts, etc.) |
 | `add_reps` | No auto weight change; track rep progress manually |
 | `add_time` | No auto weight change; track duration progress manually |
 | `add_rounds` | No auto weight change; track rounds manually |
@@ -26,18 +26,20 @@ app. Everything else requires the user to change weight manually.
 Runs once when a workout is saved, against the **last set logged** for each
 exercise, and updates the program's stored weight for that exercise (shared by
 every appearance of it in the program; other programs are unaffected). The
-easy/normal/hard rating does **not** affect the weight, and the spreadsheet's
-planned weights after the earliest week are not used.
+spreadsheet's planned weights after the earliest week are not used. Deleting the
+session restores the weight it changed, unless a later session has moved it on.
 
-| Final set | Next weight |
+**Non-AMRAP exercises** follow the last set's rating (step = the rule's increment):
+
+| Last set | Next weight |
 |---|---|
-| Completed, AMRAP (`failure` rep max, or `last_set_amrap` on the final set) | Epley projection targeting the set's planned reps |
-| Completed, not AMRAP | Epley projection targeting `repMin`; never lower than the current weight |
-| Skipped or failed | Weight holds; the 3rd consecutive miss drops it by one increment |
+| Easy | +2 steps, rounded down to loadable. Also bumps +1 step mid-workout, so the next set loads heavier right away |
+| Normal (or unrated) | +1 step, rounded down |
+| Hard | Holds; the 3rd hard in a row drops 1 step and resets the count |
+| Skipped or failed | Counts as hard |
 
-Epley projection: `estimated1RM = actualWeight × (1 + actualReps / 30)`, then
-`next = estimated1RM × 30 / (30 + targetReps)`, rounded **down** to a weight the
-equipment can load. Reps above the target raise the weight, reps equal to it
-hold it, and (for AMRAP only) fewer reps lower it.
-
-Example: hip thrust, 15 reps at 105 with `repMin` 12 → 105 × 1.5 × 30/42 = 112.5.
+**AMRAP exercises** (`failure` rep max, or `last_set_amrap` on the final set) ignore
+the rating and project from reps (Epley):
+`estimated1RM = actualWeight × (1 + reps / 30)` (reps capped at 2× the target — more
+means the weight was too light), then
+`next = estimated1RM × 30 / (30 + targetReps)`, rounded down to loadable.

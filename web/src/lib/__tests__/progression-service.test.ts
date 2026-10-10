@@ -57,34 +57,57 @@ describe("computeNextWeight — non-numeric progression rules", () => {
   );
 });
 
-describe("computeNextWeight — non-AMRAP sets progress from reps achieved (Epley)", () => {
-  it("raises the weight when reps beat the rep minimum, whatever the rating", () => {
-    // hip thrust style: 15 reps at 105 against a 12-rep minimum
-    const exercise = makeExercise({ progressionRule: "add_10lb", currentWeight: 105, repMin: 12, hardStreak: 1 });
-    // 1RM = 105 * 1.5 = 157.5; next = 157.5 * 30/42 = 112.5
-    for (const rating of ["easy", "normal", "hard"] as const) {
-      const result = computeNextWeight(exercise, makeSet({ rating, actualWeight: 105, actualReps: 15, targetReps: 12 }));
-      expect(result).toEqual({ currentWeight: 112.5, hardStreak: 0 });
-    }
+describe("computeNextWeight — normal rating", () => {
+  it("increases by 1x the increment and resets hardStreak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result).toEqual({ currentWeight: 105, hardStreak: 0 });
   });
 
-  it("holds the weight when reps only match the rep minimum", () => {
-    const exercise = makeExercise({ currentWeight: 100, repMin: 8 });
-    const result = computeNextWeight(exercise, makeSet({ actualWeight: 100, actualReps: 8, rating: "easy" }));
-    expect(result).toEqual({ currentWeight: 100, hardStreak: 0 });
+  it("uses the 2.5lb increment for add_2.5lb", () => {
+    const exercise = makeExercise({ progressionRule: "add_2.5lb", currentWeight: 50 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(52.5);
   });
 
-  it("never lowers the weight on a completed set that fell short of the rep minimum", () => {
-    const exercise = makeExercise({ currentWeight: 100, repMin: 8 });
-    const result = computeNextWeight(exercise, makeSet({ actualWeight: 100, actualReps: 6 }));
-    expect(result.currentWeight).toBe(100);
+  it("uses the 10lb increment for add_10lb", () => {
+    const exercise = makeExercise({ progressionRule: "add_10lb", currentWeight: 200 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(210);
+  });
+});
+
+describe("computeNextWeight — easy rating", () => {
+  it("increases by 2x the increment (final set) and resets hardStreak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 1 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "easy" }));
+    expect(result).toEqual({ currentWeight: 110, hardStreak: 0 });
+  });
+});
+
+describe("computeNextWeight — hard rating streak", () => {
+  it("1st consecutive hard: weight holds, streak becomes 1", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 0 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
   });
 
-  it("projects from the weight actually lifted, not the planned weight", () => {
-    const exercise = makeExercise({ currentWeight: 100, repMin: 10 });
-    // 120 x 10 → 1RM 160 → 160 * 30/40 = 120
-    const result = computeNextWeight(exercise, makeSet({ actualWeight: 120, actualReps: 10 }));
-    expect(result.currentWeight).toBe(120);
+  it("2nd consecutive hard: weight still holds, streak becomes 2", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 1 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 100, hardStreak: 2 });
+  });
+
+  it("3rd consecutive hard: drops by 1x increment, streak resets to 0", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "hard" }));
+    expect(result).toEqual({ currentWeight: 95, hardStreak: 0 });
+  });
+
+  it("a normal rating after hard ratings breaks the streak", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", currentWeight: 100, hardStreak: 2 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result).toEqual({ currentWeight: 105, hardStreak: 0 });
   });
 });
 
@@ -119,6 +142,26 @@ describe("computeNextWeight — AMRAP final set (Epley projection)", () => {
     expect(result.hardStreak).toBe(0);
   });
 
+  it("caps the reps used in the 1RM at 2x the target — more means the weight was too light", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", repMax: { type: "failure" }, sets: 3 });
+    // 30 reps against a target of 8 counts as 16: 1RM = 135 * (1 + 16/30) = 207; next = 207 * 30/38 ≈ 163.42
+    const result = computeNextWeight(
+      exercise,
+      makeSet({ setNumber: 3, actualWeight: 135, actualReps: 30, targetReps: 8, completed: true })
+    );
+    expect(result.currentWeight).toBeCloseTo(163.42, 1);
+  });
+
+  it("doesn't cap reps at exactly 2x the target", () => {
+    const exercise = makeExercise({ progressionRule: "add_5lb", repMax: { type: "failure" }, sets: 3 });
+    // 16 reps vs target 8: 135 * (1 + 16/30) * 30/38 ≈ 163.42, same as the capped case above
+    const result = computeNextWeight(
+      exercise,
+      makeSet({ setNumber: 3, actualWeight: 135, actualReps: 16, targetReps: 8, completed: true })
+    );
+    expect(result.currentWeight).toBeCloseTo(163.42, 1);
+  });
+
   it("also triggers via lastSetAmrap flag on a count-type repMax, only on the final set", () => {
     const exercise = makeExercise({
       progressionRule: "add_5lb",
@@ -146,7 +189,7 @@ describe("computeNextWeight — AMRAP final set (Epley projection)", () => {
       exercise,
       makeSet({ setNumber: 1, rating: "normal", actualWeight: 100, actualReps: 10 })
     );
-    expect(result.currentWeight).toBeCloseTo(105.263, 2); // plain Epley on the 10 reps, not a flat +5
+    expect(result.currentWeight).toBe(105); // normal +1x increment, not an Epley projection
   });
 
   it("falls back to hard-streak handling when the AMRAP set was skipped", () => {
@@ -162,31 +205,31 @@ describe("computeNextWeight — AMRAP final set (Epley projection)", () => {
 });
 
 describe("computeNextWeight — equipment rounding", () => {
-  // 12 reps against a 10-rep minimum projects to 1.05x the weight lifted (1.4 * 30/40).
-  const beatRepMin = { repMin: 10 };
-  const lift = (weight: number) => makeSet({ actualWeight: weight, actualReps: 12 });
-
   it("floors to the nearest achievable barbell plate combination", () => {
-    // 50 * 1.05 = 52.5 on 45lb bar → per side = 3.75 → not exact, rounds down to 52 (2.5+1)
-    const exercise = makeExercise({ ...beatRepMin, equipmentType: "barbell_45", currentWeight: 50 });
-    expect(computeNextWeight(exercise, lift(50)).currentWeight).toBe(52);
+    // 50 + 2.5 = 52.5 on 45lb bar → per side = 3.75 → not exact, rounds down to 52 (2.5+1)
+    const exercise = makeExercise({ progressionRule: "add_2.5lb", equipmentType: "barbell_45", currentWeight: 50 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(52);
   });
 
   it("applies one-sided landmine loading for Meadows Row", () => {
-    // 80 * 1.05 = 84 on 45lb bar, landmine (one-sided): 39 = 35+2.5+1+0.5 → achieves 84 exactly
-    const exercise = makeExercise({ ...beatRepMin, name: "Meadows Row", equipmentType: "barbell_45", currentWeight: 80 });
-    expect(computeNextWeight(exercise, lift(80)).currentWeight).toBe(84);
+    // 79 + 5 = 84 on 45lb bar, landmine (one-sided): 39 = 35+2.5+1+0.5 → achieves 84 exactly
+    const exercise = makeExercise({ name: "Meadows Row", progressionRule: "add_5lb", equipmentType: "barbell_45", currentWeight: 79 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(84);
   });
 
   it("floors PowerBlock to the nearest 2.5lb step instead of rounding", () => {
-    // 45 * 1.05 = 47.25 → floored to 45 (rounding to nearest would give 47.5)
-    const exercise = makeExercise({ ...beatRepMin, equipmentType: "powerblock", currentWeight: 45 });
-    expect(computeNextWeight(exercise, lift(45)).currentWeight).toBe(45);
+    // 47.5 + 5 = 52.5 → clamped down to max 50 (not rounded to 52.5)
+    const exercise = makeExercise({ progressionRule: "add_5lb", equipmentType: "powerblock", currentWeight: 47.5 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(50);
   });
 
   it("doesn't adjust weight for equipment with no snap function (kettlebell)", () => {
-    const exercise = makeExercise({ ...beatRepMin, equipmentType: "kettlebell", currentWeight: 30 });
-    expect(computeNextWeight(exercise, lift(30)).currentWeight).toBeCloseTo(31.5, 5);
+    const exercise = makeExercise({ progressionRule: "add_5lb", equipmentType: "kettlebell", currentWeight: 30 });
+    const result = computeNextWeight(exercise, makeSet({ rating: "normal" }));
+    expect(result.currentWeight).toBe(35);
   });
 });
 
