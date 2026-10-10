@@ -1,6 +1,6 @@
 import type { ResolvedExercise, CompletedSet, UserEquipmentConfig } from "./types";
 import { barWeight, WEIGHT_INCREMENTS } from "./types";
-import { calculateBarbell, calculateLandmine, nearestPowerBlock } from "./equipment-calculator";
+import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIGHTS } from "./equipment-calculator";
 
 // Snaps a computed weight down to the nearest achievable equipment value.
 // Barbell/landmine already floor by construction (calculateBarbell/calculateLandmine
@@ -52,6 +52,18 @@ export function computeNextWeight(
   finalSet: CompletedSet,
   config?: UserEquipmentConfig
 ): ProgressionResult {
+  // Kettlebells only come in fixed bells, so the weight can't creep up: it holds while
+  // you add reps, then jumps to the next bell once the top of the range felt Easy.
+  if (exercise.progressionRule === "add_weight" && exercise.equipmentType === "kettlebell") {
+    const topOfRange = exercise.repMax.type === "count" ? exercise.repMax.value : Infinity;
+    if (finalSet.completed && finalSet.rating === "easy" && finalSet.actualReps >= topOfRange) {
+      const bells = [...(config?.kettlebells ?? KETTLEBELL_WEIGHTS)].sort((a, b) => a - b);
+      const nextBell = bells.find((w) => w > exercise.currentWeight);
+      if (nextBell !== undefined) return { currentWeight: nextBell, hardStreak: 0 };
+    }
+    return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
+  }
+
   const increment = WEIGHT_INCREMENTS[exercise.progressionRule];
   if (!increment) {
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };

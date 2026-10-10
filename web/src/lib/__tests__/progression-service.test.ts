@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeNextWeight, liveEasyBump } from "../progression-service";
-import type { ResolvedExercise, CompletedSet } from "../types";
+import type { ResolvedExercise, CompletedSet, UserEquipmentConfig } from "../types";
 import { Timestamp } from "firebase/firestore";
 
 function makeExercise(overrides: Partial<ResolvedExercise> = {}): ResolvedExercise {
@@ -55,6 +55,55 @@ describe("computeNextWeight — non-numeric progression rules", () => {
       expect(result).toEqual({ currentWeight: 100, hardStreak: 1 });
     }
   );
+});
+
+describe("computeNextWeight — add_weight on a kettlebell (add reps until the bell can go up)", () => {
+  const bells = [15, 25, 45];
+  const config = { kettlebells: bells } as UserEquipmentConfig;
+  const bell = (overrides: Partial<ResolvedExercise> = {}) =>
+    makeExercise({ progressionRule: "add_weight", equipmentType: "kettlebell", currentWeight: 25, repMax: { type: "count", value: 12 }, ...overrides });
+
+  it("moves to the next bell up when the last set reaches the top of the rep range and is Easy", () => {
+    const result = computeNextWeight(bell(), makeSet({ actualWeight: 25, actualReps: 12, rating: "easy" }), config);
+    expect(result).toEqual({ currentWeight: 45, hardStreak: 0 });
+  });
+
+  it("also moves up when the reps go past the top of the range", () => {
+    const result = computeNextWeight(bell(), makeSet({ actualWeight: 25, actualReps: 14, rating: "easy" }), config);
+    expect(result.currentWeight).toBe(45);
+  });
+
+  it("holds the bell when Easy but short of the top of the range", () => {
+    const result = computeNextWeight(bell(), makeSet({ actualWeight: 25, actualReps: 10, rating: "easy" }), config);
+    expect(result.currentWeight).toBe(25);
+  });
+
+  it("holds the bell at the top of the range unless it was rated Easy", () => {
+    for (const rating of ["normal", "hard"] as const) {
+      const result = computeNextWeight(bell(), makeSet({ actualWeight: 25, actualReps: 12, rating }), config);
+      expect(result.currentWeight).toBe(25);
+    }
+  });
+
+  it("holds when you already own the heaviest bell", () => {
+    const result = computeNextWeight(bell({ currentWeight: 45 }), makeSet({ actualWeight: 45, actualReps: 12, rating: "easy" }), config);
+    expect(result.currentWeight).toBe(45);
+  });
+
+  it("holds when the final set was skipped or failed", () => {
+    const result = computeNextWeight(bell(), makeSet({ completed: false, actualReps: 0, rating: undefined }), config);
+    expect(result.currentWeight).toBe(25);
+  });
+
+  it("falls back to the default bells when no equipment config is passed", () => {
+    const result = computeNextWeight(bell({ currentWeight: 15 }), makeSet({ actualWeight: 15, actualReps: 12, rating: "easy" }));
+    expect(result.currentWeight).toBe(25);
+  });
+
+  it("leaves add_weight on non-kettlebell equipment alone", () => {
+    const exercise = makeExercise({ progressionRule: "add_weight", equipmentType: "dumbbell", currentWeight: 25 });
+    expect(computeNextWeight(exercise, makeSet({ actualReps: 12, rating: "easy" }), config).currentWeight).toBe(25);
+  });
 });
 
 describe("computeNextWeight — normal rating", () => {

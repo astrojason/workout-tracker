@@ -8,6 +8,7 @@
 | `add_5lb` | Auto +5 lbs per step (see below) |
 | `add_2.5lb` | Auto +2.5 lbs per step (typical for PowerBlock) |
 | `add_10lb` | Auto +10 lbs per step (barbell rows, hip thrusts, etc.) |
+| `add_weight` | Kettlebells only: holds the bell while you add reps, then moves to the next bell in your config (see below). On other equipment, no automatic change |
 | `add_reps` | No auto weight change; track rep progress manually |
 | `add_time` | No auto weight change; track duration progress manually |
 | `add_rounds` | No auto weight change; track rounds manually |
@@ -37,6 +38,11 @@ session restores the weight it changed, unless a later session has moved it on.
 | Normal (or unrated) | +1 step, rounded down |
 | Hard | Holds; the 3rd hard in a row drops 1 step and resets the count |
 | Skipped or failed | Counts as hard |
+
+**`add_weight` on kettlebells** holds the bell until the last set reaches the top of the
+rep range (`rep_max`) **and** is rated Easy; then the next heavier bell in your equipment
+config (default 15/25/45) is used. Normal, Hard, short reps or a skipped set all hold.
+At your heaviest bell it holds too.
 
 **AMRAP exercises** (`failure` rep max, or `last_set_amrap` on the final set) ignore
 the rating and project from reps (Epley):
