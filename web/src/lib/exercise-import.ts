@@ -61,6 +61,22 @@ export function pickSeedWeights(parsedWorkouts: ParsedWorkout[]): Map<string, nu
   return new Map([...best].map(([key, v]) => [key, v.weight]));
 }
 
+// Which row supplies each exercise definition's metadata (progression rule, equipment).
+// The definition is shared by every row of that exercise, so it must come from the working
+// row: a warm-up row (progression "none") listed first would otherwise stop the lift from
+// ever progressing. The first working row wins; a warm-up-only exercise uses its warm-up.
+export function pickDefinitionSources(parsedWorkouts: ParsedWorkout[]): Map<string, ParsedExercise> {
+  const sources = new Map<string, ParsedExercise>();
+  for (const pw of parsedWorkouts) {
+    for (const pe of pw.exercises) {
+      const key = pe.name.trim().toLowerCase();
+      const current = sources.get(key);
+      if (!current || (current.phase === "warmup" && pe.phase !== "warmup")) sources.set(key, pe);
+    }
+  }
+  return sources;
+}
+
 // Matches each row's exercise name (case-insensitive/trimmed, no stored normalized
 // field) against the user's existing global exercise library. Existing match: only
 // metadata (equipment/progression rule/etc.) is refreshed; the library's weight is left
@@ -76,6 +92,7 @@ export async function resolveExerciseDefinitions(
   const byName = new Map(existingDefs.map((d) => [d.name.trim().toLowerCase(), d]));
   const resolvedIdByName = new Map<string, string>();
   const seedByName = pickSeedWeights(parsedWorkouts);
+  const sourceByName = pickDefinitionSources(parsedWorkouts);
 
   const workouts: Workout[] = [];
   for (const pw of parsedWorkouts) {
@@ -85,26 +102,27 @@ export async function resolveExerciseDefinitions(
       let definitionId = resolvedIdByName.get(key);
 
       if (!definitionId) {
+        const meta = sourceByName.get(key) ?? pe;
         const match = byName.get(key);
         if (match) {
           await updateExerciseDefinitionMeta(userId, match.id, {
-            name: pe.name,
-            equipmentType: pe.equipmentType,
-            equipmentDetail: pe.equipmentDetail,
-            progressionRule: pe.progressionRule,
-            isUnilateral: pe.isUnilateral,
-            isTimeBased: pe.isTimeBased,
+            name: meta.name,
+            equipmentType: meta.equipmentType,
+            equipmentDetail: meta.equipmentDetail,
+            progressionRule: meta.progressionRule,
+            isUnilateral: meta.isUnilateral,
+            isTimeBased: meta.isTimeBased,
           });
           definitionId = match.id;
         } else {
           definitionId = await createExerciseDefinition(userId, {
-            name: pe.name,
+            name: meta.name,
             muscleGroups: [],
-            equipmentType: pe.equipmentType,
-            equipmentDetail: pe.equipmentDetail,
-            progressionRule: pe.progressionRule,
-            isUnilateral: pe.isUnilateral,
-            isTimeBased: pe.isTimeBased,
+            equipmentType: meta.equipmentType,
+            equipmentDetail: meta.equipmentDetail,
+            progressionRule: meta.progressionRule,
+            isUnilateral: meta.isUnilateral,
+            isTimeBased: meta.isTimeBased,
             currentWeight: pe.seedWeight ?? 0,
             hardStreak: 0,
           });

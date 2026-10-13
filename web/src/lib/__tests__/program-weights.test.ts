@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../firestore", () => ({}));
 import { scopeDefinitions } from "../types";
-import { pickSeedWeights } from "../exercise-import";
+import { pickSeedWeights, pickDefinitionSources } from "../exercise-import";
 import type { ExerciseDefinition, Program } from "../types";
 import type { ParsedExercise, ParsedWorkout } from "../exercise-import";
 
@@ -67,6 +67,29 @@ describe("pickSeedWeights", () => {
 
   it("skips exercises with no weight", () => {
     expect(pickSeedWeights([wk(1, [ex("Dips", undefined)])]).size).toBe(0);
+  });
+});
+
+describe("pickDefinitionSources", () => {
+  const row = (name: string, phase: ParsedExercise["phase"], progressionRule: ParsedExercise["progressionRule"]): ParsedExercise => ({
+    order: 1, name, phase, equipmentType: "barbell_45", equipmentDetail: null, sets: 3, repMin: 8,
+    repMax: { type: "count", value: 10 }, restSeconds: 90, progressionRule,
+    isUnilateral: false, isTimeBased: false, notes: null,
+  });
+  const wk = (exercises: ParsedExercise[]): ParsedWorkout => ({
+    id: "w", programId: "p", programName: "P", week: 1, dayOfWeek: "Tuesday", exercises,
+  });
+
+  it("takes the definition's progression rule from the working row, not a warm-up listed first", () => {
+    const sources = pickDefinitionSources([
+      wk([row("Flat Bench Press", "warmup", "none"), row("Flat Bench Press", "main", "add_5lb")]),
+    ]);
+    expect(sources.get("flat bench press")?.progressionRule).toBe("add_5lb");
+  });
+
+  it("falls back to the warm-up row when an exercise only appears as a warm-up", () => {
+    const sources = pickDefinitionSources([wk([row("Arm Circles", "warmup", "none")])]);
+    expect(sources.get("arm circles")?.progressionRule).toBe("none");
   });
 });
 
