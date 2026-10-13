@@ -20,6 +20,12 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
 import { Timestamp } from "firebase/firestore";
+import { CustomWorkout } from "@/components/workout/CustomWorkout";
+import { buildCustomSets, CUSTOM_PROGRAM_ID, CUSTOM_PROGRAM_NAME, exerciseKey } from "@/lib/custom-workout";
+import type { CustomExerciseInfo, CustomSetEntry } from "@/lib/custom-workout";
+import { saveSession } from "@/lib/firestore";
+import { checkForPRs } from "@/lib/pr-detector";
+import type { PRResult } from "@/lib/types";
 
 export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -32,6 +38,8 @@ export default function HomePage() {
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
   const { sessions, loading: historyLoading } = useHistory(user?.uid ?? null);
   const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customStart, setCustomStart] = useState<Date>(new Date());
   const { showError } = useError();
 
   // Weights live on the program, so each workout resolves against the library with its own
@@ -179,6 +187,43 @@ export default function HomePage() {
     );
   }
 
+  // Custom, build-as-you-go workout
+  if (customOpen && user) {
+    const library: Record<string, CustomExerciseInfo> = {};
+    for (const d of Object.values(definitions)) {
+      library[exerciseKey(d.name)] = {
+        definitionId: d.id, name: d.name, equipmentType: d.equipmentType, isTimeBased: d.isTimeBased,
+      };
+    }
+    // Free-form sessions never touch program weights; they only land in history and PRs.
+    const finishCustom = async (entries: CustomSetEntry[]): Promise<PRResult[]> => {
+      const now = new Date();
+      const sets = buildCustomSets(entries, library, now);
+      const prs: PRResult[] = [];
+      for (const name of [...new Set(sets.map((s) => s.exerciseName))]) {
+        prs.push(...await checkForPRs(user.uid, name, sets.filter((s) => s.exerciseName === name)));
+      }
+      await saveSession(user.uid, {
+        programId: CUSTOM_PROGRAM_ID,
+        programName: CUSTOM_PROGRAM_NAME,
+        week: 1,
+        dayOfWeek: now.toLocaleDateString("en-US", { weekday: "long" }),
+        date: Timestamp.fromDate(now),
+        completed: true,
+        durationSeconds: Math.round((now.getTime() - customStart.getTime()) / 1000),
+        sets,
+      });
+      return prs;
+    };
+    return (
+      <CustomWorkout
+        exerciseNames={Object.values(definitions).map((d) => d.name).sort()}
+        onFinish={finishCustom}
+        onClose={() => setCustomOpen(false)}
+      />
+    );
+  }
+
   // Checklist workout (e.g. Daily Mobility)
   if (checklistWorkout && user) {
     return (
@@ -297,6 +342,13 @@ export default function HomePage() {
           })}
         </div>
       )}
+
+      <button
+        onClick={() => { setCustomStart(new Date()); setCustomOpen(true); }}
+        className="w-full mt-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+      >
+        Custom workout
+      </button>
 
       <BottomNav active="home" />
     </div>

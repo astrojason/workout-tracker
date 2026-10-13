@@ -1,4 +1,5 @@
 import type { WorkoutSessionDoc } from "./types";
+import { CUSTOM_PROGRAM_ID } from "./custom-workout";
 
 export interface ProgramSchedule {
   programId: string;
@@ -84,6 +85,14 @@ export function calculateWorkoutConsistency(
   for (const session of completedSessions) {
     const date = sessionDate(session.date);
     if (date < monday || date >= nextMonday) continue;
+    if (session.programId === CUSTOM_PROGRAM_ID) {
+      // A custom workout stands in for whatever each program scheduled on the day it was done.
+      const weekday = WEEKDAYS[(date.getDay() + 6) % 7];
+      for (const schedule of schedules) {
+        if (schedule.days.includes(weekday)) completedSlots.add(planKey(schedule.programId, schedule.week, weekday));
+      }
+      continue;
+    }
     const key = planKey(session.programId, session.week, session.dayOfWeek, date);
     if (plannedSlots.has(key)) completedSlots.add(key);
   }
@@ -121,11 +130,13 @@ export function sessionDaysForWeek(
 ): Set<string> {
   const days = new Set<string>();
   for (const s of sessions) {
-    if (s.programId !== programId || s.week !== week || !s.dayOfWeek) continue;
+    const isCustom = s.programId === CUSTOM_PROGRAM_ID && kind === "completed";
+    if (!isCustom && (s.programId !== programId || s.week !== week || !s.dayOfWeek)) continue;
     if (kind === "completed" ? s.completed !== true : s.skipped !== true) continue;
     const date = sessionDate(s.date);
     if (since && date < since) continue;
-    days.add(dateKey(scheduledDate(date, s.dayOfWeek)));
+    // A custom workout counts for the day it was done, whichever program scheduled it.
+    days.add(dateKey(isCustom ? date : scheduledDate(date, s.dayOfWeek)));
   }
   return days;
 }

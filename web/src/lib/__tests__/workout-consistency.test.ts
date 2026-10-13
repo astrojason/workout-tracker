@@ -149,3 +149,37 @@ describe("sessionDaysForWeek", () => {
     expect([...days]).toEqual(["2026-10-10"]);
   });
 });
+
+describe("custom workouts count for the day", () => {
+  const custom = (id: string, date: string, dayOfWeek: string) =>
+    session(id, date, { programId: "custom", programName: "Custom Workout", week: 1, dayOfWeek });
+
+  it("checks off a program's scheduled day done as a custom workout", () => {
+    const days = sessionDaysForWeek([custom("c", "2026-09-04", "Friday")], "program-1", 2, "completed");
+    expect([...days]).toEqual(["2026-09-04"]);
+  });
+
+  it("does not check off the program's other days", () => {
+    const days = sessionDaysForWeek([custom("c", "2026-09-04", "Friday")], "program-1", 2, "completed");
+    expect(days.has("2026-09-03")).toBe(false);
+  });
+
+  it("counts toward this week's completed scheduled days", () => {
+    const result = calculateWorkoutConsistency(
+      [custom("c", "2026-09-04", "Friday")],
+      schedule,
+      new Date("2026-09-04T18:00:00"),
+    );
+    expect(result.completedThisWeek).toBe(1);
+  });
+
+  it("doesn't count on a weekday the program has nothing scheduled", () => {
+    const result = calculateWorkoutConsistency(
+      [custom("c", "2026-09-03", "Thursday")],
+      schedule,
+      new Date("2026-09-03T18:00:00"),
+    );
+    expect(result.completedThisWeek).toBe(0);
+    expect(result.currentStreak).toBe(1);
+  });
+});
