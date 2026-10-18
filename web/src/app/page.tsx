@@ -21,6 +21,7 @@ import { useHistory } from "@/hooks/useHistory";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
 import { Timestamp } from "firebase/firestore";
 import { CustomWorkout } from "@/components/workout/CustomWorkout";
+import { scanEquipmentPhoto } from "@/lib/equipment-scan";
 import { buildCustomSets, CUSTOM_PROGRAM_ID, CUSTOM_PROGRAM_NAME, exerciseKey } from "@/lib/custom-workout";
 import type { CustomExerciseInfo, CustomSetEntry } from "@/lib/custom-workout";
 import { saveSession } from "@/lib/firestore";
@@ -220,6 +221,7 @@ export default function HomePage() {
         exerciseNames={Object.values(definitions).map((d) => d.name).sort()}
         onFinish={finishCustom}
         onClose={() => setCustomOpen(false)}
+        onScanPhoto={(file) => scanEquipmentPhoto(file, sessions)}
       />
     );
   }

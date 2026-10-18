@@ -5,6 +5,8 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { useHistory } from "@/hooks/useHistory";
+import { scanEquipmentPhoto } from "@/lib/equipment-scan";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
 import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
@@ -18,6 +20,7 @@ import { useError } from "@/components/providers/ErrorProvider";
 export default function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: programId } = use(params);
   const { user } = useAuth();
+  const { sessions } = useHistory(user?.uid ?? null); // evidence for the equipment-photo weight suggestion
   const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout, refreshPrograms } = usePrograms(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions: libraryDefinitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
@@ -338,6 +341,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           onSave={handleSaveExercise}
           onCancel={() => setEditingExercise(null)}
           equipmentConfig={equipmentConfig}
+          onScanPhoto={(file) => scanEquipmentPhoto(file, sessions)}
         />
       )}
 

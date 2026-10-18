@@ -6,16 +6,19 @@ import { cleanWeight } from "@/lib/types";
 import type { CustomSetEntry } from "@/lib/custom-workout";
 import { exerciseKey } from "@/lib/custom-workout";
 import { useError } from "@/components/providers/ErrorProvider";
+import { EquipmentPhotoButton } from "./EquipmentPhotoButton";
+import type { EquipmentAnalysis } from "@/lib/equipment-photo";
 
 interface CustomWorkoutProps {
   exerciseNames: string[]; // library names offered as suggestions; any other name is accepted too
   onFinish: (entries: CustomSetEntry[]) => Promise<PRResult[]>;
   onClose: () => void;
+  onScanPhoto?: (file: File) => Promise<EquipmentAnalysis>; // photo of equipment → exercise name + suggested weight
 }
 
 const inputCls = "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500";
 
-export function CustomWorkout({ exerciseNames, onFinish, onClose }: CustomWorkoutProps) {
+export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }: CustomWorkoutProps) {
   const { showError } = useError();
   const [entries, setEntries] = useState<CustomSetEntry[]>([]);
   const [exercise, setExercise] = useState("");
@@ -93,6 +96,16 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose }: CustomWorkou
       </div>
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4 space-y-3">
+        {onScanPhoto && (
+          <EquipmentPhotoButton
+            onScan={onScanPhoto}
+            onResult={(a) => {
+              setExercise(a.name);
+              setWeight(a.suggestedWeight !== null ? String(a.suggestedWeight) : "");
+              setReps("");
+            }}
+          />
+        )}
         <div>
           <label htmlFor="cw-exercise" className="block text-sm text-gray-400 mb-1">Exercise</label>
           <input

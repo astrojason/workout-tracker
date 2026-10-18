@@ -4,22 +4,9 @@ import {
 } from "@/lib/coach";
 import type { CoachInput } from "@/lib/coach";
 import { checkTokenLimit, reportTokens } from "@/lib/token-tracker";
+import { verifyIdToken } from "@/lib/verify-id-token";
 
 const MODEL = "gpt-4o-mini";
-
-// Confirms the caller is a signed-in user so the server-side OpenAI key can't be spent anonymously.
-async function verifyIdToken(idToken: string): Promise<boolean> {
-  const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true";
-  const url = useEmulator
-    ? "http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:lookup?key=demo-emulator-key"
-    : `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
-  });
-  return res.ok;
-}
 
 export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;

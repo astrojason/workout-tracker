@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ErrorProvider } from "@/components/providers/ErrorProvider";
+import type { EquipmentAnalysis } from "@/lib/equipment-photo";
 import { ExerciseEditor, type ExerciseEditorResult } from "../ExerciseEditor";
 import type { Exercise, ExerciseDefinition } from "@/lib/types";
 
@@ -362,6 +364,59 @@ describe("ExerciseEditor", () => {
       const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
       if (result.kind !== "existing") throw new Error("expected kind 'existing'");
       expect(result.occurrence.restAfter).toBeUndefined();
+    });
+  });
+
+  // ── equipment photo scan ─────────────────────────────────────────────────
+
+  describe("scanning an equipment photo", () => {
+    const analysis: EquipmentAnalysis = {
+      name: "Seated Cable Row", equipmentType: "dumbbell", equipmentDetail: null,
+      muscleGroups: ["back", "biceps"], isUnilateral: true, isTimeBased: false,
+      suggestedWeight: 30, reasoning: "Based on your Dumbbell Row at 35 lbs",
+    };
+
+    function renderWithScan(onScanPhoto?: () => Promise<EquipmentAnalysis>) {
+      return render(
+        <ErrorProvider>
+          <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} onScanPhoto={onScanPhoto} />
+        </ErrorProvider>
+      );
+    }
+    function pick() {
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      fireEvent.change(input, { target: { files: [new File(["x"], "row.jpg", { type: "image/jpeg" })] } });
+    }
+
+    it("offers no photo upload when scanning isn't available", () => {
+      renderWithScan(undefined);
+      expect(document.querySelector('input[type="file"]')).toBeNull();
+    });
+
+    it("fills in the new exercise and its suggested working weight from the photo", async () => {
+      renderWithScan(vi.fn().mockResolvedValue(analysis));
+      pick();
+
+      await waitFor(() => expect((screen.getByPlaceholderText("e.g. Bench Press") as HTMLInputElement).value).toBe("Seated Cable Row"));
+      expect((screen.getByPlaceholderText("e.g. Chest, Triceps") as HTMLInputElement).value).toBe("back, biceps");
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition).toMatchObject({
+        name: "Seated Cable Row", equipmentType: "dumbbell", isUnilateral: true, currentWeight: 30,
+        muscleGroups: ["back", "biceps"],
+      });
+    });
+
+    it("is hidden when editing an existing library exercise", () => {
+      render(
+        <ErrorProvider>
+          <ExerciseEditor exercise={existingOccurrence} maxOrder={0} definitions={[benchDefinition]} onSave={onSave} onCancel={onCancel}
+            onScanPhoto={vi.fn()} />
+        </ErrorProvider>
+      );
+      expect(document.querySelector('input[type="file"]')).toBeNull();
     });
   });
 });

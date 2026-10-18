@@ -7,6 +7,8 @@ import type {
 import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
 import { EquipmentWeightInput, defaultWeightForType } from "./EquipmentWeightInput";
 import Link from "next/link";
+import { EquipmentPhotoButton } from "@/components/workout/EquipmentPhotoButton";
+import type { EquipmentAnalysis } from "@/lib/equipment-photo";
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: "warmup", label: "Warmup" },
@@ -44,11 +46,13 @@ interface ExerciseEditorProps {
   onSave: (result: ExerciseEditorResult) => void;
   onCancel: () => void;
   equipmentConfig?: UserEquipmentConfig;
+  // When provided, a new exercise can be filled in from a photo of the equipment.
+  onScanPhoto?: (file: File) => Promise<EquipmentAnalysis>;
 }
 
 const NEW_SENTINEL = "__new__";
 
-export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig }: ExerciseEditorProps) {
+export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig, onScanPhoto }: ExerciseEditorProps) {
   const isNewOccurrence = !exercise;
   const sortedDefinitions = [...definitions].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -88,6 +92,18 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
     setEquipmentType(newType);
     setBarbellError(null);
     setWeightValue(defaultWeightForType(newType));
+  }
+
+  function applyScan(a: EquipmentAnalysis) {
+    setName(a.name);
+    setMuscleGroupsText(a.muscleGroups.join(", "));
+    setEquipmentType(a.equipmentType);
+    setEquipmentDetail(a.equipmentDetail ?? "Orange");
+    setIsUnilateral(a.isUnilateral);
+    setTimeBased(a.isTimeBased);
+    setProgressionRule(a.isTimeBased ? "add_time" : "none");
+    setBarbellError(null);
+    setWeightValue(a.suggestedWeight !== null ? String(a.suggestedWeight) : defaultWeightForType(a.equipmentType));
   }
 
   // Occurrence (scheduling) fields — always editable, regardless of picker mode
@@ -167,6 +183,8 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
             {sortedDefinitions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </Field>
+
+        {creatingNew && onScanPhoto && <EquipmentPhotoButton onScan={onScanPhoto} onResult={applyScan} />}
 
         {creatingNew ? (
           <Field label="Exercise Name">
