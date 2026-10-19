@@ -63,6 +63,96 @@ describe("ExerciseEditor", () => {
   // ── new exercise (creating a definition) ─────────────────────────────────
 
   describe("creating a new exercise", () => {
+    it("saves an optional brand on the new definition", () => {
+      render(<ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />);
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pulldown" } });
+      fireEvent.change(screen.getByLabelText("Brand (optional)"), { target: { value: " Lifecycle " } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      expect(result.kind === "new" && result.definition.brand).toBe("Lifecycle");
+    });
+
+    it("identifies the exercise from name and brand alone, without a photo", async () => {
+      const onIdentify = vi.fn().mockResolvedValue({
+        name: "Lat Pulldown", equipmentType: "pulley", equipmentDetail: null, muscleGroups: ["back", "lats"],
+        isUnilateral: false, isTimeBased: false, suggestedWeight: 90, reasoning: "",
+      });
+      render(
+        <ErrorProvider>
+          <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} onIdentify={onIdentify} />
+        </ErrorProvider>
+      );
+      const identify = screen.getByRole("button", { name: /identify from name/i });
+      expect(identify).toBeDisabled();
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pulldown" } });
+      fireEvent.change(screen.getByLabelText("Brand (optional)"), { target: { value: "Lifecycle" } });
+      expect(identify).not.toBeDisabled();
+      fireEvent.click(identify);
+      await waitFor(() => expect(onIdentify).toHaveBeenCalledWith({ name: "Pulldown", brand: "Lifecycle" }));
+      await waitFor(() => expect(screen.getByPlaceholderText("e.g. Bench Press")).toHaveValue("Lat Pulldown"));
+    });
+
+    it("takes the weight options, progression and starting weight from the AI for a fixed-weight machine", async () => {
+      const onIdentify = vi.fn().mockResolvedValue({
+        name: "Lat Pulldown", equipmentType: "machine", equipmentDetail: null, muscleGroups: ["back"],
+        isUnilateral: false, isTimeBased: false, suggestedWeight: 80, reasoning: "",
+        weightOptions: [60, 70, 80, 100], progressionRule: "add_weight",
+      });
+      render(
+        <ErrorProvider>
+          <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} onIdentify={onIdentify} />
+        </ErrorProvider>
+      );
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pulldown" } });
+      fireEvent.click(screen.getByRole("button", { name: /identify from name/i }));
+      await waitFor(() => expect(screen.getByLabelText("Weight options (lbs)")).toHaveValue("60, 70, 80, 100"));
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition).toMatchObject({
+        equipmentType: "machine", weightOptions: [60, 70, 80, 100], progressionRule: "add_weight", currentWeight: 80,
+      });
+    });
+
+    it("lets the weight options be typed as a comma-separated list", () => {
+      const { container } = render(
+        <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />
+      );
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Leg Press" } });
+      fireEvent.change(selects(container)[2], { target: { value: "machine" } });
+      fireEvent.change(screen.getByLabelText("Weight options (lbs)"), { target: { value: "50, 75,100 , 150, 75" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (result.kind !== "new") throw new Error("expected kind 'new'");
+      expect(result.definition.weightOptions).toEqual([50, 75, 100, 150]);
+    });
+
+    it("saves brand as null when left blank", () => {
+      render(<ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />);
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pulldown" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      expect(result.kind === "new" && result.definition.brand).toBeNull();
+    });
+
+    it("sends the typed name and brand along with a photo scan", async () => {
+      const onScanPhoto = vi.fn().mockResolvedValue({
+        name: "Lat Pulldown", equipmentType: "pulley", equipmentDetail: null, muscleGroups: [],
+        isUnilateral: false, isTimeBased: false, suggestedWeight: null, reasoning: "",
+      });
+      render(
+        <ErrorProvider>
+          <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} onScanPhoto={onScanPhoto} />
+        </ErrorProvider>
+      );
+      fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Pulldown" } });
+      fireEvent.change(screen.getByLabelText("Brand (optional)"), { target: { value: "Lifecycle" } });
+      const file = new File(["x"], "p.png", { type: "image/png" });
+      fireEvent.change(screen.getByTestId("equipment-photo-input"), { target: { files: [file] } });
+      await waitFor(() => expect(onScanPhoto).toHaveBeenCalled());
+      expect(onScanPhoto).toHaveBeenCalledWith(file, { name: "Pulldown", brand: "Lifecycle" });
+    });
+
     it("disables Save until a name is entered, then saves with barbell defaults", () => {
       const { container } = render(
         <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />
@@ -82,6 +172,7 @@ describe("ExerciseEditor", () => {
       if (result.kind !== "new") throw new Error("expected kind 'new'");
       expect(result.definition).toMatchObject({
         name: "Squat",
+        brand: null,
         equipmentType: "barbell_45",
         equipmentDetail: null,
         progressionRule: "none",

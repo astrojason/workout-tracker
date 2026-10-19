@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  EQUIPMENT_SYSTEM_PROMPT, EQUIPMENT_TOOL, buildEquipmentPrompt, parseVisionToolCall, validateEquipmentAnalysis,
+  EQUIPMENT_SYSTEM_PROMPT, EQUIPMENT_TOOL, buildEquipmentPrompt, parseVisionToolCall, validateEquipmentAnalysis, sanitizeHint,
 } from "@/lib/equipment-photo";
 import type { EquipmentScanInput } from "@/lib/equipment-photo";
 import { checkTokenLimit, reportTokens } from "@/lib/token-tracker";
@@ -26,10 +26,15 @@ export async function POST(req: Request) {
   } catch (err) {
     return NextResponse.json({ error: `Invalid request body: ${err instanceof Error ? err.message : String(err)}` }, { status: 400 });
   }
-  if (typeof input?.image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(input.image)) {
+  const hint = sanitizeHint(input?.hint);
+  const hasImage = typeof input?.image === "string";
+  if (!hasImage && !hint) {
+    return NextResponse.json({ error: "A photo or an exercise name is required" }, { status: 400 });
+  }
+  if (hasImage && !/^data:image\/(jpeg|png|webp);base64,/.test(input.image as string)) {
     return NextResponse.json({ error: "A JPEG, PNG or WebP photo is required" }, { status: 400 });
   }
-  if (input.image.length > MAX_IMAGE_CHARS) {
+  if (hasImage && (input.image as string).length > MAX_IMAGE_CHARS) {
     return NextResponse.json({ error: "Photo is too large" }, { status: 413 });
   }
   const history = Array.isArray(input.history) ? input.history.slice(0, 40) : [];
@@ -51,8 +56,8 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: [
-            { type: "text", text: buildEquipmentPrompt(history) },
-            { type: "image_url", image_url: { url: input.image, detail: "low" } },
+            { type: "text", text: buildEquipmentPrompt(history, hint, hasImage) },
+            ...(hasImage ? [{ type: "image_url", image_url: { url: input.image, detail: "low" } }] : []),
           ],
         },
       ],

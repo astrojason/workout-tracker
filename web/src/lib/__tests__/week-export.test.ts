@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatWeekAsText, formatSessionsWeekAsText } from "../week-export";
+import { formatWeekAsText, formatSessionsWeekAsText, formatSessionAsMarkdown } from "../week-export";
 import type { ResolvedWorkout, ResolvedExercise, WorkoutSessionDoc, CompletedSet } from "../types";
 
 const makeExercise = (overrides: Partial<ResolvedExercise>): ResolvedExercise => ({
@@ -174,5 +174,51 @@ describe("formatSessionsWeekAsText", () => {
     const text = formatSessionsWeekAsText("Reacher Build", 1, [session]);
     expect(text).toContain("Scapular Hangs");
     expect(text).toContain("30s");
+  });
+});
+
+describe("formatSessionAsMarkdown", () => {
+  const session: WorkoutSessionDoc = {
+    id: "s1", programId: "p1", programName: "Reacher Build", week: 2, dayOfWeek: "Monday",
+    date: new Date(2026, 9, 12, 8, 0), completed: true, durationSeconds: 3000,
+    sets: [
+      makeCompletedSet({ id: "a", exerciseName: "Bench Press", exerciseOrder: 1, phase: "warmup", setNumber: 1, actualWeight: 95, actualReps: 8 }),
+      makeCompletedSet({ id: "b", exerciseName: "Bench Press", exerciseOrder: 2, phase: "main", setNumber: 1, actualWeight: 135, actualReps: 8, rating: "easy" }),
+      makeCompletedSet({ id: "c", exerciseName: "Bench Press", exerciseOrder: 2, phase: "main", setNumber: 2, actualWeight: 135, actualReps: 6, rating: "hard", notes: "left shoulder pinched" }),
+      makeCompletedSet({ id: "d", exerciseName: "Plank", exerciseOrder: 3, isTimeBased: true, setNumber: 1, actualWeight: 0, actualReps: 60 }),
+      makeCompletedSet({ id: "e", exerciseName: "Curl", exerciseOrder: 4, setNumber: 1, completed: false, skipped: true, actualReps: 0, actualWeight: 0 }),
+    ],
+  };
+
+  it("starts with a title, date and duration", () => {
+    const md = formatSessionAsMarkdown(session);
+    expect(md.split("\n")[0]).toBe("# Reacher Build — Monday, Week 2");
+    expect(md).toContain("October 12, 2026");
+    expect(md).toContain("50 min");
+  });
+
+  it("gives each exercise occurrence its own heading, labelling warm-ups", () => {
+    const md = formatSessionAsMarkdown(session);
+    expect(md).toContain("## Bench Press (warmup)");
+    expect(md).toContain("## Bench Press\n");
+    expect(md).toContain("## Plank");
+  });
+
+  it("lists every set with weight, reps, rating and notes", () => {
+    const md = formatSessionAsMarkdown(session);
+    expect(md).toContain("1. 8 reps @ 95 lb");
+    expect(md).toContain("1. 8 reps @ 135 lb — easy");
+    expect(md).toContain("2. 6 reps @ 135 lb — hard — left shoulder pinched");
+  });
+
+  it("formats time-based sets as durations and marks skipped sets", () => {
+    const md = formatSessionAsMarkdown(session);
+    expect(md).toContain("1. 1 min");
+    expect(md).toContain("1. skipped");
+  });
+
+  it("says when the whole day was skipped", () => {
+    const md = formatSessionAsMarkdown({ ...session, sets: [], completed: false, skipped: true });
+    expect(md).toContain("Skipped");
   });
 });

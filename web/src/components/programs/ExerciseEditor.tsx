@@ -7,8 +7,10 @@ import type {
 import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
 import { EquipmentWeightInput, defaultWeightForType } from "./EquipmentWeightInput";
 import Link from "next/link";
+import { useError } from "@/components/providers/ErrorProvider";
 import { EquipmentPhotoButton } from "@/components/workout/EquipmentPhotoButton";
-import type { EquipmentAnalysis } from "@/lib/equipment-photo";
+import type { EquipmentAnalysis, EquipmentHint } from "@/lib/equipment-photo";
+import { parseWeightOptions } from "@/lib/types";
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: "warmup", label: "Warmup" },
@@ -26,6 +28,7 @@ const PROGRESSION_RULES: { value: ProgressionRule; label: string }[] = [
   { value: "add_reps", label: "Add Reps" },
   { value: "add_time", label: "Add Time" },
   { value: "reduce_assistance", label: "Reduce Assistance" },
+  { value: "add_weight", label: "Next weight step (machine / kettlebell)" },
   { value: "maintain", label: "Maintain" },
   { value: "deload", label: "Deload" },
   { value: "progress_gripper", label: "Progress Gripper" },
@@ -47,12 +50,16 @@ interface ExerciseEditorProps {
   onCancel: () => void;
   equipmentConfig?: UserEquipmentConfig;
   // When provided, a new exercise can be filled in from a photo of the equipment.
-  onScanPhoto?: (file: File) => Promise<EquipmentAnalysis>;
+  onScanPhoto?: (file: File, hint: EquipmentHint) => Promise<EquipmentAnalysis>;
+  // Fills the form from the typed name/brand alone — the alternative to a photo.
+  onIdentify?: (hint: EquipmentHint) => Promise<EquipmentAnalysis>;
 }
 
 const NEW_SENTINEL = "__new__";
 
-export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig, onScanPhoto }: ExerciseEditorProps) {
+export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig, onScanPhoto, onIdentify }: ExerciseEditorProps) {
+  const { showError } = useError();
+  const [identifying, setIdentifying] = useState(false);
   const isNewOccurrence = !exercise;
   const sortedDefinitions = [...definitions].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -62,6 +69,8 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
 
   // Fields for a brand-new definition (only used when creatingNew)
   const [name, setName] = useState(exercise?.definitionName ?? "");
+  const [brand, setBrand] = useState("");
+  const [weightOptionsText, setWeightOptionsText] = useState("");
   const [muscleGroupsText, setMuscleGroupsText] = useState("");
   const [equipmentType, setEquipmentType] = useState<EquipmentType>("barbell_45");
   const [equipmentDetail, setEquipmentDetail] = useState("Orange");
@@ -101,9 +110,22 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
     setEquipmentDetail(a.equipmentDetail ?? "Orange");
     setIsUnilateral(a.isUnilateral);
     setTimeBased(a.isTimeBased);
-    setProgressionRule(a.isTimeBased ? "add_time" : "none");
+    setWeightOptionsText(a.weightOptions ? a.weightOptions.join(", ") : "");
+    setProgressionRule(a.progressionRule ?? (a.isTimeBased ? "add_time" : "none"));
     setBarbellError(null);
     setWeightValue(a.suggestedWeight !== null ? String(a.suggestedWeight) : defaultWeightForType(a.equipmentType));
+  }
+
+  async function handleIdentify() {
+    if (!onIdentify || !name.trim()) return;
+    setIdentifying(true);
+    try {
+      applyScan(await onIdentify({ name, brand: brand.trim() || null }));
+    } catch (err) {
+      showError(err);
+    } finally {
+      setIdentifying(false);
+    }
   }
 
   // Occurrence (scheduling) fields — always editable, regardless of picker mode
@@ -147,6 +169,8 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
         kind: "new",
         definition: {
           name: name.trim(),
+          brand: brand.trim() || null,
+          weightOptions: equipmentType === "machine" ? parseWeightOptions(weightOptionsText) : null,
           muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
           equipmentType,
           equipmentDetail: equipmentType === "band" ? (equipmentDetail || "Orange") : null,
@@ -184,7 +208,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
           </select>
         </Field>
 
-        {creatingNew && onScanPhoto && <EquipmentPhotoButton onScan={onScanPhoto} onResult={applyScan} />}
+        {creatingNew && onScanPhoto && <EquipmentPhotoButton onScan={(file) => onScanPhoto(file, { name, brand: brand.trim() || null })} onResult={applyScan} />}
 
         {creatingNew ? (
           <Field label="Exercise Name">
@@ -195,10 +219,28 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
               placeholder="e.g. Bench Press"
               className="input-field"
             />
+            <input
+              type="text"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              aria-label="Brand (optional)"
+              placeholder="Brand (optional), e.g. Lifecycle"
+              className="input-field mt-2"
+            />
+            {onIdentify && (
+              <button
+                type="button"
+                onClick={handleIdentify}
+                disabled={!name.trim() || identifying}
+                className="mt-2 w-full py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-sm font-semibold transition disabled:opacity-50"
+              >
+                {identifying ? "Identifying…" : "✨ Identify from name/brand"}
+              </button>
+            )}
           </Field>
         ) : selectedDef ? (
           <div className="mb-4 bg-gray-800/50 rounded-xl p-3 text-xs text-gray-400 space-y-1">
-            <div>{selectedDef.equipmentType.replace(/_/g, " ")}{selectedDef.equipmentDetail ? ` · ${selectedDef.equipmentDetail}` : ""} · {selectedDef.progressionRule.replace(/_/g, " ")}</div>
+            <div>{selectedDef.brand ? `${selectedDef.brand} · ` : ""}{selectedDef.equipmentType.replace(/_/g, " ")}{selectedDef.equipmentDetail ? ` · ${selectedDef.equipmentDetail}` : ""} · {selectedDef.progressionRule.replace(/_/g, " ")}</div>
             {selectedDef.muscleGroups.length > 0 && <div>{selectedDef.muscleGroups.join(", ")}</div>}
             <Link href="/settings/exercises" className="text-indigo-400 hover:text-indigo-300 inline-block">
               Edit in Exercise Library →
@@ -244,7 +286,21 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
               <option value="bodyweight">Bodyweight</option>
               <option value="gripper">Gripper</option>
               <option value="pulley">Pulley (Spud System)</option>
+              <option value="machine">Machine (weight stack)</option>
             </select>
+          </Field>
+        )}
+
+        {creatingNew && equipmentType === "machine" && (
+          <Field label="Weights the machine can be set to">
+            <input
+              type="text"
+              value={weightOptionsText}
+              onChange={(e) => setWeightOptionsText(e.target.value)}
+              aria-label="Weight options (lbs)"
+              placeholder="e.g. 50, 75, 100, 150"
+              className="input-field"
+            />
           </Field>
         )}
 
@@ -259,6 +315,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
             onEquipmentDetailChange={setEquipmentDetail}
             equipmentConfig={equipmentConfig}
             onBarbellErrorChange={setBarbellError}
+            weightOptions={creatingNew ? parseWeightOptions(weightOptionsText) : selectedDef?.weightOptions}
           />
         </Field>
 

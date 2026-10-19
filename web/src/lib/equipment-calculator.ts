@@ -307,6 +307,9 @@ export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, 
     case "kettlebell":
       return { type: "kettlebell", weight };
 
+    case "machine":
+      return { type: "machine", weight };
+
     case "gripper":
       return { type: "gripper", weight };
 
@@ -335,6 +338,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
       return display.detail?.replace(/_/g, " ") || "Assisted";
     }
     case "kettlebell": return `Kettlebell: ${cleanWeight(display.weight)} lbs`;
+    case "machine": return `Machine stack: ${cleanWeight(display.weight)} lbs`;
     case "gripper": return display.weight > 0 ? `Gripper: ${cleanWeight(display.weight)} lbs` : "Gripper";
     case "pulley": return pulleyDisplayString(display.config);
     case "loop_band": return `${display.size} Loop Band`;
@@ -347,6 +351,7 @@ export function equipmentShortText(display: EquipmentDisplay): string {
     case "powerblock":
     case "dumbbell":
     case "kettlebell":
+    case "machine":
     case "gripper": return `${cleanWeight(display.weight)} lbs`;
     case "pulley": return `${cleanWeight(display.config.achievedWeight)} lbs`;
     case "band": return `${display.name} Band`;

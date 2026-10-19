@@ -81,3 +81,25 @@ test.describe("custom workout builder", () => {
     await expect(page.getByTestId("saved-payload")).toHaveText("Bench Press:135x8");
   });
 });
+
+test.describe("custom workout set timer", () => {
+  test("counts up since the last set, resets when another is added, and never blocks entry", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/test-preview/custom-workout");
+    await expect(page.getByTestId("set-timer")).toHaveCount(0);
+
+    await page.getByLabel("Exercise").fill("Bench Press");
+    await page.getByLabel("Reps").fill("8");
+    await page.getByRole("button", { name: "Add set" }).click();
+    await expect(page.getByTestId("set-timer")).toContainText("0:00");
+
+    await page.clock.fastForward(75_000);
+    await expect(page.getByTestId("set-timer")).toContainText("1:15");
+
+    // Not UI blocking: the form stays usable while the timer runs.
+    await page.getByLabel("Reps").fill("6");
+    await page.getByRole("button", { name: "Add set" }).click();
+    await expect(page.getByTestId("set-timer")).toContainText("0:00");
+    await expect(page.getByTestId("logged-set")).toHaveCount(2);
+  });
+});

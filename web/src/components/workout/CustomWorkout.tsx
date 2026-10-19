@@ -7,6 +7,7 @@ import type { CustomSetEntry } from "@/lib/custom-workout";
 import { exerciseKey } from "@/lib/custom-workout";
 import { useError } from "@/components/providers/ErrorProvider";
 import { EquipmentPhotoButton } from "./EquipmentPhotoButton";
+import { SetTimer } from "./SetTimer";
 import type { EquipmentAnalysis } from "@/lib/equipment-photo";
 
 interface CustomWorkoutProps {
@@ -26,6 +27,7 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
   const [reps, setReps] = useState("");
   const [saving, setSaving] = useState(false);
   const [prs, setPrs] = useState<PRResult[] | null>(null);
+  const [lastSetAt, setLastSetAt] = useState<number | null>(null);
 
   const repsNum = Number(reps);
   const weightNum = weight === "" ? 0 : Number(weight);
@@ -34,6 +36,7 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
   function addSet() {
     if (!canAdd) return;
     setEntries((prev) => [...prev, { exerciseName: exercise.trim(), weight: weightNum, reps: repsNum }]);
+    setLastSetAt(Date.now());
     // Exercise and weight carry over to the next set; reps are re-entered.
     setReps("");
   }
@@ -145,6 +148,12 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
           )}
         </div>
       </div>
+
+      {lastSetAt !== null && (
+        <div className="mb-4">
+          <SetTimer startedAt={lastSetAt} />
+        </div>
+      )}
 
       <div className="space-y-3 mb-6">
         {groups.map((group) => (

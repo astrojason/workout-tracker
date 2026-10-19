@@ -16,7 +16,8 @@ export type EquipmentType =
   | "assisted_pullup"
   | "gripper"
   | "pulley"
-  | "loop_band";
+  | "loop_band"
+  | "machine"; // selectorized / cable weight stack: fixed pin positions, see ExerciseDefinition.weightOptions
 
 // Known keyword rules plus any free-form next-step string (band color, band count, etc.)
 export type ProgressionRule =
@@ -54,6 +55,8 @@ export const WEIGHT_INCREMENTS: Partial<Record<ProgressionRule, number>> = {
 export interface ExerciseDefinition {
   id: string;
   name: string;
+  weightOptions?: number[] | null; // machine only: the weights the machine can be set to, ascending (not always an even step)
+  brand?: string | null;       // equipment maker/model, e.g. "Lifecycle"; lets the AI identify a machine when its photo is unclear
   muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
@@ -314,6 +317,7 @@ export type EquipmentDisplay =
   | { type: "barbell"; config: PlateConfiguration }
   | { type: "powerblock"; weight: number; instructions: PowerBlockInstructions }
   | { type: "dumbbell"; weight: number }
+  | { type: "machine"; weight: number }
   | { type: "band"; name: string; range: string }
   | { type: "bodyweight"; detail: string | null }
   | { type: "assisted"; weight: number; detail: string | null }
@@ -436,6 +440,13 @@ export function exerciseWeightDisplay(exercise: ResolvedExercise): string {
   if (exercise.currentWeight > 0) return `${cleanWeight(exercise.currentWeight)} lbs`;
   if (exercise.equipmentType === "bodyweight") return "BW";
   return exercise.equipmentDetail || exercise.equipmentType.replace(/_/g, " ");
+}
+
+// Parses a typed list like "50, 75, 100" into sorted, unique, positive weights; null if fewer than two.
+export function parseWeightOptions(text: string): number[] | null {
+  const nums = text.split(/[,\s]+/).map((t) => parseFloat(t)).filter((n) => Number.isFinite(n) && n > 0);
+  const unique = [...new Set(nums)].sort((a, b) => a - b);
+  return unique.length >= 2 ? unique : null;
 }
 
 export function formatDuration(seconds: number): string {

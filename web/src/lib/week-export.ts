@@ -1,5 +1,6 @@
 import type { ResolvedWorkout, WorkoutSessionDoc, CompletedSet } from "./types";
-import { DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, cleanWeight, formatTimeValue } from "./types";
+import { groupSetsByOccurrence } from "./set-groups";
+import { DAY_ORDER, repTargetDisplay, formatRestTime, exerciseWeightDisplay, cleanWeight, formatTimeValue, formatDuration } from "./types";
 
 export function formatWeekAsText(programName: string, week: number, workouts: ResolvedWorkout[]): string {
   const sorted = [...workouts].sort(
@@ -56,6 +57,48 @@ export function formatSessionsWeekAsText(programName: string, week: number, sess
             : `${s.actualReps}`)
         .join(", ");
       lines.push(`  ${name}: ${setsText}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+function sessionDateOf(value: WorkoutSessionDoc["date"]): Date {
+  if (value instanceof Date) return value;
+  if (typeof (value as { toDate?: unknown }).toDate === "function") return (value as { toDate: () => Date }).toDate();
+  return new Date(value as unknown as string);
+}
+
+// One whole logged workout as a Markdown document: a heading per exercise (warm-ups labelled
+// separately) and a numbered line per set with weight, reps, rating and notes.
+export function formatSessionAsMarkdown(session: WorkoutSessionDoc): string {
+  const date = sessionDateOf(session.date).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const lines: string[] = [
+    `# ${session.programName} — ${session.dayOfWeek}, Week ${session.week}`,
+    "",
+    session.skipped ? `${date} · Skipped` : `${date} · ${formatDuration(session.durationSeconds)}`,
+    "",
+  ];
+
+  if (session.skipped) return lines.join("\n").trimEnd();
+
+  const groups = groupSetsByOccurrence(session.sets ?? []);
+  if (groups.length === 0) lines.push("No sets logged.");
+
+  for (const group of groups) {
+    lines.push(`## ${group.name}`, "");
+    for (const s of [...group.sets].sort((a, b) => a.setNumber - b.setNumber)) {
+      let text: string;
+      if (s.skipped) text = "skipped";
+      else if (s.isTimeBased) text = formatTimeValue(s.actualReps);
+      else if (s.actualWeight > 0) text = `${s.actualReps} reps @ ${cleanWeight(s.actualWeight)} lb`;
+      else text = `${s.actualReps} reps`;
+      const parts = [text];
+      if (!s.skipped && !s.completed) parts.push("failed");
+      if (s.rating) parts.push(s.rating);
+      if (s.notes && !s.skipped) parts.push(s.notes);
+      lines.push(`${s.setNumber}. ${parts.join(" — ")}`);
     }
     lines.push("");
   }

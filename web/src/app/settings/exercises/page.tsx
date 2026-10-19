@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { updateExerciseDefinitionMeta, updateExerciseDefinitionWeight } from "@/lib/firestore";
 import type { ExerciseDefinition, EquipmentType, ProgressionRule } from "@/lib/types";
+import { parseWeightOptions } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
 
@@ -20,6 +21,7 @@ const EQUIPMENT_OPTIONS: { value: EquipmentType; label: string }[] = [
   { value: "kettlebell", label: "Kettlebell" },
   { value: "bodyweight", label: "Bodyweight" },
   { value: "gripper", label: "Gripper" },
+  { value: "machine", label: "Machine (weight stack)" },
 ];
 
 const PROGRESSION_OPTIONS: { value: ProgressionRule; label: string }[] = [
@@ -27,6 +29,7 @@ const PROGRESSION_OPTIONS: { value: ProgressionRule; label: string }[] = [
   { value: "add_5lb", label: "Add 5 lbs" },
   { value: "add_2.5lb", label: "Add 2.5 lbs" },
   { value: "add_10lb", label: "Add 10 lbs" },
+  { value: "add_weight", label: "Next weight step (machine / kettlebell)" },
   { value: "add_reps", label: "Add Reps" },
   { value: "add_time", label: "Add Time" },
   { value: "reduce_assistance", label: "Reduce Assistance" },
@@ -91,7 +94,7 @@ export default function ExerciseLibraryPage() {
               >
                 <div className="font-semibold">{def.name}</div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  {def.equipmentType.replace(/_/g, " ")}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""} · {def.progressionRule.replace(/_/g, " ")}
+                  {def.brand ? `${def.brand} · ` : ""}{def.equipmentType.replace(/_/g, " ")}{def.weightOptions?.length ? ` (${def.weightOptions.length} weights)` : ""}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""} · {def.progressionRule.replace(/_/g, " ")}
                 </div>
                 {def.muscleGroups.length > 0 && (
                   <div className="text-xs text-gray-600 mt-0.5">{def.muscleGroups.join(", ")}</div>
@@ -120,6 +123,8 @@ function ExerciseDefinitionEditRow({
   onError: (err: unknown) => void;
 }) {
   const [name, setName] = useState(definition.name);
+  const [brand, setBrand] = useState(definition.brand ?? "");
+  const [weightOptionsText, setWeightOptionsText] = useState(definition.weightOptions?.join(", ") ?? "");
   const [muscleGroupsText, setMuscleGroupsText] = useState(definition.muscleGroups.join(", "));
   const [equipmentType, setEquipmentType] = useState<EquipmentType>(definition.equipmentType);
   const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
@@ -136,6 +141,8 @@ function ExerciseDefinitionEditRow({
     try {
       await updateExerciseDefinitionMeta(userId, definition.id, {
         name: name.trim(),
+        brand: brand.trim() || null,
+        weightOptions: equipmentType === "machine" ? parseWeightOptions(weightOptionsText) : null,
         muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
         equipmentType,
         equipmentDetail: equipmentType === "band" ? (equipmentDetail.trim() || null) : null,
@@ -162,6 +169,10 @@ function ExerciseDefinitionEditRow({
         <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="input-field" />
       </Field>
 
+      <Field label="Brand (optional)">
+        <input type="text" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Lifecycle" className="input-field" />
+      </Field>
+
       <Field label="Muscle Groups (comma-separated)">
         <input
           type="text"
@@ -184,6 +195,12 @@ function ExerciseDefinitionEditRow({
           </select>
         </Field>
       </div>
+
+      {equipmentType === "machine" && (
+        <Field label="Weights the machine can be set to (comma-separated)">
+          <input type="text" value={weightOptionsText} onChange={(e) => setWeightOptionsText(e.target.value)} placeholder="e.g. 50, 75, 100, 150" className="input-field" />
+        </Field>
+      )}
 
       {equipmentType === "band" && (
         <Field label="Band Color">

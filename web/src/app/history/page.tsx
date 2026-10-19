@@ -11,6 +11,7 @@ import { formatDuration, formatTimeValue } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { CopySessionButton } from "@/components/history/CopySessionButton";
 import { BodyMetricsSection } from "@/components/history/BodyMetricsSection";
 import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
 
@@ -174,31 +175,33 @@ export default function HistoryPage() {
               : new Date(session.date as unknown as string);
 
             return (
-              <Link
-                key={session.id}
-                href={`/session/${session.id}`}
-                className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center justify-between hover:bg-gray-800 transition"
-              >
-                <div>
-                  <div className="font-semibold">{session.programName}</div>
-                  <div className="text-sm text-gray-400">
-                    {session.dayOfWeek} &middot; Week {session.week}
+              <div key={session.id} className="bg-gray-900 rounded-xl border border-gray-800 flex items-stretch hover:bg-gray-800 transition">
+                <Link
+                  href={`/session/${session.id}`}
+                  className="flex-1 p-4 flex items-center justify-between"
+                >
+                  <div>
+                    <div className="font-semibold">{session.programName}</div>
+                    <div className="text-sm text-gray-400">
+                      {session.dayOfWeek} &middot; Week {session.week}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm">
-                    {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  <div className="text-right">
+                    <div className="text-sm">
+                      {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {session.skipped ? "Skipped" : formatDuration(session.durationSeconds)}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {session.skipped ? "Skipped" : formatDuration(session.durationSeconds)}
-                  </div>
-                </div>
-                {session.skipped ? (
-                  <span className="ml-3 text-amber-500 text-xs font-semibold">Skipped</span>
-                ) : session.completed ? (
-                  <span className="ml-3 text-green-400">&#x2713;</span>
-                ) : null}
-              </Link>
+                  {session.skipped ? (
+                    <span className="ml-3 text-amber-500 text-xs font-semibold">Skipped</span>
+                  ) : session.completed ? (
+                    <span className="ml-3 text-green-400">&#x2713;</span>
+                  ) : null}
+                </Link>
+                <CopySessionButton session={session} />
+              </div>
             );
           })}
           {sessions.length > SESSIONS_PAGE_SIZE && (

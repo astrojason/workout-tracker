@@ -656,7 +656,7 @@ export async function createExerciseDefinition(
 export async function updateExerciseDefinitionMeta(
   userId: string,
   definitionId: string,
-  updates: Partial<Pick<ExerciseDefinition, "name" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
+  updates: Partial<Pick<ExerciseDefinition, "name" | "brand" | "weightOptions" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
 ): Promise<void> {
   await updateDoc(doc(exerciseDefinitionsCol(userId), definitionId), {
     ...updates,

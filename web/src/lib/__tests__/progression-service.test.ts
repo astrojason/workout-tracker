@@ -320,3 +320,39 @@ describe("liveEasyBump", () => {
     expect(liveEasyBump(100, exercise)).toBe(100);
   });
 });
+
+describe("computeNextWeight — fixed-weight machines", () => {
+  const machine = (over: Partial<ResolvedExercise> = {}) =>
+    makeExercise({
+      name: "Lat Pulldown", equipmentType: "machine", progressionRule: "add_weight",
+      weightOptions: [70, 90, 100, 120, 145], currentWeight: 90, repMin: 8, repMax: { type: "count", value: 12 }, ...over,
+    });
+
+  it("moves to the next selectable weight once the top of the rep range is reached and rated easy", () => {
+    expect(computeNextWeight(machine(), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(100);
+  });
+
+  it("handles uneven gaps between options", () => {
+    expect(computeNextWeight(machine({ currentWeight: 120 }), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(145);
+  });
+
+  it("finds the next option above a weight that isn't itself an option", () => {
+    expect(computeNextWeight(machine({ currentWeight: 95 }), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(100);
+  });
+
+  it("holds until the top of the rep range is reached", () => {
+    expect(computeNextWeight(machine(), makeSet({ actualReps: 10, rating: "easy" })).currentWeight).toBe(90);
+  });
+
+  it("holds when the top reps were reached but did not feel easy", () => {
+    expect(computeNextWeight(machine(), makeSet({ actualReps: 12, rating: "normal" })).currentWeight).toBe(90);
+  });
+
+  it("holds at the heaviest option", () => {
+    expect(computeNextWeight(machine({ currentWeight: 145 }), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(145);
+  });
+
+  it("never invents a weight: with no options the weight holds", () => {
+    expect(computeNextWeight(machine({ weightOptions: null }), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(90);
+  });
+});

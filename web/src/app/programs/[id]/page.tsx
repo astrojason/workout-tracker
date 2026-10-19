@@ -6,7 +6,7 @@ import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { useHistory } from "@/hooks/useHistory";
-import { scanEquipmentPhoto } from "@/lib/equipment-scan";
+import { scanEquipmentPhoto, identifyEquipment } from "@/lib/equipment-scan";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
 import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
@@ -341,7 +341,8 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           onSave={handleSaveExercise}
           onCancel={() => setEditingExercise(null)}
           equipmentConfig={equipmentConfig}
-          onScanPhoto={(file) => scanEquipmentPhoto(file, sessions)}
+          onScanPhoto={(file, hint) => scanEquipmentPhoto(file, sessions, hint)}
+          onIdentify={(hint) => identifyEquipment(sessions, hint)}
         />
       )}
 

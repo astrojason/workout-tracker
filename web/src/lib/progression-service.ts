@@ -56,6 +56,18 @@ export function computeNextWeight(
     exercise.repMax.type === "failure" ||
     (exercise.lastSetAmrap === true && finalSet.setNumber === exercise.sets);
 
+  // Fixed-weight machine: same double progression as kettlebells, but the next weight is the next
+  // option the machine can actually be set to (gaps can be uneven). With no known options we hold
+  // rather than guess a weight it can't select.
+  if (exercise.progressionRule === "add_weight" && exercise.equipmentType === "machine") {
+    const finalSetOk = finalSet.completed && (isAmrapFinalSet
+      ? finalSet.actualReps >= (finalSet.targetReps || exercise.repMin) * 2
+      : exercise.repMax.type === "count" && finalSet.rating === "easy" && finalSet.actualReps >= exercise.repMax.value);
+    const next = finalSetOk ? [...(exercise.weightOptions ?? [])].sort((x, y) => x - y).find((w) => w > exercise.currentWeight) : undefined;
+    if (next !== undefined) return { currentWeight: next, hardStreak: 0 };
+    return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
+  }
+
   // Kettlebells only come in fixed bells, so the weight can't creep up: it holds while
   // you add reps, then jumps to the next bell. A normal last set must reach the top of
   // the rep range AND be rated Easy. An AMRAP last set has no top, and its rating is

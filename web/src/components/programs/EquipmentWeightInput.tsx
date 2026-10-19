@@ -33,6 +33,7 @@ export function defaultWeightForType(t: EquipmentType): string {
     case "assisted_pullup": return "1";
     case "gripper": return "10";
     case "pulley": return "0";
+    case "machine": return "10";
     default: return "0";
   }
 }
@@ -45,10 +46,11 @@ interface EquipmentWeightInputProps {
   onEquipmentDetailChange: (value: string) => void;
   equipmentConfig?: UserEquipmentConfig;
   onBarbellErrorChange: (error: string | null) => void;
+  weightOptions?: number[] | null; // machines: the weights it can be set to
 }
 
 export function EquipmentWeightInput({
-  equipmentType, weightValue, onWeightValueChange, equipmentDetail, onEquipmentDetailChange, equipmentConfig, onBarbellErrorChange,
+  equipmentType, weightValue, onWeightValueChange, equipmentDetail, onEquipmentDetailChange, equipmentConfig, onBarbellErrorChange, weightOptions,
 }: EquipmentWeightInputProps) {
   switch (equipmentType) {
     case "barbell_45":
@@ -77,6 +79,8 @@ export function EquipmentWeightInput({
       return <KettlebellWeightSelect value={weightValue} onChange={onWeightValueChange} equipmentConfig={equipmentConfig} />;
     case "gripper":
       return <GripperWeightInput value={weightValue} onChange={onWeightValueChange} />;
+    case "machine":
+      return <MachineWeightInput value={weightValue} onChange={onWeightValueChange} options={weightOptions} />;
     case "pulley":
       return <PulleyWeightInput value={weightValue} onChange={onWeightValueChange} equipmentConfig={equipmentConfig} />;
     default:
@@ -324,6 +328,29 @@ function KettlebellWeightSelect({
         <option key={w} value={String(w)}>{w} lbs</option>
       ))}
     </select>
+  );
+}
+
+// Fixed-weight machine: a pick-list of the weights it can be set to, or free entry if they're unknown.
+function MachineWeightInput({ value, onChange, options }: { value: string; onChange: (value: string) => void; options?: number[] | null }) {
+  if (options && options.length > 0) {
+    const current = parseFloat(value);
+    const list = Number.isFinite(current) && !options.includes(current) ? [...options, current].sort((a, b) => a - b) : options;
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="input-field">
+        {list.map((w) => <option key={w} value={String(w)}>{w} lbs</option>)}
+      </select>
+    );
+  }
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      min={0}
+      className="input-field"
+      placeholder="lbs on the machine"
+    />
   );
 }
 
