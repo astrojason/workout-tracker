@@ -179,7 +179,9 @@ export function validateEquipmentAnalysis(raw: unknown): EquipmentAnalysis {
     ? cleanOptions(r.weightOptions)
     : null;
   const ruleRaw = r.progressionRule as ProgressionRule;
-  const progressionRule: ProgressionRule = PROGRESSION_RULES.includes(ruleRaw) ? ruleRaw : isMachine ? "add_weight" : "none";
+  const progressionRule: ProgressionRule = PROGRESSION_RULES.includes(ruleRaw) ? ruleRaw : "none";
+  // A machine on "none" would never move up, so default it to the next-weight rule.
+  const finalRule: ProgressionRule = isMachine && progressionRule === "none" ? "add_weight" : progressionRule;
   const weight = r.suggestedWeight;
   const validWeight = typeof weight === "number" && Number.isFinite(weight) && weight >= 0 && weight <= MAX_WEIGHT ? weight : null;
   // A machine can only be set to one of its options: snap down, or up to the lightest if below all of them.
@@ -189,14 +191,16 @@ export function validateEquipmentAnalysis(raw: unknown): EquipmentAnalysis {
   return {
     name: r.name.trim(),
     equipmentType,
-    equipmentDetail: typeof r.equipmentDetail === "string" && r.equipmentDetail.trim() ? r.equipmentDetail.trim() : null,
+    // Only bands use this field (colour/size); a brand or other text the model puts here is dropped.
+    equipmentDetail: (equipmentType === "band" || equipmentType === "loop_band") && typeof r.equipmentDetail === "string" && r.equipmentDetail.trim()
+      ? r.equipmentDetail.trim() : null,
     muscleGroups: Array.isArray(r.muscleGroups)
       ? r.muscleGroups.filter((m): m is string => typeof m === "string" && m.trim() !== "").map((m) => m.trim())
       : [],
     isUnilateral: r.isUnilateral === true,
     isTimeBased: r.isTimeBased === true,
     suggestedWeight,
-    progressionRule,
+    progressionRule: finalRule,
     weightOptions,
     reasoning: typeof r.reasoning === "string" ? r.reasoning : "",
   };

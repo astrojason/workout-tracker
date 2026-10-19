@@ -151,6 +151,16 @@ describe("validateEquipmentAnalysis — fixed-weight machines", () => {
     expect(a.progressionRule).toBe("add_5lb");
   });
 
+  it("never leaves a machine on 'none': it would never progress", () => {
+    expect(validateEquipmentAnalysis({ ...base, progressionRule: "none" }).progressionRule).toBe("add_weight");
+  });
+
+  it("only keeps equipmentDetail for bands, not a brand the model put there", () => {
+    expect(validateEquipmentAnalysis({ ...base, equipmentDetail: "Nautilus" }).equipmentDetail).toBeNull();
+    expect(validateEquipmentAnalysis({ ...base, equipmentType: "band", equipmentDetail: "Blue" }).equipmentDetail).toBe("Blue");
+    expect(validateEquipmentAnalysis({ ...base, equipmentType: "loop_band", equipmentDetail: "Heavy" }).equipmentDetail).toBe("Heavy");
+  });
+
   it("rejects an unknown progression rule", () => {
     expect(validateEquipmentAnalysis({ ...base, equipmentType: "barbell_45", progressionRule: "do_magic" }).progressionRule).toBe("none");
   });
