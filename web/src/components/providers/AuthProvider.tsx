@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, type User } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
+import { isNativeApp, signInWithGoogleNative, signOutNative } from "@/lib/native-auth";
 
 interface AuthContextType {
   user: User | null;
@@ -31,11 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signInWithGoogle() {
+    if (isNativeApp()) {
+      await signInWithGoogleNative();
+      return;
+    }
     await signInWithPopup(auth, googleProvider);
   }
 
   async function signOut() {
     await firebaseSignOut(auth);
+    if (isNativeApp()) await signOutNative();
   }
 
   return (
