@@ -62,8 +62,10 @@ Keep `TODO.md` up to date:
 
 ## Versioning
 
-The app version lives in `web/package.json` (`version`) and is shown in the web app footer (Settings page) via `web/src/lib/version.ts`.
+The app version lives in `web/package.json` (`version`) and is shown in the web app footer via `web/src/lib/version.ts`. It must also be kept in sync in `VERSION` (plain text, at the repo root).
 
 A `pre-commit` git hook (`scripts/git-hooks/pre-commit`, enabled via `git config core.hooksPath scripts/git-hooks`) interactively prompts a human committer for major/minor/patch and bumps `web/package.json` accordingly. It auto-skips when there's no interactive terminal — which includes commits made by Claude Code.
 
-Because that hook can't prompt Claude Code, **when proposing a commit, suggest whether it should be a major, minor, or patch bump** (following semver: breaking change / new feature / fix) and, if the user agrees, bump `web/package.json`'s `version` yourself as part of the commit.
+Because that hook can't prompt Claude Code, **when proposing a commit, suggest whether it should be a major, minor, or patch bump** (following semver: breaking change / new feature / fix) and, if the user agrees, bump `web/package.json`'s `version` yourself as part of the commit. Also update `VERSION` to match.
+
+The version number in the bottom nav is a clickable link to `/changelog`. After every version bump, add an entry to `web/src/lib/changelog.ts` (newest first) describing the changes in that version.
