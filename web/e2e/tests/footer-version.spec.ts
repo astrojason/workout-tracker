@@ -13,6 +13,15 @@ test("shows the app version inside the bottom nav, alongside its controls", asyn
   await expect(page.getByText(`v${version}`)).toHaveCount(1);
 });
 
+test("the version number in the bottom nav is a link to /changelog", async ({ page }) => {
+  await page.goto("/test-preview/bottom-nav");
+
+  const nav = page.getByRole("navigation");
+  const versionLink = nav.getByRole("link", { name: `v${version}` });
+  await expect(versionLink).toBeVisible();
+  await expect(versionLink).toHaveAttribute("href", "/changelog");
+});
+
 test("the History page keeps its footer (nav + version) when signed out", async ({ page }) => {
   await page.goto("/history");
 
