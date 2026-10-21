@@ -39,6 +39,7 @@ export default function HistoryPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400">Sign in to view history.</p>
+        <BottomNav active="history" />
       </div>
     );
   }

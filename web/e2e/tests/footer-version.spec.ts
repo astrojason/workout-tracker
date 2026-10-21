@@ -12,3 +12,12 @@ test("shows the app version inside the bottom nav, alongside its controls", asyn
   await expect(page.getByRole("contentinfo")).toHaveCount(0);
   await expect(page.getByText(`v${version}`)).toHaveCount(1);
 });
+
+test("the History page keeps its footer (nav + version) when signed out", async ({ page }) => {
+  await page.goto("/history");
+
+  await expect(page.getByText("Sign in to view history.")).toBeVisible();
+  const nav = page.getByRole("navigation");
+  await expect(nav).toContainText(`v${version}`);
+  await expect(nav.getByRole("link", { name: /history/i })).toBeVisible();
+});
