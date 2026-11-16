@@ -356,3 +356,36 @@ describe("computeNextWeight — fixed-weight machines", () => {
     expect(computeNextWeight(machine({ weightOptions: null }), makeSet({ actualReps: 12, rating: "easy" })).currentWeight).toBe(90);
   });
 });
+
+describe("computeNextWeight — time since the exercise was last done", () => {
+  const ex = () => makeExercise({ currentWeight: 100 });
+  const easy = () => makeSet({ rating: "easy" });
+
+  it("progresses normally within two weeks", () => {
+    expect(computeNextWeight(ex(), easy(), undefined, 14).currentWeight).toBe(110);
+  });
+
+  it("holds the weight (no increase) after 15-28 days away", () => {
+    expect(computeNextWeight(ex(), easy(), undefined, 15).currentWeight).toBe(100);
+    expect(computeNextWeight(ex(), makeSet({ rating: "normal" }), undefined, 28).currentWeight).toBe(100);
+  });
+
+  it("deloads one increment after more than 28 days away, whatever the rating", () => {
+    expect(computeNextWeight(ex(), easy(), undefined, 29)).toEqual({ currentWeight: 95, hardStreak: 0 });
+    expect(computeNextWeight(ex(), makeSet({ rating: "hard" }), undefined, 60).currentWeight).toBe(95);
+  });
+
+  it("never raises the weight on a hard set, and still applies a normal hard-streak drop", () => {
+    const hardStreak2 = makeExercise({ currentWeight: 100, hardStreak: 2 });
+    expect(computeNextWeight(hardStreak2, makeSet({ rating: "hard" }), undefined, 20).currentWeight).toBe(95);
+  });
+
+  it("leaves rules with no numeric increment alone", () => {
+    const e = makeExercise({ progressionRule: "maintain", currentWeight: 100, hardStreak: 1 });
+    expect(computeNextWeight(e, easy(), undefined, 90)).toEqual({ currentWeight: 100, hardStreak: 1 });
+  });
+
+  it("is unchanged when the gap is unknown", () => {
+    expect(computeNextWeight(ex(), easy()).currentWeight).toBe(110);
+  });
+});

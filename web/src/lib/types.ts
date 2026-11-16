@@ -347,6 +347,7 @@ export interface ActiveSession {
 export interface PreviousExercisePerformance {
   weight: number;
   reps: number;
+  performedAt?: number; // ms timestamp of that session; absent on sessions persisted before this was recorded
 }
 
 export interface PRResult {

@@ -54,7 +54,7 @@ describe("buildPreviousPerformanceMap", () => {
       ]),
     ]);
 
-    expect(performances[exercise.id]).toEqual({ weight: 150, reps: 6 });
+    expect(performances[exercise.id]).toMatchObject({ weight: 150, reps: 6 });
   });
 
   it("matches renamed exercises by definition ID and legacy sets by name", () => {
@@ -62,12 +62,12 @@ describe("buildPreviousPerformanceMap", () => {
     const byId = buildPreviousPerformanceMap([renamed], [
       session("2026-02-01", [completedSet({ exerciseName: "Old Bench Name" })]),
     ]);
-    expect(byId[exercise.id]).toEqual({ weight: 135, reps: 8 });
+    expect(byId[exercise.id]).toMatchObject({ weight: 135, reps: 8 });
 
     const legacy = buildPreviousPerformanceMap([exercise], [
       session("2026-02-01", [completedSet({ definitionId: undefined })]),
     ]);
-    expect(legacy[exercise.id]).toEqual({ weight: 135, reps: 8 });
+    expect(legacy[exercise.id]).toMatchObject({ weight: 135, reps: 8 });
   });
 
   it("omits exercises with no completed history", () => {
@@ -85,7 +85,7 @@ describe("buildPreviousPerformanceMap", () => {
         completedSet({ exerciseName: "Assisted Pull-ups", actualWeight: 2, actualReps: 5 }),
       ]),
     ]);
-    expect(performances[assisted.id]).toEqual({ weight: 2, reps: 5 });
+    expect(performances[assisted.id]).toMatchObject({ weight: 2, reps: 5 });
   });
 });
 
@@ -104,5 +104,15 @@ describe("seedAssistedWeights", () => {
 
   it("ignores history that recorded no bands", () => {
     expect(seedAssistedWeights([assisted], { a1: { weight: 0, reps: 8 } })).toEqual({});
+  });
+});
+
+describe("buildPreviousPerformanceMap — when it was done", () => {
+  it("records the date of the session the performance came from", () => {
+    const performances = buildPreviousPerformanceMap([exercise], [
+      session("2026-01-01", [completedSet()]),
+      session("2026-02-01", [completedSet()]),
+    ]);
+    expect(performances[exercise.id].performedAt).toBe(new Date("2026-02-01").getTime());
   });
 });

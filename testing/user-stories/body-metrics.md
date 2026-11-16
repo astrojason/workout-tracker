@@ -5,10 +5,11 @@
 **As a user tracking changes in my body alongside strength progress:**
 
 - I can log a check-in from the History screen with a date and required body weight in pounds
-- I can optionally record chest, waist, hips, arm, and thigh measurements in inches, plus left/right bicep, thigh, and calf
+- I can optionally record chest, waist, and hips measurements in inches, plus left/right bicep, thigh, and calf (no separate arm/thigh)
 - I can optionally transcribe RunStar smart-scale readings for body fat, BMI, heart rate,
   muscle mass, bone mass, body water, visceral fat, protein, BMR, metabolic age,
   standard/fat-free weight, subcutaneous fat, skeletal muscle, and water weight
+- Measurements accept any decimal precision (e.g. 12.875) as well as whole numbers (BMR, metabolic age)
 - Blank optional measurements are not stored as zeroes
 - After saving, the newest check-in is shown immediately without reloading the page
 - A failed load, save, or delete is shown in the app error modal with the original error details

@@ -53,6 +53,7 @@ export function buildPreviousPerformanceMap(
       performances[exercise.id] = {
         weight: previous.actualWeight,
         reps: previous.actualReps,
+        performedAt: sessionTime(session),
       };
       break;
     }

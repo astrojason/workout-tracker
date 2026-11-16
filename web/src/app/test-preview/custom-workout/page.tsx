@@ -10,6 +10,9 @@ export default function CustomWorkoutTestPage() {
   return (
     <CustomWorkout
       exerciseNames={["Bench Press", "Deadlift", "Row"]}
+      suggestWeight={(name) =>
+        name.toLowerCase() === "bench press" ? { weight: 140, lastWeight: 135, lastReps: 8, daysAgo: 3 } : null
+      }
       onFinish={async () => []}
       onClose={() => {}}
       onScanPhoto={async () => {

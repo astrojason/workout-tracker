@@ -15,10 +15,10 @@ test.describe("equipment photo scan in the custom workout", () => {
     await page.getByTestId("equipment-photo-input").setInputFiles({ name: "row.png", mimeType: "image/png", buffer: PNG });
 
     await expect(page.getByLabel("Exercise")).toHaveValue("Seated Cable Row");
-    await expect(page.getByLabel("Weight")).toHaveValue("80");
+    await expect(page.getByLabel("Weight", { exact: true })).toHaveValue("80");
     await expect(page.getByText("Based on your Lat Pulldown at 90 lbs")).toBeVisible();
 
-    await page.getByLabel("Reps").fill("10");
+    await page.getByLabel("Reps", { exact: true }).fill("10");
     await page.getByRole("button", { name: "Add set" }).click();
     await expect(page.getByTestId("logged-set").first()).toContainText("80");
   });

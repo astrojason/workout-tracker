@@ -22,7 +22,7 @@ import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-c
 import { Timestamp } from "firebase/firestore";
 import { CustomWorkout } from "@/components/workout/CustomWorkout";
 import { scanEquipmentPhoto } from "@/lib/equipment-scan";
-import { buildCustomSets, CUSTOM_PROGRAM_ID, CUSTOM_PROGRAM_NAME, exerciseKey } from "@/lib/custom-workout";
+import { buildCustomSets, suggestCustomWeight, CUSTOM_PROGRAM_ID, CUSTOM_PROGRAM_NAME, exerciseKey } from "@/lib/custom-workout";
 import type { CustomExerciseInfo, CustomSetEntry } from "@/lib/custom-workout";
 import { saveSession } from "@/lib/firestore";
 import { checkForPRs } from "@/lib/pr-detector";
@@ -221,6 +221,10 @@ export default function HomePage() {
         exerciseNames={Object.values(definitions).map((d) => d.name).sort()}
         onFinish={finishCustom}
         onClose={() => setCustomOpen(false)}
+        suggestWeight={(name) => {
+          const definition = Object.values(definitions).find((d) => exerciseKey(d.name) === exerciseKey(name));
+          return definition ? suggestCustomWeight(definition, sessions, equipmentConfig ?? undefined, new Date()) : null;
+        }}
         onScanPhoto={(file) => scanEquipmentPhoto(file, sessions)}
       />
     );

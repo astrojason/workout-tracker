@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.26.0',
+    date: '2026-11-16',
+    changes: [
+      'Custom workouts: log timed sets, mark sets as bodyweight, rate each set Easy/Normal/Hard, and see an estimated 1RM per set.',
+      'Custom workouts suggest a weight from the exercise history, adjusted by rating and time since it was last done.',
+      'Weight progression now holds after 2+ weeks away from an exercise and drops one increment after 4+ weeks.',
+      'Body metrics: removed the redundant arm and thigh inputs, accept three decimals and whole numbers, and aligned the form fields.',
+    ],
+  },
+  {
     version: '1.25.2',
     date: '2026-10-21',
     changes: [

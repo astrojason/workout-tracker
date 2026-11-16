@@ -263,7 +263,7 @@ describe("useWorkout", () => {
       result.current.startWorkout(workout, getDefinitions(), undefined, [previousSession]);
     });
 
-    expect(result.current.session?.previousPerformances?.[exercise.id]).toEqual({
+    expect(result.current.session?.previousPerformances?.[exercise.id]).toMatchObject({
       weight: 135,
       reps: 10,
     });

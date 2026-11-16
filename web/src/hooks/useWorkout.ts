@@ -510,7 +510,11 @@ export function useWorkout(userId: string | null) {
         const setsForExercise = sets.filter((s) => s.exerciseOrder === exercise.order);
         if (setsForExercise.length === 0) continue;
         const finalSet = setsForExercise.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
-        const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current);
+        const previousAt = session.previousPerformances?.[exercise.id]?.performedAt;
+        const daysSincePrevious = previousAt === undefined
+          ? undefined
+          : Math.floor((session.startTime.getTime() - previousAt) / 86_400_000);
+        const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current, daysSincePrevious);
         if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak) continue;
         await updateProgramExerciseWeight(userId, session.workout.programId, exercise.definitionId, result.currentWeight, result.hardStreak);
         const after = { currentWeight: result.currentWeight, hardStreak: result.hardStreak };

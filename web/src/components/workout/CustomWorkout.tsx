@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import type { PRResult } from "@/lib/types";
-import { cleanWeight } from "@/lib/types";
+import { cleanWeight, formatTimeValue } from "@/lib/types";
+import { estimate1RM } from "@/lib/one-rep-max";
 import type { CustomSetEntry } from "@/lib/custom-workout";
 import { exerciseKey } from "@/lib/custom-workout";
+import type { WeightSuggestion } from "@/lib/custom-workout";
 import { useError } from "@/components/providers/ErrorProvider";
 import { EquipmentPhotoButton } from "./EquipmentPhotoButton";
 import { SetTimer } from "./SetTimer";
@@ -14,37 +16,55 @@ interface CustomWorkoutProps {
   exerciseNames: string[]; // library names offered as suggestions; any other name is accepted too
   onFinish: (entries: CustomSetEntry[]) => Promise<PRResult[]>;
   onClose: () => void;
+  suggestWeight?: (exerciseName: string) => WeightSuggestion | null; // next weight from this exercise's history
   onScanPhoto?: (file: File) => Promise<EquipmentAnalysis>; // photo of equipment → exercise name + suggested weight
 }
 
+const RATINGS = [
+  { value: "easy", label: "Easy", active: "bg-green-600 text-white" },
+  { value: "normal", label: "Normal", active: "bg-indigo-600 text-white" },
+  { value: "hard", label: "Hard", active: "bg-red-600 text-white" },
+] as const;
+
 const inputCls = "w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500";
 
-export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }: CustomWorkoutProps) {
+export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto, suggestWeight }: CustomWorkoutProps) {
   const { showError } = useError();
   const [entries, setEntries] = useState<CustomSetEntry[]>([]);
   const [exercise, setExercise] = useState("");
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
+  const [rating, setRating] = useState<"easy" | "normal" | "hard">("normal");
+  const [timed, setTimed] = useState(false);
+  const [bodyweight, setBodyweight] = useState(false);
   const [saving, setSaving] = useState(false);
   const [prs, setPrs] = useState<PRResult[] | null>(null);
   const [lastSetAt, setLastSetAt] = useState<number | null>(null);
 
   const repsNum = Number(reps);
-  const weightNum = weight === "" ? 0 : Number(weight);
+  const weightNum = bodyweight || weight === "" ? 0 : Number(weight);
   const canAdd = exercise.trim() !== "" && reps !== "" && repsNum > 0 && weightNum >= 0 && !Number.isNaN(weightNum);
+
+  const suggestion = !timed && !bodyweight && weight === "" && exercise.trim() !== ""
+    ? (suggestWeight?.(exercise.trim()) ?? null)
+    : null;
 
   function addSet() {
     if (!canAdd) return;
-    setEntries((prev) => [...prev, { exerciseName: exercise.trim(), weight: weightNum, reps: repsNum }]);
+    setEntries((prev) => [...prev, { exerciseName: exercise.trim(), weight: weightNum, reps: repsNum, isTimeBased: timed, rating }]);
     setLastSetAt(Date.now());
     // Exercise and weight carry over to the next set; reps are re-entered.
     setReps("");
+    setRating("normal");
   }
 
   function changeExercise() {
     setExercise("");
     setWeight("");
     setReps("");
+    setTimed(false);
+    setBodyweight(false);
+    setRating("normal");
   }
 
   async function finish() {
@@ -82,7 +102,7 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
           </ul>
         )}
         <span data-testid="saved-payload" className="sr-only">
-          {entries.map((e) => `${e.exerciseName}:${cleanWeight(e.weight)}x${e.reps}`).join(",")}
+          {entries.map((e) => `${e.exerciseName}:${e.weight > 0 ? cleanWeight(e.weight) : "BW"}x${e.isTimeBased ? formatTimeValue(e.reps) : e.reps}`).join(",")}
         </span>
         <button onClick={onClose} className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition">
           Done
@@ -106,6 +126,8 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
               setExercise(a.name);
               setWeight(a.suggestedWeight !== null ? String(a.suggestedWeight) : "");
               setReps("");
+              setTimed(a.isTimeBased);
+              setBodyweight(false);
             }}
           />
         )}
@@ -123,19 +145,62 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
             {exerciseNames.map((n) => <option key={n} value={n} />)}
           </datalist>
         </div>
+        <div className="flex gap-2" role="group" aria-label="Set type">
+          {([false, true] as const).map((isTime) => (
+            <button key={String(isTime)} type="button" aria-pressed={timed === isTime}
+              onClick={() => { setTimed(isTime); setReps(""); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${timed === isTime ? "bg-indigo-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}>
+              {isTime ? "Time" : "Reps"}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center justify-between">
+          <span id="cw-bw-label" className="text-sm text-gray-400">Bodyweight</span>
+          <button type="button" role="switch" aria-checked={bodyweight} aria-labelledby="cw-bw-label"
+            onClick={() => { setBodyweight((v) => !v); setWeight(""); }}
+            className={`relative w-11 h-6 rounded-full transition ${bodyweight ? "bg-indigo-600" : "bg-gray-700"}`}>
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${bodyweight ? "translate-x-5" : ""}`} />
+          </button>
+        </div>
         <div className="flex gap-3">
           <div className="flex-1">
             <label htmlFor="cw-weight" className="block text-sm text-gray-400 mb-1">Weight</label>
-            <input id="cw-weight" type="number" inputMode="decimal" min="0" step="any" value={weight}
-              onChange={(e) => setWeight(e.target.value)} placeholder="lbs" className={inputCls} />
+            <input id="cw-weight" type="number" inputMode="decimal" min="0" step="any" value={weight} disabled={bodyweight}
+              onChange={(e) => setWeight(e.target.value)} placeholder={bodyweight ? "BW" : "lbs"} className={`${inputCls} disabled:opacity-50`} />
           </div>
           <div className="flex-1">
-            <label htmlFor="cw-reps" className="block text-sm text-gray-400 mb-1">Reps</label>
+            <label htmlFor="cw-reps" className="block text-sm text-gray-400 mb-1">{timed ? "Time (sec)" : "Reps"}</label>
             <input id="cw-reps" type="number" inputMode="numeric" min="1" step="1" value={reps}
               onChange={(e) => setReps(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addSet(); }}
               className={inputCls} />
           </div>
         </div>
+        <div>
+          <span id="cw-rating-label" className="block text-sm text-gray-400 mb-1">Difficulty</span>
+          <div role="group" aria-labelledby="cw-rating-label" className="flex rounded-xl overflow-hidden border border-gray-700">
+            {RATINGS.map((opt) => (
+              <button key={opt.value} type="button" aria-pressed={rating === opt.value} onClick={() => setRating(opt.value)}
+                className={`flex-1 py-2 text-sm font-semibold transition ${rating === opt.value ? opt.active : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {suggestion && (
+          <div data-testid="weight-suggestion" className="flex items-center justify-between gap-3 rounded-lg bg-gray-800 px-3 py-2 text-sm">
+            <span className="text-gray-300">
+              Suggested {cleanWeight(suggestion.weight)} lb
+              <span className="block text-xs text-gray-500">
+                last time {cleanWeight(suggestion.lastWeight)} lb × {suggestion.lastReps}
+                {suggestion.daysAgo === 0 ? ", today" : `, ${suggestion.daysAgo} day${suggestion.daysAgo === 1 ? "" : "s"} ago`}
+              </span>
+            </span>
+            <button type="button" onClick={() => setWeight(String(suggestion.weight))}
+              className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-500">
+              Use {cleanWeight(suggestion.weight)} lb
+            </button>
+          </div>
+        )}
         <div className="flex gap-3">
           <button onClick={addSet} disabled={!canAdd}
             className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white font-bold transition">
@@ -162,7 +227,17 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto }:
             <ul className="space-y-1">
               {group.sets.map(({ entry, index }, n) => (
                 <li key={index} data-testid="logged-set" className="flex items-center justify-between text-sm text-gray-300">
-                  <span>Set {n + 1}: {entry.weight > 0 ? `${cleanWeight(entry.weight)} lb` : "BW"} × {entry.reps}</span>
+                  <span>
+                    Set {n + 1}: {entry.weight > 0 ? `${cleanWeight(entry.weight)} lb` : "BW"} × {entry.isTimeBased ? formatTimeValue(entry.reps) : entry.reps}
+                    {entry.rating && entry.rating !== "normal" && (
+                      <span className={`ml-2 text-xs ${entry.rating === "easy" ? "text-green-400" : "text-red-400"}`}>{entry.rating}</span>
+                    )}
+                    {!entry.isTimeBased && estimate1RM(entry.weight, entry.reps) !== null && (
+                      <span data-testid="set-e1rm" className="ml-2 text-xs text-gray-500">
+                        est. 1RM {Math.round(estimate1RM(entry.weight, entry.reps)!)} lb
+                      </span>
+                    )}
+                  </span>
                   <button aria-label={`Remove set ${n + 1} of ${group.name}`}
                     onClick={() => setEntries((prev) => prev.filter((_, i) => i !== index))}
                     className="text-gray-500 hover:text-red-400 px-2">✕</button>

@@ -47,7 +47,31 @@ export interface ProgressionResult {
 // then targets the standard percentage of that 1RM for the set's target rep count — the
 // Epley formula's own inverse (30 / (30 + reps)), reusing the same formula already used
 // for 1RM PRs elsewhere rather than maintaining a separate %1RM table.
+//
+// Time away: `daysSincePrevious` is how long it had been since this exercise was last done.
+// Progress is only earned on a regular cadence — after more than 14 days the weight is
+// held (never raised), and after more than 28 days it drops one increment, whatever the rating.
+export const HOLD_AFTER_DAYS = 14;
+export const DELOAD_AFTER_DAYS = 28;
+
 export function computeNextWeight(
+  exercise: ResolvedExercise,
+  finalSet: CompletedSet,
+  config?: UserEquipmentConfig,
+  daysSincePrevious?: number,
+): ProgressionResult {
+  const result = progressFromRating(exercise, finalSet, config);
+  if (daysSincePrevious === undefined || daysSincePrevious <= HOLD_AFTER_DAYS) return result;
+
+  const increment = WEIGHT_INCREMENTS[exercise.progressionRule];
+  if (daysSincePrevious > DELOAD_AFTER_DAYS && increment) {
+    const deloaded = roundDownToAchievable(exercise.currentWeight - increment, exercise, config);
+    return { currentWeight: Math.min(result.currentWeight, deloaded), hardStreak: 0 };
+  }
+  return { ...result, currentWeight: Math.min(result.currentWeight, exercise.currentWeight) };
+}
+
+function progressFromRating(
   exercise: ResolvedExercise,
   finalSet: CompletedSet,
   config?: UserEquipmentConfig

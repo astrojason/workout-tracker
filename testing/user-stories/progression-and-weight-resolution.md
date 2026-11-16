@@ -48,3 +48,10 @@
 - Barbell weights snap to the nearest achievable plate combination (rounding down if exact match is impossible)
 - PowerBlock weights snap to the nearest 2.5 lbs, clamped between 5 and 50 lbs
 - Band, bodyweight, kettlebell, and gripper weights are not snapped
+## Time away from an exercise
+
+- When a workout ends, the weight adjustment also considers how long it had been since that exercise was last done
+- Within 14 days: normal progression
+- 15-28 days: the weight is held (never raised); a hard-streak drop still applies
+- More than 28 days: the weight drops one increment, whatever the rating
+- If the previous date is unknown (first time, or older data), progression is unchanged

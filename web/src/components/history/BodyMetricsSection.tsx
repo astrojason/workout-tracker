@@ -24,34 +24,37 @@ interface MetricDefinition {
   label: string;
   unit: "lbs" | "in" | "%" | "bpm" | "kcal" | "years" | "";
   inputLabel: string;
-  step?: string;
 }
 
 const CIRCUMFERENCE_METRICS: MetricDefinition[] = [
-  { key: "chest", label: "Chest", unit: "in", inputLabel: "Chest (in)", step: "0.01" },
-  { key: "waist", label: "Waist", unit: "in", inputLabel: "Waist (in)", step: "0.01" },
-  { key: "hips", label: "Hips", unit: "in", inputLabel: "Hips (in)", step: "0.01" },
-  { key: "arm", label: "Arm", unit: "in", inputLabel: "Arm (in)", step: "0.01" },
-  { key: "thigh", label: "Thigh", unit: "in", inputLabel: "Thigh (in)", step: "0.01" },
-  { key: "rightBicep", label: "Right bicep", unit: "in", inputLabel: "Right bicep (in)", step: "0.01" },
-  { key: "leftBicep", label: "Left bicep", unit: "in", inputLabel: "Left bicep (in)", step: "0.01" },
-  { key: "rightThigh", label: "Right thigh", unit: "in", inputLabel: "Right thigh (in)", step: "0.01" },
-  { key: "leftThigh", label: "Left thigh", unit: "in", inputLabel: "Left thigh (in)", step: "0.01" },
-  { key: "rightCalf", label: "Right calf", unit: "in", inputLabel: "Right calf (in)", step: "0.01" },
-  { key: "leftCalf", label: "Left calf", unit: "in", inputLabel: "Left calf (in)", step: "0.01" },
+  { key: "chest", label: "Chest", unit: "in", inputLabel: "Chest (in)" },
+  { key: "waist", label: "Waist", unit: "in", inputLabel: "Waist (in)" },
+  { key: "hips", label: "Hips", unit: "in", inputLabel: "Hips (in)" },
+  { key: "rightBicep", label: "Right bicep", unit: "in", inputLabel: "Right bicep (in)" },
+  { key: "leftBicep", label: "Left bicep", unit: "in", inputLabel: "Left bicep (in)" },
+  { key: "rightThigh", label: "Right thigh", unit: "in", inputLabel: "Right thigh (in)" },
+  { key: "leftThigh", label: "Left thigh", unit: "in", inputLabel: "Left thigh (in)" },
+  { key: "rightCalf", label: "Right calf", unit: "in", inputLabel: "Right calf (in)" },
+  { key: "leftCalf", label: "Left calf", unit: "in", inputLabel: "Left calf (in)" },
+];
+
+// Superseded by the left/right measurements; kept so older check-ins still display and chart.
+const LEGACY_METRICS: MetricDefinition[] = [
+  { key: "arm", label: "Arm", unit: "in", inputLabel: "Arm (in)" },
+  { key: "thigh", label: "Thigh", unit: "in", inputLabel: "Thigh (in)" },
 ];
 
 const SMART_SCALE_METRICS: MetricDefinition[] = [
   { key: "bodyFatPercentage", label: "Body fat", unit: "%", inputLabel: "Body fat (%)" },
   { key: "bmi", label: "BMI", unit: "", inputLabel: "BMI" },
-  { key: "heartRate", label: "Heart rate", unit: "bpm", inputLabel: "Heart rate (bpm)", step: "1" },
+  { key: "heartRate", label: "Heart rate", unit: "bpm", inputLabel: "Heart rate (bpm)" },
   { key: "muscleMass", label: "Muscle mass", unit: "lbs", inputLabel: "Muscle mass (lbs)" },
   { key: "boneMass", label: "Bone mass", unit: "lbs", inputLabel: "Bone mass (lbs)" },
   { key: "bodyWaterPercentage", label: "Body water", unit: "%", inputLabel: "Body water (%)" },
   { key: "visceralFat", label: "Visceral fat", unit: "", inputLabel: "Visceral fat rating" },
   { key: "proteinMass", label: "Protein mass", unit: "lbs", inputLabel: "Protein mass (lbs)" },
-  { key: "bmr", label: "BMR", unit: "kcal", inputLabel: "BMR (kcal)", step: "1" },
-  { key: "metabolicAge", label: "Metabolic age", unit: "years", inputLabel: "Metabolic age (years)", step: "1" },
+  { key: "bmr", label: "BMR", unit: "kcal", inputLabel: "BMR (kcal)" },
+  { key: "metabolicAge", label: "Metabolic age", unit: "years", inputLabel: "Metabolic age (years)" },
   { key: "standardWeight", label: "Standard weight", unit: "lbs", inputLabel: "Standard weight (lbs)" },
   { key: "fatFreeBodyWeight", label: "Fat-free weight", unit: "lbs", inputLabel: "Fat-free weight (lbs)" },
   { key: "proteinPercentage", label: "Protein", unit: "%", inputLabel: "Protein (%)" },
@@ -63,6 +66,7 @@ const SMART_SCALE_METRICS: MetricDefinition[] = [
 const METRICS: MetricDefinition[] = [
   { key: "weight", label: "Body weight", unit: "lbs", inputLabel: "Body weight (lbs)" },
   ...CIRCUMFERENCE_METRICS,
+  ...LEGACY_METRICS,
   ...SMART_SCALE_METRICS,
 ];
 
@@ -297,7 +301,7 @@ export function BodyMetricsSection({
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-3 space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-4">
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm text-gray-400">
+            <label className="flex flex-col justify-between text-sm text-gray-400">
               Date
               <input
                 type="date"
@@ -307,14 +311,14 @@ export function BodyMetricsSection({
                 className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
               />
             </label>
-            <label className="text-sm text-gray-400">
+            <label className="flex flex-col justify-between text-sm text-gray-400">
               Body weight (lbs)
               <input
                 type="number"
                 value={weight}
                 onChange={(event) => setWeight(event.target.value)}
                 min="0.1"
-                step="0.1"
+                step="any"
                 required
                 className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
               />
@@ -323,15 +327,15 @@ export function BodyMetricsSection({
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">Optional measurements</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {CIRCUMFERENCE_METRICS.map(({ key, inputLabel, step }) => (
-                <label key={key} className="text-sm text-gray-400">
+              {CIRCUMFERENCE_METRICS.map(({ key, inputLabel }) => (
+                <label key={key} className="flex flex-col justify-between text-sm text-gray-400">
                   {inputLabel}
                   <input
                     type="number"
                     value={measurements[key as OptionalMetricKey] ?? ""}
                     onChange={(event) => setMeasurements((current) => ({ ...current, [key]: event.target.value }))}
                     min="0.1"
-                    step={step ?? "0.1"}
+                    step="any"
                     className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
                   />
                 </label>
@@ -346,15 +350,15 @@ export function BodyMetricsSection({
               Body-composition readings are scale estimates. Use them to follow trends, not as medical measurements.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {SMART_SCALE_METRICS.map(({ key, inputLabel, step }) => (
-                <label key={key} className="text-sm text-gray-400">
+              {SMART_SCALE_METRICS.map(({ key, inputLabel }) => (
+                <label key={key} className="flex flex-col justify-between text-sm text-gray-400">
                   {inputLabel}
                   <input
                     type="number"
                     value={measurements[key as OptionalMetricKey] ?? ""}
                     onChange={(event) => setMeasurements((current) => ({ ...current, [key]: event.target.value }))}
                     min="0.1"
-                    step={step ?? "0.1"}
+                    step="any"
                     className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
                   />
                 </label>
