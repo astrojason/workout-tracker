@@ -18,6 +18,8 @@ import type { ResolvedWorkout, Workout } from "@/lib/types";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
+import { ensureLastPerformance, getLastPerformance } from "@/lib/firestore";
+import type { WorkoutSessionDoc } from "@/lib/types";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
 import { Timestamp } from "firebase/firestore";
 import { CustomWorkout } from "@/components/workout/CustomWorkout";
@@ -37,11 +39,47 @@ export default function HomePage() {
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
-  const { sessions, loading: historyLoading } = useHistory(user?.uid ?? null);
+  // The landing page only needs the last week (week grid, this week's consistency). The weights
+  // each exercise was last done at come from a small summary document (getLastPerformance), not
+  // the session history, so neither the landing page nor starting a workout loads it.
+  const { sessions, loading: historyLoading } = useHistory(user?.uid ?? null, 7);
+  const [lastPerformance, setLastPerformance] = useState<WorkoutSessionDoc[] | null>(null);
+  const [customLoading, setCustomLoading] = useState(false);
   const [checklistWorkout, setChecklistWorkout] = useState<ResolvedWorkout | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState<Date>(new Date());
   const { showError } = useError();
+
+  async function loadLastPerformance(): Promise<WorkoutSessionDoc[]> {
+    const last = await getLastPerformance(user!.uid);
+    setLastPerformance(last);
+    return last;
+  }
+
+  // Starts a program workout once the last-performance summary its progression needs has loaded. Reports
+  // failures itself and returns false, which ProgramCard treats as "didn't start".
+  async function startProgramWorkout(w: Workout): Promise<boolean> {
+    try {
+      const history = await loadLastPerformance();
+      return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, history);
+    } catch (err) {
+      showError(err);
+      return false;
+    }
+  }
+
+  async function openCustomWorkout() {
+    setCustomLoading(true);
+    try {
+      await loadLastPerformance();
+      setCustomStart(new Date());
+      setCustomOpen(true);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setCustomLoading(false);
+    }
+  }
 
   // Weights live on the program, so each workout resolves against the library with its own
   // program's weights laid over it.
@@ -72,6 +110,16 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
+  // TEMPORARY one-time backfill (see ensureLastPerformance): once the landing page has rendered,
+  // build the user's last-performance summary in the background if they don't have one yet, so it
+  // is ready by the time they start a workout. Roll back with the backfill itself.
+  const backfillUid = user?.uid;
+  const landingReady = !loading && !historyLoading;
+  useEffect(() => {
+    if (!backfillUid || !landingReady) return;
+    ensureLastPerformance(backfillUid).catch(showError);
+  }, [backfillUid, landingReady, showError]);
+
   // Active workout — show regardless of auth so a session restored from localStorage
   // is never blocked by the sign-in screen.
   if (workout.session) {
@@ -97,7 +145,6 @@ export default function HomePage() {
               sets={workout.session.completedSets.filter((s) => s.completed)}
               prs={workout.session.prsAchieved.map((p) => ({ exerciseName: p.exerciseName, type: p.type, value: p.value }))}
               sessionDate={workout.session.startTime}
-              sessions={sessions}
               definitions={definitions}
               onSaveWorkout={updateWorkout}
               onApplied={() => { reloadDefinitions(); refreshPrograms(); }}
@@ -223,9 +270,9 @@ export default function HomePage() {
         onClose={() => setCustomOpen(false)}
         suggestWeight={(name) => {
           const definition = Object.values(definitions).find((d) => exerciseKey(d.name) === exerciseKey(name));
-          return definition ? suggestCustomWeight(definition, sessions, equipmentConfig ?? undefined, new Date()) : null;
+          return definition ? suggestCustomWeight(definition, lastPerformance ?? sessions, equipmentConfig ?? undefined, new Date()) : null;
         }}
-        onScanPhoto={(file) => scanEquipmentPhoto(file, sessions)}
+        onScanPhoto={(file) => scanEquipmentPhoto(file, lastPerformance ?? sessions)}
       />
     );
   }
@@ -333,7 +380,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, sessions);
+                return startProgramWorkout(w);
               }}
               onSelectDay={(day) => {
                 const w = getWorkoutsForDay(program.id, day);
@@ -341,7 +388,7 @@ export default function HomePage() {
                 if (isChecklistWorkout(w)) {
                   return startChecklistWorkout(w);
                 }
-                return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, sessions);
+                return startProgramWorkout(w);
               }}
             />
             );
@@ -350,10 +397,12 @@ export default function HomePage() {
       )}
 
       <button
-        onClick={() => { setCustomStart(new Date()); setCustomOpen(true); }}
-        className="w-full mt-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
+        onClick={openCustomWorkout}
+        disabled={customLoading}
+        aria-busy={customLoading}
+        className="w-full mt-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition disabled:opacity-50"
       >
-        Custom workout
+        {customLoading ? "Loading last weights…" : "Custom workout"}
       </button>
 
       <BottomNav active="home" />

@@ -89,17 +89,33 @@ describe("ProgramCard", () => {
     expect(button).toHaveAttribute("aria-busy", "true");
   });
 
-  it("re-enables the button if starting the workout fails", () => {
+  it("re-enables the button if starting the workout fails", async () => {
     renderCard({ onStartWorkout: vi.fn().mockReturnValue(false) });
 
     const button = screen.getByRole("button", { name: /start monday/i });
     fireEvent.click(button);
-    act(() => {
+    await act(async () => {
       vi.runAllTimers();
     });
 
     expect(button).not.toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("stays busy while an async start (loading history) is pending, then re-enables if it fails", async () => {
+    let finish: (started: boolean) => void = () => undefined;
+    renderCard({ onStartWorkout: vi.fn().mockReturnValue(new Promise<boolean>((resolve) => { finish = resolve; })) });
+
+    const button = screen.getByRole("button", { name: /start monday/i });
+    fireEvent.click(button);
+    await act(async () => {
+      vi.runAllTimers();
+    });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+
+    await act(async () => finish(false));
+    expect(button).not.toBeDisabled();
   });
 
   it("calls onSkipDay when 'Mark today as skipped' is clicked", () => {

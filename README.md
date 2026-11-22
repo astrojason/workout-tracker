@@ -200,7 +200,7 @@ See [workout_tracker_spec.md](workout_tracker_spec.md) for complete data models,
 
 ## iPhone + Apple Watch app (`mobile/`)
 
-An Expo (React Native) shell that loads the deployed web app in a WebView and adds the native pieces the web can't do: Google sign-in through the native SDK (same Firebase project/session as the web app), a local "Rest complete" notification that fires while the phone is locked, and a watchOS app (`mobile/targets/watch`) that mirrors the current set and rest countdown. iOS mirrors the rest notification to the watch when the phone is locked.
+An Expo (React Native) shell that loads the deployed web app in a WebView and adds the native pieces the web can't do: Google sign-in through the native SDK (same Firebase project/session as the web app), a local "Rest complete" notification that fires while the phone is locked, a Live Activity (Lock Screen and Dynamic Island, via `expo-live-activity`) with the rest countdown and current set, and a watchOS app (`mobile/targets/watch`) that mirrors the same. iOS mirrors the rest notification to the watch when the phone is locked.
 
 ```bash
 cd mobile

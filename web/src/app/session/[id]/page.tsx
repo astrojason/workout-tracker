@@ -12,7 +12,6 @@ import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
 import { CoachSection } from "@/components/workout/CoachSection";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
-import { useHistory } from "@/hooks/useHistory";
 import { SessionExerciseTable } from "@/components/history/SessionExerciseTable";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
@@ -22,7 +21,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const { showError } = useError();
   const router = useRouter();
   const { definitions, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
-  const { sessions } = useHistory(user?.uid ?? null);
   const [session, setSession] = useState<WorkoutSessionDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -146,7 +144,6 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             sets={completedSets}
             prs={[]}
             sessionDate={date}
-            sessions={sessions}
             definitions={definitions}
             onApplied={reloadDefinitions}
           />

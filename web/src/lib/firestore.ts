@@ -1,9 +1,13 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
-  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot, writeBatch,
+  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot, writeBatch, runTransaction,
   type CollectionReference, type DocumentReference,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import {
+  LAST_PERFORMANCE_VERSION, applySessionToLastPerformance, buildLastPerformance,
+  emptyLastPerformance, lastPerformanceSessions, type LastPerformanceDoc,
+} from "./last-performance-doc";
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
   CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig, ExerciseDefinition,
@@ -20,6 +24,9 @@ function settingsRef(userId: string) {
 }
 function equipmentRef(userId: string) {
   return doc(db, "users", userId, "settings", "equipment");
+}
+function lastPerformanceRef(userId: string) {
+  return doc(db, "users", userId, "settings", "lastPerformance");
 }
 function programsCol(userId: string) {
   return collection(db, "users", userId, "programs");
@@ -334,13 +341,75 @@ export async function saveWorkout(userId: string, workout: Workout) {
   });
 }
 
+// ── Last performance summary ──
+// One small document holding each exercise's most recent completed sets (see
+// last-performance-doc.ts), so starting a workout doesn't need the session history.
+
+function validLastPerformance(snap: { exists: () => boolean; data: () => unknown }): LastPerformanceDoc | null {
+  if (!snap.exists()) return null;
+  const data = snap.data() as LastPerformanceDoc;
+  return data?.version === LAST_PERFORMANCE_VERSION ? data : null;
+}
+
+// Builds the summary from the user's whole session history.
+export async function rebuildLastPerformance(userId: string, excludeSessionId?: string): Promise<LastPerformanceDoc> {
+  const snap = await getDocs(query(sessionsCol(userId), orderBy("date", "desc")));
+  const sessions = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc))
+    .filter((s) => s.id !== excludeSessionId);
+  const rebuilt = buildLastPerformance(sessions);
+  await setDoc(lastPerformanceRef(userId), rebuilt);
+  return rebuilt;
+}
+
+// TEMPORARY one-time backfill, run from the web app the first time each user needs the summary
+// (and in the background once they land). It exists only so every existing user gets a summary
+// without a separate migration. Once every active user has one, roll this back: have
+// loadLastPerformanceDoc throw (or treat missing as empty) instead, drop ensureLastPerformance and
+// its call in the home page, and remove this block. A failed build is surfaced, never swallowed,
+// and is retried on the next call.
+const backfills = new Map<string, Promise<LastPerformanceDoc>>();
+
+export function ensureLastPerformance(userId: string): Promise<LastPerformanceDoc> {
+  const inFlight = backfills.get(userId);
+  if (inFlight) return inFlight;
+  const run = (async () => {
+    const existing = validLastPerformance(await getDoc(lastPerformanceRef(userId)));
+    return existing ?? rebuildLastPerformance(userId);
+  })().finally(() => backfills.delete(userId));
+  backfills.set(userId, run);
+  return run;
+}
+
+async function loadLastPerformanceDoc(userId: string): Promise<LastPerformanceDoc> {
+  return ensureLastPerformance(userId);
+}
+
+// Stand-in sessions carrying each exercise's last completed sets, for buildPreviousPerformanceMap
+// and suggestCustomWeight.
+export async function getLastPerformance(userId: string): Promise<WorkoutSessionDoc[]> {
+  return lastPerformanceSessions(await loadLastPerformanceDoc(userId));
+}
+
+// Writes a session and folds it into the summary in one transaction, so the two can't disagree
+// and a failed save leaves neither behind (a retry can't create a duplicate).
+async function writeSessionWithSummary(
+  userId: string, sessionRef: DocumentReference, data: Omit<WorkoutSessionDoc, "id">,
+): Promise<void> {
+  await loadLastPerformanceDoc(userId); // throws before anything is written if not migrated
+  await runTransaction(db, async (tx) => {
+    const summaryRef = lastPerformanceRef(userId);
+    const current = validLastPerformance(await tx.get(summaryRef)) ?? emptyLastPerformance();
+    tx.set(sessionRef, data);
+    tx.set(summaryRef, applySessionToLastPerformance(current, { ...data, id: sessionRef.id } as WorkoutSessionDoc));
+  });
+}
+
 // ── Sessions (completed workout history) ──
 
 export async function saveSession(userId: string, session: Omit<WorkoutSessionDoc, "id">) {
-  const ref = await addDoc(sessionsCol(userId), {
-    ...session,
-    date: Timestamp.now(),
-  });
+  const ref = doc(sessionsCol(userId));
+  await writeSessionWithSummary(userId, ref, { ...session, date: Timestamp.now() });
   return ref.id;
 }
 
@@ -401,15 +470,8 @@ export async function upsertChecklistSession(
   firestoreId: string | null,
   session: Omit<WorkoutSessionDoc, "id">
 ): Promise<string> {
-  if (firestoreId) {
-    const ref = doc(sessionsCol(userId), firestoreId);
-    await setDoc(ref, { ...session, date: Timestamp.now() });
-    return firestoreId;
-  }
-  const ref = await addDoc(sessionsCol(userId), {
-    ...session,
-    date: Timestamp.now(),
-  });
+  const ref = firestoreId ? doc(sessionsCol(userId), firestoreId) : doc(sessionsCol(userId));
+  await writeSessionWithSummary(userId, ref, { ...session, date: Timestamp.now() });
   return ref.id;
 }
 
@@ -426,8 +488,11 @@ export function subscribeToSessions(
   limitCount: number,
   callback: (sessions: WorkoutSessionDoc[]) => void,
   onError: (error: Error) => void,
+  since?: Date, // only sessions on or after this date
 ): () => void {
-  const q = query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
+  const q = since
+    ? query(sessionsCol(userId), where("date", ">=", Timestamp.fromDate(since)), orderBy("date", "desc"), limit(limitCount))
+    : query(sessionsCol(userId), orderBy("date", "desc"), limit(limitCount));
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as WorkoutSessionDoc)));
   }, onError);
@@ -457,6 +522,12 @@ export async function deleteSession(userId: string, sessionId: string): Promise<
       if (current?.currentWeight !== after.currentWeight || current?.hardStreak !== after.hardStreak) continue;
       await updateDoc(programRef, { [`weights.${definitionId}`]: before });
     }
+  }
+  // If the summary points at this session, rebuild it without the session before deleting, so a
+  // failure here leaves the session in place (and the error shown) rather than a stale summary.
+  const summary = validLastPerformance(await getDoc(lastPerformanceRef(userId)));
+  if (summary && Object.values(summary.entries).some((e) => e.sessionId === sessionId)) {
+    await rebuildLastPerformance(userId, sessionId);
   }
   await deleteDoc(sessionRef);
 }

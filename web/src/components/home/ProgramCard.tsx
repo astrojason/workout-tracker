@@ -29,8 +29,8 @@ interface ProgramCardProps {
   skippedDays?: Set<string>;
   // Returns whether the workout actually started, so the button knows
   // whether to keep showing its loading state or release it.
-  onStartWorkout: (workout: Workout) => boolean;
-  onSelectDay: (day: string) => boolean;
+  onStartWorkout: (workout: Workout) => boolean | Promise<boolean>; // must not throw: report failures and return false
+  onSelectDay: (day: string) => boolean | Promise<boolean>;
   // Marks a scheduled day as deliberately skipped rather than leaving it as
   // silence in history. Optional so callers that don't support it (e.g. tests
   // pinned to the old prop set) still render.
@@ -57,8 +57,8 @@ export function ProgramCard({
   function handleStart(workout: Workout) {
     if (isStarting) return;
     setIsStarting(true);
-    setTimeout(() => {
-      const started = onStartWorkout(workout);
+    setTimeout(async () => {
+      const started = await onStartWorkout(workout);
       if (!started) setIsStarting(false);
     }, 0);
   }
@@ -67,8 +67,8 @@ export function ProgramCard({
     if (isStarting) return;
     setIsStarting(true);
     setShowDays(false);
-    setTimeout(() => {
-      const started = onSelectDay(day);
+    setTimeout(async () => {
+      const started = await onSelectDay(day);
       if (!started) setIsStarting(false);
     }, 0);
   }

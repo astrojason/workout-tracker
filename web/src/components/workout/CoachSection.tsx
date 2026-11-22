@@ -4,7 +4,7 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { auth } from "@/lib/firebase";
 import {
   getAllWorkoutsForProgram,
-  getProgram,
+  getProgram, getSessions,
   saveWorkout,
   updateProgramExerciseWeight,
 } from "@/lib/firestore";
@@ -16,7 +16,7 @@ import {
   type CoachResponse,
 } from "@/lib/coach";
 import { scopeDefinitions } from "@/lib/types";
-import type { CompletedSet, ExerciseDefinition, Workout, WorkoutSessionDoc } from "@/lib/types";
+import type { CompletedSet, ExerciseDefinition, Workout } from "@/lib/types";
 import { CoachPanel } from "./CoachPanel";
 
 interface CoachSectionProps {
@@ -28,7 +28,6 @@ interface CoachSectionProps {
   sets: CompletedSet[];
   prs: CoachInput["prs"];
   sessionDate: Date;                       // history is limited to sessions before this
-  sessions: WorkoutSessionDoc[];
   definitions: Record<string, ExerciseDefinition>;
   onSaveWorkout?: (workout: Workout) => Promise<void>; // lets the caller refresh its own workout cache
   onApplied?: () => void;                  // e.g. reload exercise definitions
@@ -61,7 +60,8 @@ export function CoachSection(props: CoachSectionProps) {
       durationSeconds: props.durationSeconds,
       sets: props.sets.map(toCoachSet),
       prs: props.prs,
-      recentSessions: pickRecentSessions(props.sessions, programId, props.sessionDate),
+      // Loaded only when the coach is asked, not on every page load.
+      recentSessions: pickRecentSessions(await getSessions(user.uid, 50), programId, props.sessionDate),
       upcoming: upcoming.map((w) => ({
         week: w.week,
         dayOfWeek: w.dayOfWeek,

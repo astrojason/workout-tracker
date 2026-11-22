@@ -14,7 +14,11 @@ interface ExerciseStat {
   maxReps: number; // max reps (bodyweight) or max duration in seconds (time-based)
 }
 
-export function useHistory(userId: string | null) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// `sinceDays` limits the load to recent sessions (the landing page only needs the last week);
+// without it the last 50 sessions load, which History and the detail pages want.
+export function useHistory(userId: string | null, sinceDays?: number) {
   const { showError } = useError();
   const [sessions, setSessions] = useState<WorkoutSessionDoc[]>([]);
   const [exerciseStats, setExerciseStats] = useState<ExerciseStat[]>([]);
@@ -24,6 +28,7 @@ export function useHistory(userId: string | null) {
     if (!userId) return;
     setLoading(true);
 
+    const since = sinceDays === undefined ? undefined : new Date(Date.now() - sinceDays * DAY_MS);
     const unsubscribe = subscribeToSessions(userId, 50, (sess) => {
       // Compute per-exercise best set from sessions client-side.
       const statsMap = new Map<string, ExerciseStat>();
@@ -65,10 +70,10 @@ export function useHistory(userId: string | null) {
       setSessions(sess);
       setExerciseStats(stats);
       setLoading(false);
-    }, showError);
+    }, showError, since);
 
     return unsubscribe;
-  }, [userId, showError]);
+  }, [userId, sinceDays, showError]);
 
   return { sessions, exerciseStats, loading };
 }

@@ -23,6 +23,7 @@ const config: ExpoConfig = {
     ["@react-native-google-signin/google-signin", { iosUrlScheme }],
     "expo-dev-client",
     "expo-notifications",
+    "expo-live-activity",
     ["expo-splash-screen", { image: "./assets/icon.png", backgroundColor: "#111827", imageWidth: 160 }],
     "expo-status-bar",
     "@bacons/apple-targets",

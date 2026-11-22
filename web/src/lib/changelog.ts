@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.28.0',
+    date: '2026-11-22',
+    changes: [
+      'Faster home screen: it now loads only the last 7 days of history. Starting a workout and the custom-workout weight suggestion read a small per-user summary of each exercise\'s last sets instead of the full history; it is built automatically the first time it is needed.',
+      'The coach loads its history only when you ask it, and the session page no longer loads history it does not use.',
+      'iPhone app: a Live Activity on the Lock Screen and Dynamic Island shows the rest countdown and current set (and appears on a paired Apple Watch).',
+      'The streak counter on the home screen only counts about the last week for now.',
+    ],
+  },
+  {
     version: '1.27.1',
     date: '2026-11-22',
     changes: [
