@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.29.0',
+    date: '2026-11-22',
+    changes: [
+      'The footer is now on every screen, including an active workout, a session, an exercise, and the changelog, and it is slimmer: the version sits on the same row as the tabs.',
+      'iPhone app: a Home Screen widget (small, medium, and Lock Screen sizes) shows today\'s workout for each program and how your week is going.',
+      'iPhone app: removed the extra empty strip under the footer.',
+    ],
+  },
+  {
     version: '1.28.0',
     date: '2026-11-22',
     changes: [

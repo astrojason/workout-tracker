@@ -1,9 +1,11 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { ExtensionStorage } from "@bacons/apple-targets";
 import * as LiveActivity from "expo-live-activity";
 import * as Notifications from "expo-notifications";
 import { getIsPaired, getIsWatchAppInstalled, updateApplicationContext } from "react-native-watch-connectivity";
 import { liveActivityState } from "./liveActivity";
-import { restNotificationContent, type BridgeMessage, type WorkoutMirrorState } from "./messages";
+import { APP_GROUP } from "./appGroup";
+import { parseHomeSummary, restNotificationContent, type BridgeMessage, type WorkoutMirrorState } from "./messages";
 
 const REST_NOTIFICATION_ID = "rest-complete";
 
@@ -95,12 +97,20 @@ async function workoutState(state: WorkoutMirrorState | null): Promise<void> {
   if (failures.length > 1) throw new Error(failures.map((f) => (f instanceof Error ? f.message : String(f))).join("\n"));
 }
 
+// Hands the home summary to the Home Screen widget through the shared app-group container.
+function homeSummary(payload: unknown): void {
+  const summary = parseHomeSummary(payload);
+  new ExtensionStorage(APP_GROUP).set("homeSummary", JSON.stringify(summary));
+  ExtensionStorage.reloadWidget("WorkoutWidget");
+}
+
 /** Runs one web → native request and returns the value for the web app's pending call. */
 export async function handleMessage(message: BridgeMessage): Promise<unknown> {
   switch (message.type) {
     case "googleSignIn": return googleSignIn();
     case "googleSignOut": return GoogleSignin.signOut();
     case "notificationPermission": return notificationPermission();
+    case "homeSummary": return homeSummary(message.payload);
     case "workoutState": return workoutState(message.payload as WorkoutMirrorState | null);
     default: throw new Error(`Unknown message type from the web app: ${message.type}`);
   }

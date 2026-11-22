@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { BarbellSection } from "@/components/settings/BarbellSection";
 import { PlatesSection } from "@/components/settings/PlatesSection";
 import { PowerBlockSection } from "@/components/settings/PowerBlockSection";
@@ -82,7 +81,6 @@ export default function EquipmentPage() {
         </div>
       )}
 
-      <BottomNav active="settings" />
     </div>
   );
 }

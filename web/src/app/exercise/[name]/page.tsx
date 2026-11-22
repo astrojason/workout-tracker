@@ -39,7 +39,7 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
   const chartKey = isTimeBased || isBodyweight ? "reps" : mode;
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <Link href="/history" className="text-indigo-400 text-sm mb-4 inline-block">
         &larr; Back to History
       </Link>

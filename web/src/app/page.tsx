@@ -15,9 +15,10 @@ import { CoachSection } from "@/components/workout/CoachSection";
 import { ChecklistWorkout } from "@/components/workout/ChecklistWorkout";
 import { isChecklistWorkout, resolveWorkout } from "@/lib/types";
 import type { ResolvedWorkout, Workout } from "@/lib/types";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
+import { NativeHomeSummary } from "@/components/home/NativeHomeSummary";
+import { buildHomeSummary } from "@/lib/home-summary";
 import { ensureLastPerformance, getLastPerformance } from "@/lib/firestore";
 import type { WorkoutSessionDoc } from "@/lib/types";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
@@ -309,8 +310,26 @@ export default function HomePage() {
     today,
   );
 
+  const todayISO = today.toLocaleDateString("en-CA");
+  const homeSummary = buildHomeSummary(
+    activePrograms.map((program) => {
+      const todaysWorkout = getTodaysWorkout(program.id);
+      const since = program.createdAt instanceof Timestamp
+        ? program.createdAt.toDate()
+        : program.createdAt instanceof Date ? program.createdAt : undefined;
+      const completed = sessionDaysForWeek(sessions, program.id, currentWeek(program.id), "completed", since);
+      return {
+        programName: program.name,
+        workout: todaysWorkout ? { dayOfWeek: todaysWorkout.dayOfWeek, exerciseCount: todaysWorkout.exercises.length } : null,
+        done: todaysWorkout ? completed.has(todayISO) : false,
+      };
+    }),
+    consistency,
+    today,
+  );
+
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       {/* Header */}
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold">{dayName}</h1>
@@ -405,7 +424,7 @@ export default function HomePage() {
         {customLoading ? "Loading last weights…" : "Custom workout"}
       </button>
 
-      <BottomNav active="home" />
+      <NativeHomeSummary summary={homeSummary} />
     </div>
   );
 }

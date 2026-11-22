@@ -65,3 +65,25 @@ export const WEB_ERROR_HOOK = `
 })(window, console);
 true;
 `;
+
+/** Mirrors web/src/lib/home-summary.ts: what the Home Screen widget displays. */
+export interface HomeSummary {
+  date: string;
+  programs: { programName: string; dayLabel: string | null; exerciseCount: number; done: boolean }[];
+  completedThisWeek: number;
+  plannedThisWeek: number;
+}
+
+export function parseHomeSummary(value: unknown): HomeSummary {
+  const v = value as Partial<HomeSummary> | null;
+  const validProgram = (p: unknown) => {
+    const q = p as HomeSummary["programs"][number] | null;
+    return !!q && typeof q.programName === "string" && (q.dayLabel === null || typeof q.dayLabel === "string")
+      && typeof q.exerciseCount === "number" && typeof q.done === "boolean";
+  };
+  if (!v || typeof v.date !== "string" || typeof v.completedThisWeek !== "number" ||
+      typeof v.plannedThisWeek !== "number" || !Array.isArray(v.programs) || !v.programs.every(validProgram)) {
+    throw new Error(`Malformed home summary from the web app: ${JSON.stringify(value)}`);
+  }
+  return v as HomeSummary;
+}

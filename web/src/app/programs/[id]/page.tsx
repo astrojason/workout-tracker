@@ -13,7 +13,6 @@ import type { Exercise, Workout } from "@/lib/types";
 import { scopeDefinitions, PHASE_COLORS, DAY_ORDER, repTargetDisplay, finalSetAmrapNote, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { useError } from "@/components/providers/ErrorProvider";
 
@@ -159,7 +158,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/settings" className="text-gray-400 hover:text-white transition">
@@ -361,7 +360,6 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
         ) : null;
       })()}
 
-      <BottomNav active={null} />
     </div>
   );
 }

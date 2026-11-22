@@ -93,7 +93,7 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto, s
 
   if (prs) {
     return (
-      <div className="max-w-lg mx-auto p-4 pb-24 text-center">
+      <div className="max-w-lg mx-auto p-4 text-center">
         <h1 className="text-2xl font-bold mt-8 mb-2">Workout saved</h1>
         <p className="text-gray-400 mb-4">{entries.length} {entries.length === 1 ? "set" : "sets"} logged</p>
         {prs.length > 0 && (
@@ -112,7 +112,7 @@ export function CustomWorkout({ exerciseNames, onFinish, onClose, onScanPhoto, s
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Custom Workout</h1>
         <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-200">Cancel</button>

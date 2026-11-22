@@ -36,3 +36,15 @@ select.input-field {
 .btn-stepper:hover {
   background: rgb(55 65 81);
 }
+
+/* The bottom nav is fixed in the app shell. Reserve its height under every view, and make a
+   view's "full screen height" mean the space above it so short pages don't scroll. */
+:root {
+  --app-nav-h: calc(3.75rem + max(0px, calc(env(safe-area-inset-bottom) * 0.4)));
+}
+.app-shell {
+  padding-bottom: var(--app-nav-h);
+}
+.app-shell .min-h-screen {
+  min-height: calc(100vh - var(--app-nav-h));
+}

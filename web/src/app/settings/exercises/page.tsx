@@ -7,7 +7,6 @@ import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { updateExerciseDefinitionMeta, updateExerciseDefinitionWeight } from "@/lib/firestore";
 import type { ExerciseDefinition, EquipmentType, ProgressionRule } from "@/lib/types";
 import { parseWeightOptions } from "@/lib/types";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { useError } from "@/components/providers/ErrorProvider";
 
 const EQUIPMENT_OPTIONS: { value: EquipmentType; label: string }[] = [
@@ -55,7 +54,7 @@ export default function ExerciseLibraryPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/settings" className="text-gray-400 hover:text-white transition text-sm">
           ← Settings
@@ -108,7 +107,6 @@ export default function ExerciseLibraryPage() {
         </div>
       )}
 
-      <BottomNav active="settings" />
     </div>
   );
 }

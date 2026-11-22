@@ -81,7 +81,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const hasRatings = session.sets?.some((s) => s.rating) ?? false;
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <div className="flex items-center justify-between mb-4">
         <Link href="/history" className="text-indigo-400 text-sm inline-block">&larr; Back to History</Link>
         <button

@@ -5,7 +5,6 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useError } from "@/components/providers/ErrorProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 export default function SettingsPage() {
@@ -145,7 +144,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       {/* Programs */}
@@ -492,7 +491,6 @@ export default function SettingsPage() {
         ) : null;
       })()}
 
-      <BottomNav active="settings" />
     </div>
   );
 }

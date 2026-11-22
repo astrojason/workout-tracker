@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMessage, replyScript, restNotificationContent, WEB_ERROR_HOOK } from "./messages";
+import { parseMessage, replyScript, parseHomeSummary, restNotificationContent, WEB_ERROR_HOOK } from "./messages";
 
 describe("parseMessage", () => {
   it("parses a typed message", () => {
@@ -58,5 +58,22 @@ describe("WEB_ERROR_HOOK", () => {
     const { sent, win } = run();
     (win.console as { error: (...a: unknown[]) => void }).error("bad", 1);
     expect(JSON.parse(sent[0]).payload).toContain("bad");
+  });
+});
+
+describe("parseHomeSummary", () => {
+  const valid = {
+    date: "2026-11-22",
+    programs: [{ programName: "Reacher Build", dayLabel: "Sunday", exerciseCount: 6, done: false }],
+    completedThisWeek: 3,
+    plannedThisWeek: 5,
+  };
+  it("accepts a well-formed summary", () => {
+    expect(parseHomeSummary(valid)).toEqual(valid);
+  });
+  it("rejects malformed data instead of storing it", () => {
+    expect(() => parseHomeSummary(null)).toThrow(/home summary/i);
+    expect(() => parseHomeSummary({ ...valid, completedThisWeek: "3" })).toThrow(/home summary/i);
+    expect(() => parseHomeSummary({ ...valid, programs: [{ programName: 1 }] })).toThrow(/home summary/i);
   });
 });

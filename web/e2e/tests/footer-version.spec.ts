@@ -30,3 +30,18 @@ test("the History page keeps its footer (nav + version) when signed out", async 
   await expect(nav).toContainText(`v${version}`);
   await expect(nav.getByRole("link", { name: /history/i })).toBeVisible();
 });
+
+// The footer should stay slim: icons, labels and the version on one compact bar.
+test("the bottom nav is compact and keeps the version on the same row as the tabs", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/test-preview/bottom-nav");
+
+  const nav = page.getByRole("navigation");
+  const navBox = (await nav.boundingBox())!;
+  expect(navBox.height).toBeLessThanOrEqual(64);
+
+  const tabBox = (await nav.getByRole("link", { name: /settings/i }).boundingBox())!;
+  const versionBox = (await nav.getByRole("link", { name: /^v\d/ }).boundingBox())!;
+  const tabCenter = tabBox.y + tabBox.height / 2;
+  expect(versionBox.y).toBeLessThan(tabCenter + tabBox.height / 2); // not on a row beneath the tabs
+});

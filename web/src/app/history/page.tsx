@@ -10,7 +10,6 @@ import { formatSessionsWeekAsText } from "@/lib/week-export";
 import { formatDuration, formatTimeValue } from "@/lib/types";
 import { Timestamp } from "firebase/firestore";
 import Link from "next/link";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { CopySessionButton } from "@/components/history/CopySessionButton";
 import { BodyMetricsSection } from "@/components/history/BodyMetricsSection";
 import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
@@ -39,7 +38,6 @@ export default function HistoryPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400">Sign in to view history.</p>
-        <BottomNav active="history" />
       </div>
     );
   }
@@ -50,7 +48,6 @@ export default function HistoryPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
-        <BottomNav active="history" />
       </div>
     );
   }
@@ -80,7 +77,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4 pb-24">
+    <div className="max-w-lg mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">History</h1>
 
       {/* Copy a Logged Week */}
@@ -218,7 +215,6 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <BottomNav active="history" />
     </div>
   );
 }
