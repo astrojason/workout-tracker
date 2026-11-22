@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.27.1',
+    date: '2026-11-22',
+    changes: [
+      'Faster first load: every program\'s workouts, completed days and skipped days now load at the same time instead of one after another.',
+      'iPhone app: errors from inside the page (crashes, failed requests) now appear in a copyable banner instead of leaving a blank screen.',
+    ],
+  },
+  {
     version: '1.27.0',
     date: '2026-11-22',
     changes: [

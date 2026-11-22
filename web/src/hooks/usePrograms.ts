@@ -58,24 +58,26 @@ export function usePrograms(userId: string | null) {
       setPrograms(progs);
       setSettingsState(sett);
 
-      // Load workouts for each active program's current week
-      for (const prog of progs.filter((p) => !p.archived)) {
+      // Load each active program's current week. Programs and the three reads per program are
+      // independent, so run them all at once; awaiting them one by one made first load cost
+      // three network round trips per program.
+      await Promise.all(progs.filter((p) => !p.archived).map(async (prog) => {
         const week = sett.currentWeeks[prog.id] || 1;
-        const workouts = await getWorkoutsForProgram(userId!, prog.id, week);
-        if (cancelled) return;
-        setWorkoutsCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: workouts }));
-
+        const key = `${prog.id}_${week}`;
         const since = prog.createdAt instanceof Timestamp
           ? prog.createdAt.toDate()
           : prog.createdAt instanceof Date ? prog.createdAt : undefined;
-        const completed = await getCompletedDays(userId!, prog.id, week, since);
+        const [workouts, completed, skipped] = await Promise.all([
+          getWorkoutsForProgram(userId!, prog.id, week),
+          getCompletedDays(userId!, prog.id, week, since),
+          getSkippedDays(userId!, prog.id, week, since),
+        ]);
         if (cancelled) return;
-        setCompletedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: completed }));
-
-        const skipped = await getSkippedDays(userId!, prog.id, week, since);
-        if (cancelled) return;
-        setSkippedDaysCache((prev) => ({ ...prev, [`${prog.id}_${week}`]: skipped }));
-      }
+        setWorkoutsCache((prev) => ({ ...prev, [key]: workouts }));
+        setCompletedDaysCache((prev) => ({ ...prev, [key]: completed }));
+        setSkippedDaysCache((prev) => ({ ...prev, [key]: skipped }));
+      }));
+      if (cancelled) return;
       setLoading(false);
     }
 

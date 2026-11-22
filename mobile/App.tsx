@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView as RawWebView, type WebViewMessageEvent } from "react-native-webview";
-import { parseMessage, replyScript } from "./src/messages";
+import { parseMessage, replyScript, WEB_ERROR_HOOK } from "./src/messages";
 import { handleMessage } from "./src/native";
 
 // react-native-webview 14's published prop types collapse to `never` under React Native 0.88's
@@ -13,6 +13,8 @@ interface WebViewProps {
   ref?: React.Ref<WebViewHandle>;
   source: { uri: string };
   onMessage: (event: WebViewMessageEvent) => void;
+  injectedJavaScriptBeforeContentLoaded: string;
+  webviewDebuggingEnabled: boolean;
   onLoadEnd: () => void;
   onError: (event: { nativeEvent: { description: string } }) => void;
   onHttpError: (event: { nativeEvent: { statusCode: number } }) => void;
@@ -42,6 +44,10 @@ export default function App() {
     try {
       const message = parseMessage(event.nativeEvent.data);
       id = message.id;
+      if (message.type === "webError") {
+        setError(String(message.payload));
+        return;
+      }
       const result = await handleMessage(message);
       if (id !== undefined) webView.current?.injectJavaScript(replyScript(id, true, result));
     } catch (err) {
@@ -61,6 +67,8 @@ export default function App() {
           ref={webView}
           source={{ uri: WEB_URL }}
           onMessage={onMessage}
+          injectedJavaScriptBeforeContentLoaded={WEB_ERROR_HOOK}
+          webviewDebuggingEnabled
           onLoadEnd={() => setLoading(false)}
           onError={(e) => setError(`Failed to load ${WEB_URL}: ${e.nativeEvent.description}`)}
           onHttpError={(e) => setError(`Failed to load ${WEB_URL}: HTTP ${e.nativeEvent.statusCode}`)}

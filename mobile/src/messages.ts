@@ -36,3 +36,32 @@ export function restNotificationContent(state: WorkoutMirrorState): { title: str
     body: state.nextDetail ? `${state.nextLabel}: ${state.nextDetail}` : "Time for your next set.",
   };
 }
+
+/**
+ * Injected into the page before it loads so errors inside the web app (which would otherwise
+ * leave a blank or frozen screen) reach the native error banner. Takes `window` and `console`
+ * as parameters so it can be exercised in tests.
+ */
+export const WEB_ERROR_HOOK = `
+(function (window, console) {
+  function report(text) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "webError", payload: String(text) }));
+  }
+  function describe(error) {
+    if (error && typeof error === "object") return (error.message || "") + "\\n" + (error.stack || "");
+    return String(error);
+  }
+  window.addEventListener("error", function (e) {
+    report("Page error: " + e.message + " (" + e.filename + ":" + e.lineno + ")\\n" + describe(e.error));
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    report("Unhandled promise rejection: " + describe(e.reason));
+  });
+  var original = console.error;
+  console.error = function () {
+    report("console.error: " + Array.prototype.map.call(arguments, describe).join(" "));
+    return original.apply(console, arguments);
+  };
+})(window, console);
+true;
+`;
