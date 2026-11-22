@@ -1,13 +1,14 @@
 # Workout Tracker
 
-Progressive overload strength training tracker with two independent platform implementations sharing the same XLSX/CSV data format and business logic.
+Progressive overload strength training tracker. The web app is the product; the iPhone + Apple Watch app is a native shell around it. A legacy SwiftUI app remains in the repo until it is retired.
 
 ## Platforms
 
 | Platform | Stack | Status |
 |----------|-------|--------|
-| **Web App** | Next.js, TypeScript, Firebase, Tailwind | Active — primary |
-| **iOS Native** | SwiftUI, Core Data, XcodeGen | Active |
+| **Web App** (`web/`) | Next.js, TypeScript, Firebase, Tailwind | Active — primary |
+| **iPhone + Apple Watch** (`mobile/`) | Expo (React Native) WebView shell, SwiftUI widget / watch targets | Active — see [below](#iphone--apple-watch-app-mobile) |
+| **iOS Native** (`WorkoutTracker/`) | SwiftUI, Core Data, XcodeGen | Legacy — to be retired (see `TODO.md`) |
 
 ---
 
@@ -37,10 +38,12 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 ```
 
 **Pages:**
-- `/` — Home: program cards, start workout, resume banner
-- `/history` — Session list + exercise PR board + copy a logged week to clipboard
-- `/settings` — Import XLSX, manage programs, rest time, sound, version footer
+- `/` — Home: program cards, week progress, start workout, resume banner, custom workout
+- `/history` — Session list + exercise PR board + body metrics + copy a logged week to clipboard
+- `/settings` — Import XLSX, manage programs, rest time, sound
 - `/settings/equipment` — Owned-equipment inventory (plates, PowerBlock range, bands, etc.)
+- `/settings/exercises` — The exercise library (definitions shared across programs)
+- `/changelog` — Release notes (linked from the version number in the footer)
 - `/programs/[id]` — Browse and edit exercises per week + copy a week to clipboard
 - `/session/[id]` — Set-by-set session breakdown
 - `/exercise/[name]` — Exercise progression history
@@ -48,7 +51,8 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 **Key hooks:**
 - `useWorkout` — full workout state machine (timer, sets, PRs, localStorage persistence, WakeLock, pause/resume, manual weight/set override)
 - `usePrograms` — programs, workouts cache, XLSX import, week management
-- `useHistory` — session history and exercise stats (weight, reps, duration)
+- `useHistory` — session history and exercise stats (weight, reps, duration); Home asks for just the last 7 days, other pages for the last 50
+- `useNativeMirror` — inside the iPhone app, posts set/rest state to native (notifications, Live Activity, watch)
 - `useEquipmentConfig` — loads/saves the user's owned-equipment inventory
 
 **Key services:**
@@ -59,6 +63,8 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 - `lib/pr-detector.ts` — weight PR, estimated 1RM (Epley), volume PR
 - `lib/week-export.ts` — formats a planned or logged week as clipboard-ready text
 - `lib/firestore.ts` — all Firestore CRUD
+- `lib/last-performance-doc.ts` — the per-user summary of each exercise's last sets (see [Performance](#performance))
+- `lib/native-bridge.ts` / `lib/home-summary.ts` — web ↔ iPhone-app messages (sign-in, rest state, widget data)
 
 ### Firestore Schema
 
@@ -66,10 +72,13 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 /users/{userId}/
   settings/prefs       — default rest time, sound, current weeks per program
   settings/equipment   — owned equipment inventory (plates, PowerBlock range, bands, etc.)
-  programs/{id}        — program metadata (name, totalWeeks, archived flag)
-  workouts/{id}        — exercises embedded (doc ID: {name}_{week}_{day})
+  settings/lastPerformance — each exercise's most recent completed sets (see Performance)
+  programs/{id}        — program metadata (name, totalWeeks, archived flag, per-exercise weights)
+  exerciseDefinitions/{id} — the exercise library (name, equipment, rules)
+  workouts/{id}        — exercises as references into the library (doc ID: {name}_{week}_{day})
   sessions/{id}        — completed sets embedded
   personalRecords/{id} — per-exercise PR values
+  bodyMeasurements/{id} — body metrics entries
 ```
 
 ### Workout Modes
@@ -80,23 +89,31 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 
 ### Progression Logic
 
-Weights are planned ahead of time in the XLSX — no history-based auto-progression in the web app:
+Weights are planned in the XLSX and then move on their own as you train (`lib/progression-service.ts`):
 
-- `base_weight: fixed` → use that value directly
-- `base_weight: "progressive"` → seed from `total_weight` in XLSX (falls back to 0 if not set)
-- User can override weight for any exercise before or during a workout via the weight editor
-- Ratings (easy/normal/hard) are recorded per set for history review but do not automatically adjust future weights
+- `base_weight: fixed` → that value; `"progressive"` → seeded from `total_weight` (or the last session)
+- When a session is saved, each exercise's next weight is chosen from its `progression_rule` using the final set: reps against the rep range, the Easy/Normal/Hard rating, and an Epley 1RM projection for AMRAP sets (capped at 2× the target reps)
+- A weight is held after 2+ weeks away from an exercise and drops one increment after 4+ weeks
+- Deleting a session undoes the weight changes it caused
+- You can override a weight before or during a workout with the weight editor
 
 ### Other Features
 
 - **Copy to clipboard** — copy a week's planned exercises (Program Editor) or actual logged sets (History) as plain text
 - **Equipment inventory** (`/settings/equipment`) — configure owned plates, PowerBlock range, bands, kettlebells, etc.; weight inputs and equipment dropdowns clamp/filter to what's actually owned
 - **Program rename** — rename a program without resetting its history or progress
-- **Version footer** — app version (from `web/package.json`) shown at the bottom of Settings; see [Versioning](#versioning) below
+- **Custom workout** — build a session as you go (timed sets, bodyweight, ratings, estimated 1RM, suggested weights); it counts for the day
+- **Footer** — a slim bottom nav (Home / History / Settings) with the app version on every screen; the version links to `/changelog`. See [Versioning](#versioning)
+
+### Performance
+
+Home loads only the last 7 days of sessions. Starting a workout and the custom-workout weight suggestion read `users/{uid}/settings/lastPerformance`, one small document holding each exercise's most recent completed sets, instead of the session history. It is updated in the same transaction as every session save, and rebuilt (`rebuildLastPerformance`) if a delete invalidates it. A brand-new account starts with none; an account that has sessions but no summary gets an error rather than partial data. The coach loads its history only when asked.
 
 ---
 
-## iOS Native App
+## iOS Native App (legacy)
+
+A CSV-era SwiftUI snapshot with no exercise library, program editor, Firebase or coach. It is superseded by the iPhone app below and will be retired (see `TODO.md`).
 
 ### Quick Start
 
@@ -123,7 +140,6 @@ No iOS SDK on the development machine — build only through Xcode GUI.
 - Screen lock via `UIApplication.shared.isIdleTimerDisabled`
 - Persistence in Core Data (local only)
 - No auth — single-user
-- Watch companion not yet implemented
 
 ---
 
@@ -188,7 +204,7 @@ All of the above are defaults — see `/settings/equipment` to configure what's 
 
 ## Versioning
 
-App version lives in `web/package.json` and is shown in the Settings page footer. A `pre-commit` git hook (enabled via `git config core.hooksPath scripts/git-hooks`, see Quick Start above) interactively prompts a human committer for a semver bump on each commit; it auto-skips for non-interactive commits (including ones made by Claude Code).
+The app version lives in `web/package.json` (and is mirrored in `VERSION` at the repo root). It is shown in the footer nav on every screen, and each release gets an entry in `web/src/lib/changelog.ts`. A `pre-commit` git hook (enabled via `git config core.hooksPath scripts/git-hooks`, see Quick Start above) interactively prompts a human committer for a semver bump on each commit; it auto-skips for non-interactive commits (including ones made by Claude Code).
 
 ---
 
@@ -200,14 +216,30 @@ See [workout_tracker_spec.md](workout_tracker_spec.md) for complete data models,
 
 ## iPhone + Apple Watch app (`mobile/`)
 
-An Expo (React Native) shell that loads the deployed web app in a WebView and adds the native pieces the web can't do: Google sign-in through the native SDK (same Firebase project/session as the web app), a local "Rest complete" notification that fires while the phone is locked, a Live Activity (Lock Screen and Dynamic Island, via `expo-live-activity`) with the rest countdown and current set, a Home Screen widget (`mobile/targets/widget`) showing today's workout and the week's progress, and a watchOS app (`mobile/targets/watch`) that mirrors the same. iOS mirrors the rest notification to the watch when the phone is locked.
+An Expo (React Native) shell that loads the deployed web app (https://workout.astrojason.com) in a WebView and adds the native pieces the web can't do:
+
+- **Google sign-in** through the native SDK, handed to the web app's Firebase session (same project and data)
+- **Rest-complete notification** scheduled locally so it fires while the phone is locked; iOS mirrors it to the watch
+- **Live Activity** (Lock Screen / Dynamic Island, via `expo-live-activity`) with the rest countdown and current set
+- **Home Screen widget** (`mobile/targets/widget`, small / medium / Lock Screen) showing today's workout per program and the week's progress
+- **Apple Watch app** (`mobile/targets/watch`, SwiftUI) mirroring the current set and rest countdown
+- **Error banner** that shows errors from inside the page (crashes, failed requests) as copyable text
+
+### Install on a device
+
+Builds run on this Mac (not EAS cloud). You need Xcode signed in to your Apple team, the phone connected, unlocked and in Developer Mode, and:
 
 ```bash
 cd mobile
-cp .env.local.example .env.local   # deployed URL + iOS Google client ID
-cd .. && scripts/ios-install        # Release build on this Mac, installed on a connected iPhone
+cp .env.local.example .env.local   # fill in the three values below
+cd .. && ./scripts/ios-install      # prebuild + Release build, installed on the connected iPhone
 ```
 
-Web ↔ native messages are defined in `web/src/lib/native-bridge.ts` and `mobile/src/native.ts`.
+`mobile/.env.local` needs `EXPO_PUBLIC_WEB_URL` (the deployed site, not localhost), `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` (`CLIENT_ID` from the Firebase iOS app's `GoogleService-Info.plist`, bundle ID `com.astrojason.workout`) and `APPLE_TEAM_ID`. The app loads the live site, so web changes reach the phone on deploy; only native changes need a reinstall. The first build for a new extension or app group may need `xcodebuild … -allowProvisioningUpdates` once so Xcode can create the provisioning profiles.
 
-`mobile/patches/` holds a one-line `patch-package` fix to `@bacons/apple-targets` so its widget target can coexist with `expo-live-activity`'s extension; it is applied automatically on `npm install`.
+### How it fits together
+
+- Web ↔ native messages are defined in `web/src/lib/native-bridge.ts` (web side) and `mobile/src/native.ts` (native side). Requests with a reply use `callNative`; state updates (`workoutState`, `homeSummary`) are fire-and-forget. Errors are shown, never swallowed.
+- The widget reads a summary the app writes to the shared app group `group.com.astrojason.workout` (`mobile/src/appGroup.ts`, `mobile/app.config.ts`, `mobile/targets/widget`).
+- `mobile/patches/` holds a one-line `patch-package` fix to `@bacons/apple-targets` so its widget target can coexist with `expo-live-activity`'s extension; it is applied automatically on `npm install`.
+- `mobile/` has its own tests: `cd mobile && npm test` (vitest) and `npm run typecheck`.
