@@ -1,22 +1,18 @@
-import { Capacitor } from "@capacitor/core";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "./firebase";
+import { callNative } from "./native-bridge";
 
-export function isNativeApp(): boolean {
-  return Capacitor.isNativePlatform();
-}
+export { isNativeApp } from "./native-bridge";
 
-// Google rejects OAuth popups inside an embedded web view, so inside the iOS shell the
-// Google ID token comes from the native SDK and is handed to the web Firebase SDK
-// (skipNativeAuth), keeping a single Firebase session that Firestore and the API routes use.
+// Google rejects OAuth popups inside an embedded web view, so inside the iOS app the Google
+// ID token comes from the native SDK and is handed to the web Firebase SDK, keeping a single
+// Firebase session that Firestore and the API routes use.
 export async function signInWithGoogleNative(): Promise<void> {
-  const result = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
-  const idToken = result.credential?.idToken;
+  const { idToken } = await callNative<{ idToken: string | null }>("googleSignIn");
   if (!idToken) throw new Error("Native Google sign-in returned no ID token");
   await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
 }
 
 export async function signOutNative(): Promise<void> {
-  await FirebaseAuthentication.signOut();
+  await callNative("googleSignOut");
 }

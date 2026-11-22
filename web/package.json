@@ -1,6 +1,6 @@
 {
   "name": "workout-tracker-web",
-  "version": "1.26.0",
+  "version": "1.27.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,9 +17,6 @@
     "mint-token:emulator": "FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 tsx scripts/mint-emulator-token.ts"
   },
   "dependencies": {
-    "@capacitor-firebase/authentication": "^8.5.2",
-    "@capacitor/core": "^8.5.3",
-    "@capacitor/ios": "^8.5.3",
     "firebase": "^12.19.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
@@ -28,7 +25,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.3",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",

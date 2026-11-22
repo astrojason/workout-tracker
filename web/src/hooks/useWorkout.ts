@@ -14,6 +14,7 @@ import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { useSound } from "./useSound";
 import { useError } from "@/components/providers/ErrorProvider";
+import { useNativeMirror } from "./useNativeMirror";
 import { notifyRestComplete } from "@/lib/rest-notifications";
 import { buildPreviousPerformanceMap, seedAssistedWeights } from "@/lib/last-performance";
 
@@ -94,6 +95,7 @@ function clearPersistedSession() {
 export function useWorkout(userId: string | null) {
   const { showError } = useError();
   const [session, setSession] = useState<ActiveSession | null>(null);
+  useNativeMirror(session);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);

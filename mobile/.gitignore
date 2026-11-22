@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+.env.local
+.env.*.local
+ios/
+android/
+dist/
+*.ipa
+GoogleService-Info.plist

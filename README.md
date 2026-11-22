@@ -195,3 +195,17 @@ App version lives in `web/package.json` and is shown in the Settings page footer
 ## Full Specification
 
 See [workout_tracker_spec.md](workout_tracker_spec.md) for complete data models, service APIs, workout flow details, Firestore schema, XLSX column reference, and deviations from the original design.
+
+---
+
+## iPhone + Apple Watch app (`mobile/`)
+
+An Expo (React Native) shell that loads the deployed web app in a WebView and adds the native pieces the web can't do: Google sign-in through the native SDK (same Firebase project/session as the web app), a local "Rest complete" notification that fires while the phone is locked, and a watchOS app (`mobile/targets/watch`) that mirrors the current set and rest countdown. iOS mirrors the rest notification to the watch when the phone is locked.
+
+```bash
+cd mobile
+cp .env.local.example .env.local   # deployed URL + iOS Google client ID
+cd .. && scripts/ios-install        # Release build on this Mac, installed on a connected iPhone
+```
+
+Web ↔ native messages are defined in `web/src/lib/native-bridge.ts` and `mobile/src/native.ts`.

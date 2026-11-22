@@ -1,0 +1,5 @@
+{
+  "build": { "production": { "environment": "production", "autoIncrement": true } },
+  "cli": { "appVersionSource": "remote" },
+  "submit": { "production": {} }
+}

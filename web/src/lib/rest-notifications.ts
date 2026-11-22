@@ -1,7 +1,10 @@
+import { callNative, isNativeApp } from "./native-bridge";
+
 const PREFERENCE_KEY = "restTimerNotifications";
 let registrationPromise: Promise<ServiceWorkerRegistration> | undefined;
 
 export function supportsRestNotifications(): boolean {
+  if (isNativeApp()) return true;
   return typeof window !== "undefined" && window.isSecureContext &&
     "Notification" in window && "serviceWorker" in navigator;
 }
@@ -31,7 +34,15 @@ export function prepareRestNotifications(): Promise<ServiceWorkerRegistration> {
   return registrationPromise;
 }
 
+/** Asks for notification permission: through iOS in the native app, the browser otherwise. */
+export async function requestRestPermission(): Promise<NotificationPermission> {
+  if (isNativeApp()) return callNative<NotificationPermission>("notificationPermission");
+  return Notification.requestPermission();
+}
+
 export async function notifyRestComplete(isCurrent: () => boolean): Promise<void> {
+  // The native app schedules its own notification from the mirrored workout state.
+  if (isNativeApp()) return;
   if (!supportsRestNotifications() || !restNotificationsEnabled() || Notification.permission !== "granted") return;
   const registration = await prepareRestNotifications();
   // Permission, preference, or the workout can change while registration loads.

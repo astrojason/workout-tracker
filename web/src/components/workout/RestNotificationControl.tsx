@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isNativeApp } from "@/lib/native-bridge";
 import { useError } from "@/components/providers/ErrorProvider";
 import {
-  prepareRestNotifications, restNotificationsEnabled,
+  prepareRestNotifications, requestRestPermission, restNotificationsEnabled,
   setRestNotificationsEnabled, supportsRestNotifications,
 } from "@/lib/rest-notifications";
 
@@ -18,7 +19,9 @@ export function RestNotificationControl() {
     function refresh() {
       const available = supportsRestNotifications();
       setSupported(available);
-      if (available) {
+      if (available && isNativeApp()) {
+        setEnabled(restNotificationsEnabled());
+      } else if (available) {
         setPermission(Notification.permission);
         setEnabled(restNotificationsEnabled() && Notification.permission === "granted");
       }
@@ -41,10 +44,10 @@ export function RestNotificationControl() {
         return;
       }
       // Request directly from the click, before awaiting service worker setup.
-      const result = await Notification.requestPermission();
+      const result = await requestRestPermission();
       setPermission(result);
       if (result !== "granted") return;
-      await prepareRestNotifications();
+      if (!isNativeApp()) await prepareRestNotifications();
       setRestNotificationsEnabled(true);
       setEnabled(true);
     } catch (error) {
@@ -66,7 +69,7 @@ export function RestNotificationControl() {
           ? "Rest notifications are blocked. Allow notifications in your browser settings to enable them."
           : "Rest notifications aren’t available here. On iPhone or iPad, try adding this app to your Home Screen and opening it there."}</p>
       )}
-      <p className="mt-2 text-xs">Keep the app open for rest alerts. Alerts may be delayed while your device is locked or the app is in the background.</p>
+      <p className="mt-2 text-xs">{isNativeApp() ? "Rest alerts are delivered by iOS and mirrored to your Apple Watch." : "Keep the app open for rest alerts. Alerts may be delayed while your device is locked or the app is in the background."}</p>
     </div>
   );
 }

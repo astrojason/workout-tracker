@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Builds the Workout Tracker iPhone app (with its Apple Watch app) in Release (standalone JS bundle, no Metro needed) and
+# installs it on a connected iPhone. Uses this machine's Xcode, not EAS cloud.
+#
+# Usage: scripts/ios-install [device name or UDID]
+# With no argument, Expo asks which connected device to use.
+#
+# Needs: the phone connected (or on the same network) with Developer Mode on and
+# trusted, Xcode signed in to your Apple Developer team, and mobile/.env.local
+# with EXPO_PUBLIC_WEB_URL and EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID (see .env.local.example) (web URL must be the deployed site, not localhost).
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MOBILE_DIR="$REPO_ROOT/mobile"
+cd "$MOBILE_DIR"
+
+if [[ ! -f .env.local && ! -f .env.production ]]; then
+  echo "error: mobile/.env.local not found (see .env.local.example); the app would have no web URL or Google sign-in client ID." >&2
+  exit 1
+fi
+if grep -Eq '^EXPO_PUBLIC_WEB_URL=.*(localhost|127\.0\.0\.1)' .env.local 2>/dev/null; then
+  echo "error: EXPO_PUBLIC_WEB_URL in .env.local points at localhost; a phone can't reach that." >&2
+  exit 1
+fi
+
+[[ -f .env.local ]] && { set -a; source .env.local; set +a; }    # app.config.ts reads these at prebuild time
+
+echo "==> Installing dependencies"
+npm install
+
+# ios/ is a generated, gitignored folder; regenerate it so icons, splash and native config match app.json and assets/.
+echo "==> Regenerating the native iOS project"
+npx expo prebuild --platform ios --clean
+
+DEVICE="${1:-}"
+if [[ -z "$DEVICE" ]]; then
+  # No prompt is possible in a non-interactive shell, so pick the device ourselves when exactly one iPhone is available.
+  LIST="$(mktemp)"
+  xcrun devicectl list devices --json-output "$LIST" >/dev/null 2>&1 || true
+  NAMES="$(python3 - "$LIST" <<'PY'
+import json, sys
+try:
+    devices = json.load(open(sys.argv[1]))["result"]["devices"]
+except Exception:
+    devices = []
+for d in devices:
+    hw = d.get("hardwareProperties", {})
+    if hw.get("deviceType") == "iPhone" and hw.get("reality") == "physical" and d.get("connectionProperties", {}).get("pairingState") == "paired":
+        print(d["deviceProperties"]["name"])
+PY
+)"
+  rm -f "$LIST"
+  COUNT="$(printf '%s' "$NAMES" | grep -c . || true)"
+  if [[ "$COUNT" == "1" ]]; then
+    DEVICE="$NAMES"
+  elif [[ "$COUNT" == "0" ]]; then
+    echo "error: no paired iPhone found. Connect and unlock it (Developer Mode on), or pass its name: scripts/ios-install \"My iPhone\"" >&2
+    exit 1
+  else
+    echo "error: several iPhones found; pass one by name: scripts/ios-install \"<name>\"" >&2
+    printf '%s\n' "$NAMES" >&2
+    exit 1
+  fi
+fi
+
+echo "==> Building a Release build and installing it on: $DEVICE"
+npx expo run:ios --device "$DEVICE" --configuration Release
+echo "==> Done. If the app won't open, trust your developer certificate in Settings > General > VPN & Device Management."
