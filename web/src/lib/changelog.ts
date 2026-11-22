@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.29.1',
+    date: '2026-11-22',
+    changes: [
+      'Added a favicon that works in Safari and on the iPhone Home Screen (ICO, PNG and Apple touch icon).',
+      'The one-time build of the per-user last-weights summary has been removed now that it exists. If an account ever has sessions but no summary, starting a workout shows an error instead of guessing.',
+    ],
+  },
+  {
     version: '1.29.0',
     date: '2026-11-22',
     changes: [

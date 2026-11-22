@@ -19,7 +19,7 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { NativeHomeSummary } from "@/components/home/NativeHomeSummary";
 import { buildHomeSummary } from "@/lib/home-summary";
-import { ensureLastPerformance, getLastPerformance } from "@/lib/firestore";
+import { getLastPerformance } from "@/lib/firestore";
 import type { WorkoutSessionDoc } from "@/lib/types";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
 import { Timestamp } from "firebase/firestore";
@@ -110,16 +110,6 @@ export default function HomePage() {
     if (!loading) reloadDefinitions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
-
-  // TEMPORARY one-time backfill (see ensureLastPerformance): once the landing page has rendered,
-  // build the user's last-performance summary in the background if they don't have one yet, so it
-  // is ready by the time they start a workout. Roll back with the backfill itself.
-  const backfillUid = user?.uid;
-  const landingReady = !loading && !historyLoading;
-  useEffect(() => {
-    if (!backfillUid || !landingReady) return;
-    ensureLastPerformance(backfillUid).catch(showError);
-  }, [backfillUid, landingReady, showError]);
 
   // Active workout — show regardless of auth so a session restored from localStorage
   // is never blocked by the sign-in screen.

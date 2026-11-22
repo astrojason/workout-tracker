@@ -351,7 +351,7 @@ function validLastPerformance(snap: { exists: () => boolean; data: () => unknown
   return data?.version === LAST_PERFORMANCE_VERSION ? data : null;
 }
 
-// Builds the summary from the user's whole session history.
+// Rebuilds the summary from the user's whole session history (also used when a delete invalidates it).
 export async function rebuildLastPerformance(userId: string, excludeSessionId?: string): Promise<LastPerformanceDoc> {
   const snap = await getDocs(query(sessionsCol(userId), orderBy("date", "desc")));
   const sessions = snap.docs
@@ -362,27 +362,21 @@ export async function rebuildLastPerformance(userId: string, excludeSessionId?: 
   return rebuilt;
 }
 
-// TEMPORARY one-time backfill, run from the web app the first time each user needs the summary
-// (and in the background once they land). It exists only so every existing user gets a summary
-// without a separate migration. Once every active user has one, roll this back: have
-// loadLastPerformanceDoc throw (or treat missing as empty) instead, drop ensureLastPerformance and
-// its call in the home page, and remove this block. A failed build is surfaced, never swallowed,
-// and is retried on the next call.
-const backfills = new Map<string, Promise<LastPerformanceDoc>>();
-
-export function ensureLastPerformance(userId: string): Promise<LastPerformanceDoc> {
-  const inFlight = backfills.get(userId);
-  if (inFlight) return inFlight;
-  const run = (async () => {
-    const existing = validLastPerformance(await getDoc(lastPerformanceRef(userId)));
-    return existing ?? rebuildLastPerformance(userId);
-  })().finally(() => backfills.delete(userId));
-  backfills.set(userId, run);
-  return run;
-}
-
+// The stored summary. A brand-new account with no sessions legitimately has none and starts
+// empty. An account that has sessions but no usable summary is an error: answering from partial
+// data would quietly give wrong "last time" weights. rebuildLastPerformance restores it.
 async function loadLastPerformanceDoc(userId: string): Promise<LastPerformanceDoc> {
-  return ensureLastPerformance(userId);
+  const snap = await getDoc(lastPerformanceRef(userId));
+  const current = validLastPerformance(snap);
+  if (current) return current;
+  if (snap.exists()) {
+    throw new Error("The last-performance summary is an unsupported version. Rebuild it with rebuildLastPerformance (web/src/lib/firestore.ts).");
+  }
+  const hasSessions = !(await getDocs(query(sessionsCol(userId), limit(1)))).empty;
+  if (hasSessions) {
+    throw new Error("The last-performance summary is missing for this account. Rebuild it with rebuildLastPerformance (web/src/lib/firestore.ts).");
+  }
+  return emptyLastPerformance();
 }
 
 // Stand-in sessions carrying each exercise's last completed sets, for buildPreviousPerformanceMap

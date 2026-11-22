@@ -40,7 +40,7 @@ vi.mock("firebase/firestore", () => {
   };
 });
 
-import { deleteSession, ensureLastPerformance, getLastPerformance, rebuildLastPerformance, saveSession } from "../firestore";
+import { deleteSession, getLastPerformance, rebuildLastPerformance, saveSession } from "../firestore";
 import type { CompletedSet, WorkoutSessionDoc } from "../types";
 
 const SUMMARY = "users/u1/settings/lastPerformance";
@@ -70,45 +70,28 @@ describe("rebuildLastPerformance", () => {
   });
 });
 
-// TEMPORARY backfill: the app builds the summary the first time any user needs it. These tests
-// go away with ensureLastPerformance once every active user has one.
-describe("first-use backfill", () => {
-  it("getLastPerformance builds and stores the summary when it doesn't exist yet", async () => {
+describe("getLastPerformance", () => {
+  it("reads the stored summary without querying the whole history", async () => {
+    await rebuildLastPerformance("u1");
+    calls.sessionQueries = 0;
     const result = await getLastPerformance("u1");
     expect(result.map((s) => s.sets[0].exerciseName).sort()).toEqual(["Bench", "Squat"]);
-    expect(store.has(SUMMARY)).toBe(true);
-  });
-
-  it("reads the stored summary without querying sessions afterwards", async () => {
-    await getLastPerformance("u1");
-    calls.sessionQueries = 0;
-    await getLastPerformance("u1");
     expect(calls.sessionQueries).toBe(0);
   });
 
-  it("rebuilds a summary written by a different version", async () => {
+  it("does not build the summary itself: sessions without a summary is an error, nothing is written", async () => {
+    await expect(getLastPerformance("u1")).rejects.toThrow(/summary.*missing/i);
+    expect(store.has(SUMMARY)).toBe(false);
+  });
+
+  it("gives a brand-new user with no sessions an empty history", async () => {
+    sessionDocs.current = [];
+    await expect(getLastPerformance("u1")).resolves.toEqual([]);
+  });
+
+  it("rejects a summary written by a different version instead of using it", async () => {
     store.set(SUMMARY, { version: 0, entries: {} });
-    const result = await getLastPerformance("u1");
-    expect(result).toHaveLength(2);
-    expect((store.get(SUMMARY) as { version: number }).version).toBe(1);
-  });
-
-  it("gives a brand-new user with no sessions an empty summary", async () => {
-    sessionDocs.current = [];
-    await expect(getLastPerformance("u1")).resolves.toEqual([]);
-    expect(store.has(SUMMARY)).toBe(true);
-  });
-
-  it("builds only once when several callers ask at the same time", async () => {
-    await Promise.all([ensureLastPerformance("u1"), ensureLastPerformance("u1"), getLastPerformance("u1")]);
-    expect(calls.sessionQueries).toBe(1);
-  });
-
-  it("surfaces a failed build instead of returning partial data, and allows a retry", async () => {
-    sessionDocs.current = null as never; // makes the history read throw
-    await expect(getLastPerformance("u1")).rejects.toThrow();
-    sessionDocs.current = [];
-    await expect(getLastPerformance("u1")).resolves.toEqual([]);
+    await expect(getLastPerformance("u1")).rejects.toThrow(/unsupported version/i);
   });
 });
 
@@ -122,16 +105,16 @@ describe("saveSession", () => {
     expect(summary.entries.squat.sessionId).toBe("s2"); // untouched
   });
 
-  it("builds the summary from history first when the user doesn't have one yet", async () => {
+  it("starts the summary with a brand-new user's first session", async () => {
+    sessionDocs.current = [];
     const id = await saveSession("u1", sessionData(day(21), [set("Bench", 190)]) as Omit<WorkoutSessionDoc, "id">);
     const summary = store.get(SUMMARY) as { entries: Record<string, { sessionId: string }> };
     expect(summary.entries.bench.sessionId).toBe(id);
-    expect(summary.entries.squat.sessionId).toBe("s2"); // came from the backfill
   });
 
-  it("writes nothing when the backfill fails", async () => {
-    sessionDocs.current = null as never;
-    await expect(saveSession("u1", sessionData(day(21), [set("Bench", 190)]) as Omit<WorkoutSessionDoc, "id">)).rejects.toThrow();
+  it("refuses to save, writing nothing, when the account has sessions but no summary", async () => {
+    await expect(saveSession("u1", sessionData(day(21), [set("Bench", 190)]) as Omit<WorkoutSessionDoc, "id">))
+      .rejects.toThrow(/summary.*missing/i);
     expect([...store.keys()].some((k) => k.includes("/sessions/"))).toBe(false);
   });
 });
