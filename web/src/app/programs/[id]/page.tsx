@@ -22,7 +22,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   const { sessions } = useHistory(user?.uid ?? null); // evidence for the equipment-photo weight suggestion
   const { programs, loading: programsLoading, loadWorkoutsForWeek, updateWorkout, refreshPrograms } = usePrograms(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
-  const { definitions: libraryDefinitions, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
+  const { definitions: libraryDefinitions, machines, loading: definitionsLoading, reload: reloadDefinitions } = useExerciseDefinitions(user?.uid ?? null);
   const { showError } = useError();
 
   // usePrograms() and useExerciseDefinitions() fetch independently and in parallel.
@@ -337,6 +337,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           exercise={editingExercise.exercise}
           maxOrder={Math.max(0, ...editingExercise.workout.exercises.map((e) => e.order))}
           definitions={Object.values(definitions)}
+          machines={machines}
           onSave={handleSaveExercise}
           onCancel={() => setEditingExercise(null)}
           equipmentConfig={equipmentConfig}

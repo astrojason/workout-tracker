@@ -57,6 +57,7 @@ export interface ExerciseDefinition {
   name: string;
   weightOptions?: number[] | null; // machine only: the weights the machine can be set to, ascending (not always an even step)
   brand?: string | null;       // equipment maker/model, e.g. "Lifecycle"; lets the AI identify a machine when its photo is unclear
+  machineId?: string | null;   // machine only: a GymMachine whose weights replace weightOptions (see applyGymMachines)
   muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
@@ -65,6 +66,16 @@ export interface ExerciseDefinition {
   isTimeBased: boolean;
   currentWeight: number;
   hardStreak: number;          // consecutive sessions whose final set was rated "hard"; resets on any other outcome
+  createdAt: Timestamp | Date;
+  updatedAt: Timestamp | Date;
+}
+
+// A gym machine from the user's list: its name and the weights its stack can be set to
+// (ascending, no duplicates, at least two). Exercises link to it via ExerciseDefinition.machineId.
+export interface GymMachine {
+  id: string;
+  name: string;
+  plates: number[];
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
 }

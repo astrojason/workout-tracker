@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ErrorProvider } from "@/components/providers/ErrorProvider";
 import type { EquipmentAnalysis } from "@/lib/equipment-photo";
 import { ExerciseEditor, type ExerciseEditorResult } from "../ExerciseEditor";
-import type { Exercise, ExerciseDefinition } from "@/lib/types";
+import type { Exercise, ExerciseDefinition, GymMachine } from "@/lib/types";
 
 // crypto.randomUUID is used to mint a new occurrence id on save
 vi.spyOn(crypto, "randomUUID").mockReturnValue("new-exercise-id" as `${string}-${string}-${string}-${string}-${string}`);
@@ -125,6 +125,44 @@ describe("ExerciseEditor", () => {
       const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
       if (result.kind !== "new") throw new Error("expected kind 'new'");
       expect(result.definition.weightOptions).toEqual([50, 75, 100, 150]);
+    });
+
+    describe("gym machines", () => {
+      const lat: GymMachine = { id: "m-lat", name: "Lat Pulldown", plates: [10, 20, 30, 42.5], createdAt: new Date(), updatedAt: new Date() };
+
+      it("has no machine picker without machines, or for non-machine equipment", () => {
+        render(<ExerciseEditor exercise={null} maxOrder={3} definitions={[]} onSave={onSave} onCancel={onCancel} />);
+        expect(screen.queryByLabelText("Gym machine")).toBeNull();
+      });
+
+      it("links the new exercise to the chosen machine and uses its weights instead of typed ones", () => {
+        const { container } = render(
+          <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} machines={[lat]} onSave={onSave} onCancel={onCancel} />
+        );
+        fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Wide Pulldown" } });
+        expect(screen.queryByLabelText("Gym machine")).toBeNull(); // only for machine equipment
+        fireEvent.change(selects(container)[2], { target: { value: "machine" } });
+        fireEvent.change(screen.getByLabelText("Gym machine"), { target: { value: "m-lat" } });
+        expect(screen.queryByLabelText("Weight options (lbs)")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Add" }));
+        const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+        if (result.kind !== "new") throw new Error("expected kind 'new'");
+        expect(result.definition).toMatchObject({ equipmentType: "machine", machineId: "m-lat", weightOptions: [10, 20, 30, 42.5] });
+      });
+
+      it("keeps typed weights and no link when 'None' stays selected", () => {
+        const { container } = render(
+          <ExerciseEditor exercise={null} maxOrder={3} definitions={[]} machines={[lat]} onSave={onSave} onCancel={onCancel} />
+        );
+        fireEvent.change(screen.getByPlaceholderText("e.g. Bench Press"), { target: { value: "Leg Press" } });
+        fireEvent.change(selects(container)[2], { target: { value: "machine" } });
+        fireEvent.change(screen.getByLabelText("Weight options (lbs)"), { target: { value: "50, 75" } });
+        fireEvent.click(screen.getByRole("button", { name: "Add" }));
+        const result = onSave.mock.calls[0][0] as ExerciseEditorResult;
+        if (result.kind !== "new") throw new Error("expected kind 'new'");
+        expect(result.definition.machineId).toBeNull();
+        expect(result.definition.weightOptions).toEqual([50, 75]);
+      });
     });
 
     it("saves brand as null when left blank", () => {

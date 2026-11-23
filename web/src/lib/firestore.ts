@@ -11,7 +11,7 @@ import {
 import type {
   Program, Workout, Exercise, UserSettings, WorkoutSessionDoc,
   CompletedSet, PersonalRecordDoc, PRResult, UserEquipmentConfig, ExerciseDefinition,
-  EquipmentType, ProgressionRule, BodyMeasurementDoc, BodyMeasurementInput, ProgramExerciseWeight,
+  EquipmentType, ProgressionRule, GymMachine, BodyMeasurementDoc, BodyMeasurementInput, ProgramExerciseWeight,
 } from "./types";
 
 // ── Path helpers ──
@@ -42,6 +42,9 @@ function prsCol(userId: string) {
 }
 function exerciseDefinitionsCol(userId: string) {
   return collection(db, "users", userId, "exerciseDefinitions");
+}
+function gymMachinesCol(userId: string) {
+  return collection(db, "users", userId, "gymMachines");
 }
 function bodyMeasurementsCol(userId: string) {
   return collection(db, "users", userId, "bodyMeasurements");
@@ -721,7 +724,7 @@ export async function createExerciseDefinition(
 export async function updateExerciseDefinitionMeta(
   userId: string,
   definitionId: string,
-  updates: Partial<Pick<ExerciseDefinition, "name" | "brand" | "weightOptions" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
+  updates: Partial<Pick<ExerciseDefinition, "name" | "brand" | "weightOptions" | "machineId" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
 ): Promise<void> {
   await updateDoc(doc(exerciseDefinitionsCol(userId), definitionId), {
     ...updates,
@@ -744,4 +747,54 @@ export async function updateExerciseDefinitionWeight(
 
 export async function deleteExerciseDefinition(userId: string, definitionId: string): Promise<void> {
   await deleteDoc(doc(exerciseDefinitionsCol(userId), definitionId));
+}
+
+// ── Gym machines (per-user list: name + the weights its stack can be set to) ──
+
+export async function getGymMachines(userId: string): Promise<GymMachine[]> {
+  const snap = await getDocs(gymMachinesCol(userId));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() } as GymMachine))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function createGymMachine(
+  userId: string, machine: Pick<GymMachine, "name" | "plates">
+): Promise<string> {
+  const now = Timestamp.now();
+  const ref = await addDoc(gymMachinesCol(userId), {
+    name: machine.name,
+    plates: machine.plates,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+export async function updateGymMachine(
+  userId: string, machineId: string, updates: Pick<GymMachine, "name" | "plates">
+): Promise<void> {
+  await updateDoc(doc(gymMachinesCol(userId), machineId), {
+    name: updates.name,
+    plates: updates.plates,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+// Exercises linked to the machine keep working: each gets the machine's weights copied onto
+// its own weightOptions and is unlinked, all in the same batch that removes the machine.
+export async function deleteGymMachine(userId: string, machineId: string): Promise<void> {
+  const machineDoc = doc(gymMachinesCol(userId), machineId);
+  const snap = await getDoc(machineDoc);
+  if (!snap.exists()) throw new Error(`Gym machine ${machineId} not found`);
+  const plates = (snap.data() as Pick<GymMachine, "plates">).plates;
+
+  const linked = await getDocs(query(exerciseDefinitionsCol(userId), where("machineId", "==", machineId)));
+  const batch = writeBatch(db);
+  const now = Timestamp.now();
+  for (const d of linked.docs) {
+    batch.update(doc(exerciseDefinitionsCol(userId), d.id), { weightOptions: plates, machineId: null, updatedAt: now });
+  }
+  batch.delete(machineDoc);
+  await batch.commit();
 }

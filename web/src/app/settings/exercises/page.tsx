@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { updateExerciseDefinitionMeta, updateExerciseDefinitionWeight } from "@/lib/firestore";
-import type { ExerciseDefinition, EquipmentType, ProgressionRule } from "@/lib/types";
+import type { ExerciseDefinition, EquipmentType, ProgressionRule, GymMachine } from "@/lib/types";
+import { GymMachineSelect } from "@/components/programs/GymMachineSelect";
 import { parseWeightOptions } from "@/lib/types";
 import { useError } from "@/components/providers/ErrorProvider";
 
@@ -40,7 +41,7 @@ const PROGRESSION_OPTIONS: { value: ProgressionRule; label: string }[] = [
 export default function ExerciseLibraryPage() {
   const { user } = useAuth();
   const { showError } = useError();
-  const { definitions, loading, reload } = useExerciseDefinitions(user?.uid ?? null);
+  const { definitions, machines, loading, reload } = useExerciseDefinitions(user?.uid ?? null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const sorted = Object.values(definitions).sort((a, b) => a.name.localeCompare(b.name));
@@ -77,6 +78,7 @@ export default function ExerciseLibraryPage() {
               <ExerciseDefinitionEditRow
                 key={def.id}
                 definition={def}
+                machines={machines}
                 userId={user.uid}
                 onDone={async () => {
                   setEditingId(null);
@@ -93,7 +95,7 @@ export default function ExerciseLibraryPage() {
               >
                 <div className="font-semibold">{def.name}</div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  {def.brand ? `${def.brand} · ` : ""}{def.equipmentType.replace(/_/g, " ")}{def.weightOptions?.length ? ` (${def.weightOptions.length} weights)` : ""}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""} · {def.progressionRule.replace(/_/g, " ")}
+                  {def.brand ? `${def.brand} · ` : ""}{def.equipmentType.replace(/_/g, " ")}{def.machineId && machines.some((m) => m.id === def.machineId) ? ` (${machines.find((m) => m.id === def.machineId)!.name})` : def.weightOptions?.length ? ` (${def.weightOptions.length} weights)` : ""}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""} · {def.progressionRule.replace(/_/g, " ")}
                 </div>
                 {def.muscleGroups.length > 0 && (
                   <div className="text-xs text-gray-600 mt-0.5">{def.muscleGroups.join(", ")}</div>
@@ -112,9 +114,10 @@ export default function ExerciseLibraryPage() {
 }
 
 function ExerciseDefinitionEditRow({
-  definition, userId, onDone, onCancel, onError,
+  definition, machines, userId, onDone, onCancel, onError,
 }: {
   definition: ExerciseDefinition;
+  machines: GymMachine[];
   userId: string;
   onDone: () => void;
   onCancel: () => void;
@@ -123,6 +126,8 @@ function ExerciseDefinitionEditRow({
   const [name, setName] = useState(definition.name);
   const [brand, setBrand] = useState(definition.brand ?? "");
   const [weightOptionsText, setWeightOptionsText] = useState(definition.weightOptions?.join(", ") ?? "");
+  // A linked machine's weights replace the typed list (definition.weightOptions already holds them).
+  const [machineId, setMachineId] = useState(definition.machineId ?? "");
   const [muscleGroupsText, setMuscleGroupsText] = useState(definition.muscleGroups.join(", "));
   const [equipmentType, setEquipmentType] = useState<EquipmentType>(definition.equipmentType);
   const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
@@ -133,6 +138,8 @@ function ExerciseDefinitionEditRow({
   const [hardStreak, setHardStreak] = useState(String(definition.hardStreak));
   const [saving, setSaving] = useState(false);
 
+  const linkedMachine = equipmentType === "machine" ? machines.find((m) => m.id === machineId) ?? null : null;
+
   async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
@@ -140,7 +147,8 @@ function ExerciseDefinitionEditRow({
       await updateExerciseDefinitionMeta(userId, definition.id, {
         name: name.trim(),
         brand: brand.trim() || null,
-        weightOptions: equipmentType === "machine" ? parseWeightOptions(weightOptionsText) : null,
+        weightOptions: equipmentType === "machine" ? (linkedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : null,
+        machineId: linkedMachine?.id ?? null,
         muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
         equipmentType,
         equipmentDetail: equipmentType === "band" ? (equipmentDetail.trim() || null) : null,
@@ -194,7 +202,11 @@ function ExerciseDefinitionEditRow({
         </Field>
       </div>
 
-      {equipmentType === "machine" && (
+      {equipmentType === "machine" && machines.length > 0 && (
+        <GymMachineSelect machines={machines} value={machineId} onChange={setMachineId} />
+      )}
+
+      {equipmentType === "machine" && !linkedMachine && (
         <Field label="Weights the machine can be set to (comma-separated)">
           <input type="text" value={weightOptionsText} onChange={(e) => setWeightOptionsText(e.target.value)} placeholder="e.g. 50, 75, 100, 150" className="input-field" />
         </Field>

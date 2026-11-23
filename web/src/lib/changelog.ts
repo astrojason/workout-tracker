@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.34.0',
+    date: '2026-11-23',
+    changes: [
+      'Gym machines: add your machines (name plus the weights each can be set to) in Settings → Manage Gym Machines.',
+      'Machine exercises can pick a gym machine and use its weights for the weight picker and progression; edit a machine once and every exercise using it follows.',
+      'Deleting a machine asks first, and the exercises that used it keep its weights.',
+    ],
+  },
+  {
     version: '1.33.1',
     date: '2026-11-23',
     changes: [

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import type {
-  Exercise, ExerciseDefinition, Phase, EquipmentType, ProgressionRule, RepTarget, UserEquipmentConfig,
+  Exercise, ExerciseDefinition, Phase, EquipmentType, ProgressionRule, RepTarget, UserEquipmentConfig, GymMachine,
 } from "@/lib/types";
 import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
 import { EquipmentWeightInput, defaultWeightForType } from "./EquipmentWeightInput";
+import { GymMachineSelect } from "./GymMachineSelect";
 import Link from "next/link";
 import { useError } from "@/components/providers/ErrorProvider";
 import { EquipmentPhotoButton } from "@/components/workout/EquipmentPhotoButton";
@@ -46,6 +47,7 @@ interface ExerciseEditorProps {
   exercise: (Exercise & { definitionName?: string }) | null;
   maxOrder: number;
   definitions: ExerciseDefinition[];
+  machines?: GymMachine[]; // the user's gym machines; a new machine exercise can link to one
   onSave: (result: ExerciseEditorResult) => void;
   onCancel: () => void;
   equipmentConfig?: UserEquipmentConfig;
@@ -57,7 +59,7 @@ interface ExerciseEditorProps {
 
 const NEW_SENTINEL = "__new__";
 
-export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCancel, equipmentConfig, onScanPhoto, onIdentify }: ExerciseEditorProps) {
+export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [], onSave, onCancel, equipmentConfig, onScanPhoto, onIdentify }: ExerciseEditorProps) {
   const { showError } = useError();
   const [identifying, setIdentifying] = useState(false);
   const isNewOccurrence = !exercise;
@@ -71,12 +73,14 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
   const [name, setName] = useState(exercise?.definitionName ?? "");
   const [brand, setBrand] = useState("");
   const [weightOptionsText, setWeightOptionsText] = useState("");
+  const [machineId, setMachineId] = useState(""); // "" = not linked to a gym machine
   const [muscleGroupsText, setMuscleGroupsText] = useState("");
   const [equipmentType, setEquipmentType] = useState<EquipmentType>("barbell_45");
   const [equipmentDetail, setEquipmentDetail] = useState("Orange");
   const [progressionRule, setProgressionRule] = useState<ProgressionRule>("none");
   const [timeBased, setTimeBased] = useState(false);
   const [isUnilateral, setIsUnilateral] = useState(false);
+  const selectedMachine = creatingNew && equipmentType === "machine" ? machines.find((m) => m.id === machineId) ?? null : null;
 
   const effectiveEquipmentType = selectedDef?.equipmentType ?? equipmentType;
   const effectiveTimeBased = selectedDef?.isTimeBased ?? timeBased;
@@ -172,7 +176,8 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
         definition: {
           name: name.trim(),
           brand: brand.trim() || null,
-          weightOptions: equipmentType === "machine" ? parseWeightOptions(weightOptionsText) : null,
+          weightOptions: equipmentType === "machine" ? (selectedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : null,
+          machineId: selectedMachine?.id ?? null,
           muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
           equipmentType,
           equipmentDetail: equipmentType === "band" ? (equipmentDetail || "Orange") : null,
@@ -293,7 +298,13 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
           </Field>
         )}
 
-        {creatingNew && equipmentType === "machine" && (
+        {creatingNew && equipmentType === "machine" && machines.length > 0 && (
+          <div className="mb-4">
+            <GymMachineSelect machines={machines} value={machineId} onChange={setMachineId} />
+          </div>
+        )}
+
+        {creatingNew && equipmentType === "machine" && !selectedMachine && (
           <Field label="Weights the machine can be set to">
             <input
               type="text"
@@ -317,7 +328,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
             onEquipmentDetailChange={setEquipmentDetail}
             equipmentConfig={equipmentConfig}
             onBarbellErrorChange={setBarbellError}
-            weightOptions={creatingNew ? parseWeightOptions(weightOptionsText) : selectedDef?.weightOptions}
+            weightOptions={creatingNew ? (selectedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : selectedDef?.weightOptions}
           />
         </Field>
 
