@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.31.0',
+    date: '2026-11-23',
+    changes: [
+      'Every exercise outside the warm-up phase now gets at least one warm-up set, even with no warm-up row in the program: a ramp for barbell and PowerBlock lifts, one set at about half weight for other loaded lifts, and a half-reps set for bodyweight, band and timed exercises.',
+      'New "Skip Warm-Up Sets" checkbox on an exercise in the program editor.',
+      'iPhone app: rest-complete alerts now show as a banner while the app is open, not only when the phone is locked (silent, since the web app plays its own sound).',
+    ],
+  },
+  {
     version: '1.30.0',
     date: '2026-11-23',
     changes: [

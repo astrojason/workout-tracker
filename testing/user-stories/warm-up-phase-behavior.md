@@ -87,7 +87,8 @@ Given Bench Press has a warm-up row and a work row, and its current work weight 
   then 40% x5, 60% x3 and 80% x2 (so 45x8, 80x5, 120x3, 160x2), each a single set
 - Every ramp weight is **below** the work weight and **at most 85%** of it, rounds
   **down** to something the equipment can load, and strictly increases
-- If the work weight is about the bar, no ramp is possible and the warm-up is dropped
+- If the work weight is about the bar, no ramp is possible and the warm-up is one set
+  at the work weight with about half the reps
 - Ramp steps rest 60s between them; after the last one the sheet's own transition
   into the work set applies (normally no rest)
 - When the work weight goes up (progression), the next workout's warm-up ramps from
@@ -95,3 +96,24 @@ Given Bench Press has a warm-up row and a work row, and its current work weight 
 - Warm-up sets never change any stored weight, whatever their progression rule
 - Other equipment (e.g. a kettlebell warm-up sharing a lift with a work row) keeps the
   sheet's warm-up as written, capped so it never exceeds the work weight
+
+---
+
+## Auto Warm-Ups (exercises with no warm-up row)
+
+**As a user starting a workout where an exercise has no warm-up row:**
+
+- Every exercise outside the warm-up phase gets at least one warm-up set, placed
+  right before it
+- Barbell and PowerBlock lifts get the same ramp as above, built from the work weight
+- Dumbbell, kettlebell and other loaded lifts get one set of `repMin` reps at about
+  half the work weight, rounded down to 5 lb (a machine uses its nearest weight
+  option at or under half)
+- Bodyweight, band, gripper, assisted and time-based exercises, or ones with no weight
+  set yet, get one set at the same setup with about half the reps or time
+- Auto warm-ups rest 60s between steps and into the work set, are never AMRAP and
+  never change a stored weight
+- A lift that already has a warm-up row, or was already warmed up earlier in the same
+  workout, gets no extra warm-up
+- Checking **Skip Warm-Up Sets** on the exercise in the program editor turns this off
+  for that exercise (the option isn't shown on warm-up exercises)

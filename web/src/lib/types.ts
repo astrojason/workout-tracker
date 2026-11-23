@@ -85,6 +85,7 @@ export interface Exercise {
   restAfter?: false | number;    // rest before the NEXT exercise only: false = skip it, number = override its duration. Never affects rest between this exercise's own sets — that always uses restSeconds.
   weight?: number;               // this row's own planned weight from the spreadsheet; only a warm-up row uses it — working rows follow the program weight
   equipmentDetail?: string | null; // this row's own band colour/size etc.; wins over the definition's
+  skipWarmup?: boolean;          // true = don't generate warm-up sets before this exercise (see warmup-ramp.ts)
 }
 
 // An Exercise occurrence merged with its definition — the shape the workout UI actually works with.

@@ -122,6 +122,9 @@ function makeExercise(overrides: ExerciseTestOverrides = {}): Exercise {
     repMax: { type: "count", value: 12 },
     restSeconds: 120,
     notes: null,
+    // Most tests here are about set/rest flow; auto warm-ups would shift every index. Tests
+    // about warm-ups opt back in with skipWarmup: false.
+    skipWarmup: true,
     ...occurrenceOverrides,
   };
 }
@@ -1058,14 +1061,29 @@ describe("useWorkout", () => {
     ]);
   });
 
-  it("startWorkout drops the sheet's warm-up when the work weight is just the bar", async () => {
+  it("startWorkout keeps one half-reps warm-up set when the work weight is just the bar", async () => {
     const warmup = makeExercise({ id: "wu", order: 1, phase: "warmup", sets: 1, repMin: 10, restSeconds: 0, equipmentType: "barbell_45", currentWeight: 45, weight: 45, definitionId: "def-bench", name: "Flat Bench Press" });
     const main = makeExercise({ id: "main", order: 2, phase: "main", sets: 3, restSeconds: 0, equipmentType: "barbell_45", currentWeight: 45, definitionId: "def-bench", name: "Flat Bench Press" });
     const workout = makeWorkout({ exercises: [warmup, main] });
     const { result } = renderHook(() => useWorkout("user-1"));
     await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
 
-    expect(result.current.session!.workout.exercises.map((e) => e.phase)).toEqual(["main"]);
+    const exercises = result.current.session!.workout.exercises;
+    expect(exercises.map((e) => e.phase)).toEqual(["warmup", "main"]);
+    expect(exercises[0]).toMatchObject({ sets: 1, currentWeight: 45, repMin: 4 });
+  });
+
+  it("startWorkout adds warm-up sets before an exercise with no warm-up row, unless it's marked skipWarmup", async () => {
+    const bench = makeExercise({ id: "bench", order: 1, skipWarmup: false, currentWeight: 200, name: "Bench" });
+    const curl = makeExercise({ id: "curl", order: 2, skipWarmup: true, equipmentType: "dumbbell", currentWeight: 30, name: "Curl" });
+    const workout = makeWorkout({ exercises: [bench, curl] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    const exercises = result.current.session!.workout.exercises;
+    expect(exercises.map((e) => [e.phase, e.currentWeight])).toEqual([
+      ["warmup", 45], ["warmup", 80], ["warmup", 120], ["warmup", 160], ["main", 200], ["main", 30],
+    ]);
   });
 
   it("endWorkout never writes progression for a warm-up, even one with a numeric rule", async () => {

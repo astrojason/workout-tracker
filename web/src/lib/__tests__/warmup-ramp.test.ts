@@ -45,6 +45,11 @@ describe("rampWarmups", () => {
   it("never loads a warm-up at or above the work weight, or above 85% of it, whatever the work weight", () => {
     for (const w of [50, 65, 95, 105, 135, 155, 185, 225, 315, 405]) {
       const ramp = rampWarmups([sheetWarmup(), work({ currentWeight: w })]).filter((e) => e.phase === "warmup");
+      // With no lighter load to use, the only warm-up is one half-reps set at the work weight.
+      if (ramp.length === 1 && ramp[0].currentWeight === w) {
+        expect(ramp[0].repMin).toBeLessThan(6);
+        continue;
+      }
       for (const step of ramp) {
         expect(step.currentWeight).toBeLessThan(w);
         expect(step.currentWeight).toBeLessThanOrEqual(w * 0.85 + 1e-9);
@@ -60,9 +65,14 @@ describe("rampWarmups", () => {
     }
   });
 
-  it("drops the warm-up entirely when the work weight is about the bar", () => {
+  it("keeps one light set when the work weight is about the bar (no lighter load to ramp)", () => {
     const result = rampWarmups([sheetWarmup(), work({ currentWeight: 45 })]);
-    expect(result.map((e) => e.id)).toEqual(["main"]);
+    const warmups = result.filter((e) => e.phase === "warmup");
+    expect(warmups).toHaveLength(1);
+    expect(warmups[0].currentWeight).toBe(45);
+    expect(warmups[0].sets).toBe(1);
+    expect(warmups[0].repMin).toBeLessThan(6);
+    expect(result[result.length - 1].id).toBe("main");
   });
 
   it("gives ramp steps no progression, so a warm-up can never change a weight", () => {
@@ -103,7 +113,9 @@ describe("rampWarmups", () => {
 
   it("leaves a warm-up with no matching work set alone", () => {
     const solo = ex({ id: "wu", definitionId: "ext-rot", name: "External Rotations", phase: "warmup", equipmentType: "band", currentWeight: 0 });
-    expect(rampWarmups([solo, work({ order: 2 })]).map((e) => e.id)).toEqual(["wu", "main"]);
+    const result = rampWarmups([solo, work({ order: 2 })]);
+    expect(result[0]).toMatchObject({ id: "wu", currentWeight: 0, sets: 3 });
+    expect(result[result.length - 1].id).toBe("main");
   });
 
   it("caps a non-ramped warm-up (e.g. kettlebell) so it never exceeds the work weight", () => {
@@ -117,5 +129,96 @@ describe("rampWarmups", () => {
   it("keeps the sheet warm-up as is when the work weight isn't set yet", () => {
     const result = rampWarmups([sheetWarmup(), work({ currentWeight: 0 })]);
     expect(result.find((e) => e.id === "wu")!.currentWeight).toBe(45);
+  });
+
+  describe("auto-generated warm-ups (no warm-up row in the program)", () => {
+    const warmupsBefore = (result: ResolvedExercise[], id: string) => {
+      const i = result.findIndex((e) => e.id === id);
+      const out: ResolvedExercise[] = [];
+      for (let j = i - 1; j >= 0 && result[j].phase === "warmup"; j--) out.unshift(result[j]);
+      return out;
+    };
+
+    it("adds a full ramp right before a barbell lift that has no warm-up row", () => {
+      const other = ex({ id: "curl", definitionId: "curl", name: "Curl", equipmentType: "dumbbell", currentWeight: 30 });
+      const result = rampWarmups([other, work()]);
+      expect(warmupsBefore(result, "main").map((e) => e.currentWeight)).toEqual([45, 80, 120, 160]);
+      expect(result[result.length - 1].id).toBe("main");
+    });
+
+    it("gives every non-warm-up exercise at least one warm-up set, whatever the equipment", () => {
+      const exercises = [
+        ex({ id: "db", definitionId: "db", name: "DB Press", equipmentType: "dumbbell", currentWeight: 50 }),
+        ex({ id: "kb", definitionId: "kb", name: "KB Swing", equipmentType: "kettlebell", currentWeight: 35 }),
+        ex({ id: "bw", definitionId: "bw", name: "Push-up", equipmentType: "bodyweight", currentWeight: 0, repMin: 10 }),
+        ex({ id: "band", definitionId: "band", name: "Band Pull-apart", equipmentType: "band", currentWeight: 0, equipmentDetail: "Red" }),
+        ex({ id: "plank", definitionId: "plank", name: "Plank", equipmentType: "bodyweight", isTimeBased: true, currentWeight: 0, repMin: 60, repMax: { type: "count", value: 60 } }),
+        ex({ id: "mach", definitionId: "mach", name: "Leg Press", equipmentType: "machine", currentWeight: 150, weightOptions: [50, 70, 90, 110, 130, 150] }),
+        ex({ id: "fin", definitionId: "fin", name: "Finisher", phase: "finisher", equipmentType: "bodyweight", currentWeight: 0 }),
+        work(),
+      ];
+      const result = rampWarmups(exercises);
+      for (const e of exercises) {
+        const wu = warmupsBefore(result, e.id);
+        expect(wu.length, e.name).toBeGreaterThanOrEqual(1);
+        for (const step of wu) {
+          expect(step.definitionId).toBe(e.definitionId);
+          expect(step.progressionRule).toBe("none");
+          expect(step.sets).toBe(1);
+          if (e.currentWeight > 0) expect(step.currentWeight).toBeLessThanOrEqual(e.currentWeight);
+        }
+      }
+    });
+
+    it("loads a dumbbell/kettlebell warm-up at about half, rounded down to 5 lb", () => {
+      const result = rampWarmups([ex({ id: "db", definitionId: "db", equipmentType: "dumbbell", currentWeight: 55 })]);
+      expect(warmupsBefore(result, "db").map((e) => e.currentWeight)).toEqual([25]);
+    });
+
+    it("loads a machine warm-up at a weight the machine has, at or under half", () => {
+      const result = rampWarmups([ex({ id: "m", definitionId: "m", equipmentType: "machine", currentWeight: 150, weightOptions: [50, 70, 90, 110, 130, 150] })]);
+      expect(warmupsBefore(result, "m").map((e) => e.currentWeight)).toEqual([70]);
+    });
+
+    it("does an unloaded or time-based exercise at the same setup with about half the reps/time", () => {
+      const result = rampWarmups([
+        ex({ id: "bw", definitionId: "bw", equipmentType: "bodyweight", currentWeight: 0, repMin: 10 }),
+        ex({ id: "plank", definitionId: "plank", equipmentType: "bodyweight", isTimeBased: true, currentWeight: 0, repMin: 60, repMax: { type: "count", value: 60 } }),
+      ]);
+      expect(warmupsBefore(result, "bw")[0].repMin).toBe(5);
+      expect(warmupsBefore(result, "plank")[0].repMin).toBe(30);
+    });
+
+    it("never makes a warm-up AMRAP or to failure", () => {
+      const result = rampWarmups([ex({ id: "bw", definitionId: "bw", equipmentType: "bodyweight", currentWeight: 0, repMax: { type: "failure" }, lastSetAmrap: true })]);
+      const wu = warmupsBefore(result, "bw")[0];
+      expect(wu.repMax.type).toBe("count");
+      expect(wu.lastSetAmrap).toBeUndefined();
+    });
+
+    it("skips an exercise marked skipWarmup", () => {
+      const result = rampWarmups([work({ skipWarmup: true })]);
+      expect(result.map((e) => e.id)).toEqual(["main"]);
+    });
+
+    it("doesn't add warm-ups to a lift already warmed up earlier in the workout", () => {
+      const result = rampWarmups([work(), ex({ id: "main2", definitionId: "bench", order: 3, sets: 2 })]);
+      expect(warmupsBefore(result, "main2")).toEqual([]);
+    });
+
+    it("doesn't add a second warm-up when the program already has a warm-up row for the lift", () => {
+      const result = rampWarmups([sheetWarmup(), work()]);
+      expect(result.filter((e) => e.phase === "warmup").map((e) => e.currentWeight)).toEqual([45, 80, 120, 160]);
+    });
+
+    it("leaves warm-up-phase exercises alone (no warm-up for a warm-up)", () => {
+      const solo = ex({ id: "wu", definitionId: "ext-rot", phase: "warmup", equipmentType: "band", currentWeight: 0 });
+      expect(rampWarmups([solo]).map((e) => e.id)).toEqual(["wu"]);
+    });
+
+    it("rests a minute between auto warm-up steps and into the work set", () => {
+      const ramp = rampWarmups([work()]).filter((e) => e.phase === "warmup");
+      expect(ramp.every((e) => e.restAfter === 60)).toBe(true);
+    });
   });
 });
