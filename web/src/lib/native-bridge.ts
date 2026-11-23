@@ -1,4 +1,5 @@
 import type { ActiveSession } from "./types";
+import { currentSetView } from "./inserted-set";
 
 // The iOS app (mobile/) hosts this site in a React Native WebView. Web → native goes through
 // ReactNativeWebView.postMessage; native → web replies by calling window.__nativeReply.
@@ -78,7 +79,7 @@ export function buildMirrorState(session: ActiveSession, now: number, notify: bo
     exercise: exercise.name,
     set: session.currentSetNumber,
     sets: exercise.sets,
-    weight: session.resolvedWeights[exercise.id] ?? 0,
+    weight: currentSetView(session)?.weight ?? 0,
     restEndsAt: session.isResting ? now + session.restTimeRemaining * 1000 : null,
     restSeconds: exercise.restSeconds || 120,
     notify,

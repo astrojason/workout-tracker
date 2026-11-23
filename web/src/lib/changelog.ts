@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.32.0',
+    date: '2026-11-23',
+    changes: [
+      'New "+ Add Set" button during an exercise: add a set with its own reps and weight right where you are. You do it now, and the planned set moves to the next set number at its own weight. "Remove" takes it back out. A custom set never changes your working weight.',
+    ],
+  },
+  {
     version: '1.31.0',
     date: '2026-11-23',
     changes: [

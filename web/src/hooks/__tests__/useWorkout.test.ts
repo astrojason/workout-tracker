@@ -647,6 +647,86 @@ describe("useWorkout", () => {
     expect(result.current.currentWeight).toBe(200);
   });
 
+  describe("insertSet (a custom set before the current one)", () => {
+    async function startOnSet2() {
+      const exercise = makeExercise({ sets: 3, restSeconds: 0, currentWeight: 135, repMin: 8, repMax: { type: "count", value: 10 } });
+      const workout = makeWorkout({ exercises: [exercise] });
+      const hook = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await hook.result.current.startWorkout(workout, getDefinitions()); });
+      act(() => { hook.result.current.completeSet(10, 135, false, "normal"); });
+      return { ...hook, exercise };
+    }
+
+    it("makes the custom set the current one and pushes the planned set back one", async () => {
+      const { result, exercise } = await startOnSet2();
+      act(() => { result.current.insertSet(5, 115); });
+
+      expect(result.current.session!.currentSetNumber).toBe(2);
+      expect(result.current.currentExercise!.sets).toBe(4);
+      expect(result.current.currentWeight).toBe(115);
+      expect(result.current.currentExercise!.repMax).toEqual({ type: "count", value: 5 });
+
+      act(() => { result.current.completeSet(5, 115, false, "normal"); });
+      const logged = result.current.session!.completedSets[1];
+      expect(logged).toMatchObject({ setNumber: 2, targetWeight: 115, targetReps: 5, actualReps: 5 });
+
+      // The pushed-back planned set is next, with its own targets.
+      expect(result.current.session!.currentSetNumber).toBe(3);
+      expect(result.current.currentWeight).toBe(135);
+      expect(result.current.currentExercise!.repMax).toEqual({ type: "count", value: 10 });
+      expect(result.current.currentExercise!.id).toBe(exercise.id);
+    });
+
+    it("an 'easy' custom set doesn't bump the planned weight", async () => {
+      const { result } = await startOnSet2();
+      act(() => { result.current.insertSet(5, 115); });
+      act(() => { result.current.completeSet(5, 115, false, "easy"); });
+      expect(result.current.currentWeight).toBe(135);
+    });
+
+    it("skipping a custom set removes it without logging anything", async () => {
+      const { result } = await startOnSet2();
+      act(() => { result.current.insertSet(5, 115); });
+      act(() => { result.current.skipSet(); });
+      expect(result.current.session!.completedSets).toHaveLength(1);
+      expect(result.current.session!.currentSetNumber).toBe(2);
+      expect(result.current.currentExercise!.sets).toBe(3);
+      expect(result.current.currentWeight).toBe(135);
+    });
+
+    it("editing the weight during a custom set changes only that set", async () => {
+      const { result, exercise } = await startOnSet2();
+      act(() => { result.current.insertSet(5, 115); });
+      act(() => { result.current.updateWeight(exercise.id, 95); });
+      expect(result.current.currentWeight).toBe(95);
+      act(() => { result.current.completeSet(5, 95, false, "normal"); });
+      expect(result.current.currentWeight).toBe(135);
+    });
+
+    it("rests between the custom set and the planned set like any other set", async () => {
+      const exercise = makeExercise({ sets: 2, restSeconds: 90 });
+      const workout = makeWorkout({ exercises: [exercise] });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+      act(() => { result.current.insertSet(5, 100); });
+      act(() => { result.current.completeSet(5, 100, false, "normal"); });
+      expect(result.current.session!.isResting).toBe(true);
+      expect(result.current.session!.currentSetNumber).toBe(2);
+    });
+
+    it("the custom set is never the final set, so it can't drive progression", async () => {
+      const exercise = makeExercise({ sets: 1, restSeconds: 0, currentWeight: 100 });
+      const workout = makeWorkout({ exercises: [exercise] });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+      act(() => { result.current.insertSet(3, 150); });
+      act(() => { result.current.completeSet(3, 150, false, "easy"); });
+      expect(result.current.session!.ended).toBeFalsy();
+      expect(result.current.session!.currentSetNumber).toBe(2);
+      expect(result.current.currentWeight).toBe(100);
+    });
+  });
+
   it("updateWeight does not affect other exercises", async () => {
     const ex1 = makeExercise({ name: "Ex1", sets: 1, restSeconds: 0, order: 1 });
     const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });

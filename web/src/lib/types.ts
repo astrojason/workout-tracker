@@ -340,6 +340,9 @@ export interface ActiveSession {
   restTimeRemaining: number;
   startTime: Date;
   prsAchieved: PRResult[];
+  // A custom set added mid-exercise, done at the current set position before the planned
+  // set it pushed back (the exercise's `sets` already counts it). See lib/inserted-set.ts.
+  insertedSet?: { exerciseId: string; reps: number; weight: number };
   // Set once the user ends the workout (mid-session or after the last set) so the summary
   // shows even when no PR was achieved. In-memory only: never persisted.
   ended?: boolean;

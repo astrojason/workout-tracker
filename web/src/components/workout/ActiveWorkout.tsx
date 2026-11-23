@@ -8,6 +8,7 @@ import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
 import { SetCompletionModal } from "./SetCompletionModal";
 import { useSound } from "@/hooks/useSound";
+import { currentSetView } from "@/lib/inserted-set";
 
 interface ActiveWorkoutProps {
   session: ActiveSession;
@@ -17,6 +18,7 @@ interface ActiveWorkoutProps {
   onEndWorkout: () => void;
   onUpdateWeight: (exerciseId: string, newWeight: number) => void;
   onUpdateSets: (exerciseId: string, newSets: number) => void;
+  onInsertSet: (reps: number, weight: number) => void;
   onDismiss: () => void;
   onPause: () => void;
   equipmentConfig?: UserEquipmentConfig;
@@ -64,6 +66,59 @@ function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
           </button>
           <button onClick={() => onSave(sets)} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition">
             Update
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Adds a one-off set at the current position, prefilled from the current set's targets.
+function AddSetDialog({ exercise, weight, showWeight, onSave, onCancel }: {
+  exercise: ResolvedExercise;
+  weight: number;
+  showWeight: boolean;
+  onSave: (reps: number, weight: number) => void;
+  onCancel: () => void;
+}) {
+  const timed = isTimeBased(exercise);
+  const [reps, setReps] = useState(exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin);
+  const [setWeight, setSetWeight] = useState(weight);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
+      <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 border border-gray-800">
+        <h3 className="text-lg font-bold mb-1">Add a Set Here</h3>
+        <p className="text-xs text-gray-500 mb-4">You&apos;ll do this set now; the planned set moves to next.</p>
+        <label className="block mb-3">
+          <span className="text-sm text-gray-400">{timed ? "Seconds" : "Reps"}</span>
+          <input
+            type="number"
+            min={1}
+            value={reps}
+            onChange={(e) => setReps(Math.max(1, parseInt(e.target.value) || 1))}
+            className="input-field w-full"
+          />
+        </label>
+        {showWeight && (
+          <label className="block mb-4">
+            <span className="text-sm text-gray-400">Weight</span>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={setWeight}
+              onChange={(e) => setSetWeight(Math.max(0, parseFloat(e.target.value) || 0))}
+              className="input-field w-full"
+            />
+          </label>
+        )}
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition">
+            Cancel
+          </button>
+          <button onClick={() => onSave(reps, showWeight ? setWeight : weight)} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold transition">
+            Add Set
           </button>
         </div>
       </div>
@@ -137,12 +192,13 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onDismiss, onPause, equipmentConfig,
+  onUpdateWeight, onUpdateSets, onInsertSet, onDismiss, onPause, equipmentConfig,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showWeightEditor, setShowWeightEditor] = useState(false);
   const [showSetsEditor, setShowSetsEditor] = useState(false);
+  const [showAddSet, setShowAddSet] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState(0);
   const [timerSide, setTimerSide] = useState<1 | 2>(1);
@@ -151,7 +207,9 @@ export function ActiveWorkout({
   const [timedSeconds, setTimedSeconds] = useState<number | null>(null);
 
   const { playTimerComplete, initAudio } = useSound();
-  const exercise = session.workout.exercises[session.currentExerciseIndex];
+  // A custom set added mid-exercise shows its own reps/weight while it's the current set.
+  const view = currentSetView(session)!;
+  const exercise = view.exercise;
   const timedExercise = isTimeBased(exercise);
   const timerDuration = exercise.repMin;
 
@@ -200,7 +258,7 @@ export function ActiveWorkout({
     setTimerRemaining(timerDuration);
     setTimerRunning(true);
   };
-  const weight = session.resolvedWeights[exercise.id] ?? 0;
+  const weight = view.weight;
   const equipDisplay = getEquipmentDisplay(exercise, weight, equipmentConfig);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
 
@@ -272,7 +330,8 @@ export function ActiveWorkout({
           equipmentDisplay={equipDisplay}
           previousPerformance={session.previousPerformances?.[exercise.id]}
           onEditWeight={weight > 0 || exercise.equipmentType === "assisted_pullup" ? () => setShowWeightEditor(true) : undefined}
-          onEditSets={() => setShowSetsEditor(true)}
+          onEditSets={view.isInserted ? undefined : () => setShowSetsEditor(true)}
+          isCustomSet={view.isInserted}
         />
 
         {/* Exercise Timer */}
@@ -364,7 +423,7 @@ export function ActiveWorkout({
                 onClick={onSkipSet}
                 className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
               >
-                Skip
+                {view.isInserted ? "Remove" : "Skip"}
               </button>
               <button
                 onClick={startTimer}
@@ -385,7 +444,7 @@ export function ActiveWorkout({
                 onClick={onSkipSet}
                 className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-lg"
               >
-                Skip
+                {view.isInserted ? "Remove" : "Skip"}
               </button>
               <button
                 onClick={() => setShowCompletion(true)}
@@ -396,6 +455,14 @@ export function ActiveWorkout({
             </>
           )}
         </div>
+        {!view.isInserted && !timerRunning && !showSwitchSides && (
+          <button
+            onClick={() => setShowAddSet(true)}
+            className="w-full py-3 rounded-xl border border-gray-700 text-indigo-300 hover:bg-gray-900 font-semibold transition"
+          >
+            + Add Set
+          </button>
+        )}
         <button
           onClick={() => setShowEndConfirm(true)}
           className="w-full text-red-400 hover:text-red-300 text-sm py-2 transition"
@@ -423,6 +490,17 @@ export function ActiveWorkout({
         />
       )}
 
+
+      {/* Add a custom set at the current position */}
+      {showAddSet && (
+        <AddSetDialog
+          exercise={exercise}
+          weight={weight}
+          showWeight={weight > 0 || exercise.equipmentType === "assisted_pullup"}
+          onSave={(reps, w) => { setShowAddSet(false); onInsertSet(reps, w); }}
+          onCancel={() => setShowAddSet(false)}
+        />
+      )}
 
       {/* Weight Editor */}
       {showWeightEditor && (
