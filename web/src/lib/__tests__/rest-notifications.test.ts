@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { notifyRestComplete, setRestNotificationsEnabled } from "../rest-notifications";
+import { notifyRestComplete, restCompleteBody, setRestNotificationsEnabled } from "../rest-notifications";
 
 const showNotification = vi.fn().mockResolvedValue(undefined);
 
@@ -57,5 +57,16 @@ describe("rest notifications", () => {
     setRestNotificationsEnabled(false);
     await pending;
     expect(showNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe("restCompleteBody", () => {
+  it("names the next set with its weight and reps", () => {
+    expect(restCompleteBody({ label: "Next Set", detail: "Bench - Set 2 of 3", weight: 135, reps: "8–10 reps" }))
+      .toBe("Next Set: Bench - Set 2 of 3\n135 lb · 8–10 reps");
+  });
+  it("leaves out the weight when there's no load", () => {
+    expect(restCompleteBody({ label: "Up Next", detail: "Plank - Set 1 of 3", weight: 0, reps: "45s" }))
+      .toBe("Up Next: Plank - Set 1 of 3\n45s");
   });
 });

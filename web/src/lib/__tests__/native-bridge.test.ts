@@ -52,7 +52,7 @@ describe("callNative", () => {
 
 describe("buildMirrorState", () => {
   const exercise = (id: string, name: string, sets: number) =>
-    ({ id, name, order: 1, sets, restSeconds: 90 }) as unknown as ActiveSession["workout"]["exercises"][number];
+    ({ id, name, order: id === "a" ? 1 : 2, sets, restSeconds: 90, repMin: 8, repMax: { type: "count", value: 10 }, isTimeBased: false }) as unknown as ActiveSession["workout"]["exercises"][number];
   const session = (over: Partial<ActiveSession> = {}): ActiveSession => ({
     workout: { exercises: [exercise("a", "Bench Press", 3), exercise("b", "Row", 3)] } as unknown as ActiveSession["workout"],
     resolvedWeights: { a: 135, b: 100 },
@@ -70,7 +70,7 @@ describe("buildMirrorState", () => {
     expect(buildMirrorState(session(), 1000, true)).toEqual({
       exercise: "Bench Press", set: 2, sets: 3, weight: 135,
       restEndsAt: null, restSeconds: 90, notify: true,
-      nextLabel: "Next Set", nextDetail: "Bench Press - Set 2",
+      nextLabel: "Next Set", nextDetail: "Bench Press - Set 2 of 3", reps: "8–10 reps",
     });
   });
 
@@ -82,9 +82,14 @@ describe("buildMirrorState", () => {
 
   it("previews the next exercise once the sets are done", () => {
     const s = buildMirrorState(session({
-      isResting: true, restTimeRemaining: 30,
+      isResting: true, restTimeRemaining: 30, currentExerciseIndex: 1, currentSetNumber: 1,
       completedSets: [{ exerciseOrder: 1 }, { exerciseOrder: 1 }, { exerciseOrder: 1 }] as ActiveSession["completedSets"],
     }), 0, true);
-    expect(s).toMatchObject({ nextLabel: "Up Next", nextDetail: "Row" });
+    expect(s).toMatchObject({ nextLabel: "Up Next", nextDetail: "Row - Set 1 of 3", weight: 100, reps: "8–10 reps" });
+  });
+
+  it("carries a custom set's own weight and reps", () => {
+    const s = buildMirrorState(session({ insertedSet: { exerciseId: "a", reps: 5, weight: 115 } }), 0, true);
+    expect(s).toMatchObject({ weight: 115, reps: "5 reps" });
   });
 });

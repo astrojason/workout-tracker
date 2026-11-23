@@ -3,16 +3,19 @@
 import type { ActiveSession, UserEquipmentConfig } from "@/lib/types";
 import { getEquipmentDisplay, equipmentDisplayText } from "@/lib/equipment-calculator";
 import { RestNotificationControl } from "./RestNotificationControl";
+import { currentSetView } from "@/lib/inserted-set";
+import { nextSetSummary } from "@/lib/next-set";
 
 interface RestTimerProps {
   session: ActiveSession;
   onSkipRest: () => void;
   equipmentConfig?: UserEquipmentConfig;
+  anotherSetOf?: string;          // name of the exercise just finished, when one more set of it can be added
+  onAddAnotherSet?: () => void;
 }
 
-export function RestTimer({ session, onSkipRest, equipmentConfig }: RestTimerProps) {
+export function RestTimer({ session, onSkipRest, equipmentConfig, anotherSetOf, onAddAnotherSet }: RestTimerProps) {
   const exercise = session.workout.exercises[session.currentExerciseIndex];
-  const weight = session.resolvedWeights[exercise.id] ?? 0;
   const totalRest = exercise.restSeconds || 120;
   const progress = session.restTimeRemaining / totalRest;
 
@@ -20,27 +23,10 @@ export function RestTimer({ session, onSkipRest, equipmentConfig }: RestTimerPro
   const seconds = session.restTimeRemaining % 60;
   const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-  // Next exercise preview
-  const completedForCurrent = session.completedSets.filter(
-    (s) => s.exerciseOrder === exercise.order
-  ).length;
-  const setsRemaining = exercise.sets - completedForCurrent;
-
-  let nextLabel = "";
-  let nextDetail = "";
-  let equipText = "";
-
-  if (setsRemaining > 0) {
-    nextLabel = "Next Set";
-    nextDetail = `${exercise.name} - Set ${session.currentSetNumber}`;
-    equipText = equipmentDisplayText(getEquipmentDisplay(exercise, weight, equipmentConfig));
-  } else if (session.currentExerciseIndex < session.workout.exercises.length - 1) {
-    const next = session.workout.exercises[session.currentExerciseIndex + 1];
-    const nextWeight = session.resolvedWeights[next.id] ?? 0;
-    nextLabel = "Up Next";
-    nextDetail = next.name;
-    equipText = equipmentDisplayText(getEquipmentDisplay(next, nextWeight, equipmentConfig));
-  }
+  // What comes after this rest: the session has already moved on to it.
+  const next = nextSetSummary(session);
+  const view = currentSetView(session);
+  const equipText = view ? equipmentDisplayText(getEquipmentDisplay(view.exercise, view.weight, equipmentConfig)) : "";
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
@@ -65,14 +51,24 @@ export function RestTimer({ session, onSkipRest, equipmentConfig }: RestTimerPro
         </div>
 
         {/* Next preview */}
-        {nextLabel && (
+        {next && (
           <div className="bg-gray-800/80 rounded-xl p-4 mb-8 backdrop-blur">
-            <p className="text-xs text-gray-400">{nextLabel}</p>
-            <p className="font-semibold">{nextDetail}</p>
+            <p className="text-xs text-gray-400">{next.label}</p>
+            <p className="font-semibold">{next.detail}</p>
+            <p className="text-lg font-bold mt-1">{next.reps}</p>
             {equipText && (
               <p className="text-sm text-indigo-300 mt-1">{equipText}</p>
             )}
           </div>
+        )}
+
+        {anotherSetOf && onAddAnotherSet && (
+          <button
+            onClick={onAddAnotherSet}
+            className="block mx-auto mb-4 px-6 py-3 rounded-full border border-gray-700 text-indigo-300 hover:bg-gray-800 font-semibold transition"
+          >
+            + Another set of {anotherSetOf}
+          </button>
         )}
 
         {/* Skip */}

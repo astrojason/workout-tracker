@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.33.0',
+    date: '2026-11-23',
+    changes: [
+      'After finishing an exercise, "+ Another set of …" (on the rest screen, or on the next exercise until you start it) adds one more set with its own reps and weight, prefilled from the set you just did. Handy for working up to a work weight. As the last set, it counts toward progression.',
+      'The rest screen now shows the reps (or time) of the set coming up, along with its weight.',
+      'Rest-complete notifications (iPhone and browser) include the next set\'s weight and reps. The Live Activity shows the reps too.',
+    ],
+  },
+  {
     version: '1.32.0',
     date: '2026-11-23',
     changes: [

@@ -19,6 +19,8 @@ interface ActiveWorkoutProps {
   onUpdateWeight: (exerciseId: string, newWeight: number) => void;
   onUpdateSets: (exerciseId: string, newSets: number) => void;
   onInsertSet: (reps: number, weight: number) => void;
+  canAddAnotherSet?: boolean;
+  onAddAnotherSet?: (reps: number, weight: number) => void;
   onDismiss: () => void;
   onPause: () => void;
   equipmentConfig?: UserEquipmentConfig;
@@ -74,22 +76,25 @@ function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
 }
 
 // Adds a one-off set at the current position, prefilled from the current set's targets.
-function AddSetDialog({ exercise, weight, showWeight, onSave, onCancel }: {
+function AddSetDialog({ exercise, weight, initialReps, showWeight, title = "Add a Set Here", hint = "You'll do this set now; the planned set moves to next.", onSave, onCancel }: {
   exercise: ResolvedExercise;
   weight: number;
+  initialReps?: number;
   showWeight: boolean;
+  title?: string;
+  hint?: string;
   onSave: (reps: number, weight: number) => void;
   onCancel: () => void;
 }) {
   const timed = isTimeBased(exercise);
-  const [reps, setReps] = useState(exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin);
+  const [reps, setReps] = useState(initialReps ?? (exercise.repMax.type === "count" ? exercise.repMax.value : exercise.repMin));
   const [setWeight, setSetWeight] = useState(weight);
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center">
       <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 border border-gray-800">
-        <h3 className="text-lg font-bold mb-1">Add a Set Here</h3>
-        <p className="text-xs text-gray-500 mb-4">You&apos;ll do this set now; the planned set moves to next.</p>
+        <h3 className="text-lg font-bold mb-1">{title}</h3>
+        <p className="text-xs text-gray-500 mb-4">{hint}</p>
         <label className="block mb-3">
           <span className="text-sm text-gray-400">{timed ? "Seconds" : "Reps"}</span>
           <input
@@ -192,13 +197,14 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onInsertSet, onDismiss, onPause, equipmentConfig,
+  onUpdateWeight, onUpdateSets, onInsertSet, canAddAnotherSet = false, onAddAnotherSet, onDismiss, onPause, equipmentConfig,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showWeightEditor, setShowWeightEditor] = useState(false);
   const [showSetsEditor, setShowSetsEditor] = useState(false);
   const [showAddSet, setShowAddSet] = useState(false);
+  const [showAnotherSet, setShowAnotherSet] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState(0);
   const [timerSide, setTimerSide] = useState<1 | 2>(1);
@@ -259,6 +265,13 @@ export function ActiveWorkout({
     setTimerRunning(true);
   };
   const weight = view.weight;
+
+  // "Another set" of the exercise just finished starts from what you actually did last.
+  const finishedExercise = canAddAnotherSet && onAddAnotherSet ? session.workout.exercises[session.currentExerciseIndex - 1] : null;
+  const lastLogged = finishedExercise
+    ? [...session.completedSets].reverse().find((s) => s.exerciseOrder === finishedExercise.order && !s.skipped)
+    : undefined;
+  const anotherSetWeight = lastLogged?.actualWeight ?? (finishedExercise ? session.resolvedWeights[finishedExercise.id] ?? 0 : 0);
   const equipDisplay = getEquipmentDisplay(exercise, weight, equipmentConfig);
   const progress = (session.currentExerciseIndex / session.workout.exercises.length) * 100;
 
@@ -455,6 +468,14 @@ export function ActiveWorkout({
             </>
           )}
         </div>
+        {finishedExercise && !session.isResting && !timerRunning && !showSwitchSides && (
+          <button
+            onClick={() => setShowAnotherSet(true)}
+            className="w-full py-3 rounded-xl border border-gray-700 text-indigo-300 hover:bg-gray-900 font-semibold transition"
+          >
+            + Another set of {finishedExercise.name}
+          </button>
+        )}
         {!view.isInserted && !timerRunning && !showSwitchSides && (
           <button
             onClick={() => setShowAddSet(true)}
@@ -472,7 +493,15 @@ export function ActiveWorkout({
       </div>
 
       {/* Rest Timer Overlay */}
-      {session.isResting && <RestTimer session={session} onSkipRest={onSkipRest} equipmentConfig={equipmentConfig} />}
+      {session.isResting && (
+        <RestTimer
+          session={session}
+          onSkipRest={onSkipRest}
+          equipmentConfig={equipmentConfig}
+          anotherSetOf={finishedExercise?.name}
+          onAddAnotherSet={() => setShowAnotherSet(true)}
+        />
+      )}
 
       {/* Set Completion Modal */}
       {showCompletion && (
@@ -499,6 +528,20 @@ export function ActiveWorkout({
           showWeight={weight > 0 || exercise.equipmentType === "assisted_pullup"}
           onSave={(reps, w) => { setShowAddSet(false); onInsertSet(reps, w); }}
           onCancel={() => setShowAddSet(false)}
+        />
+      )}
+
+      {/* One more set of the exercise just finished, before this one */}
+      {showAnotherSet && finishedExercise && onAddAnotherSet && (
+        <AddSetDialog
+          exercise={finishedExercise}
+          weight={anotherSetWeight}
+          initialReps={lastLogged?.actualReps}
+          showWeight={anotherSetWeight > 0 || finishedExercise.equipmentType === "assisted_pullup"}
+          title={`Another Set of ${finishedExercise.name}`}
+          hint={`You'll do it before ${exercise.name}. As the last set, it counts toward progression.`}
+          onSave={(reps, w) => { setShowAnotherSet(false); onAddAnotherSet(reps, w); }}
+          onCancel={() => setShowAnotherSet(false)}
         />
       )}
 

@@ -10,6 +10,7 @@ import type { ProgressionChange } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
 import { rampWarmups } from "@/lib/warmup-ramp";
 import { currentSetView } from "@/lib/inserted-set";
+import { nextSetSummary } from "@/lib/next-set";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -96,6 +97,9 @@ function clearPersistedSession() {
 export function useWorkout(userId: string | null) {
   const { showError } = useError();
   const [session, setSession] = useState<ActiveSession | null>(null);
+  // Latest session, for callbacks that fire later (the rest-complete notification).
+  const sessionRef = useRef<ActiveSession | null>(null);
+  sessionRef.current = session;
   useNativeMirror(session);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -293,7 +297,10 @@ export function useWorkout(userId: string | null) {
   function startRestTimerFromEnd(endDate: Date) {
     const generation = ++notificationGenerationRef.current;
     function notify() {
-      void notifyRestComplete(() => notificationGenerationRef.current === generation).catch(showError);
+      void notifyRestComplete(
+        () => notificationGenerationRef.current === generation,
+        () => (sessionRef.current ? nextSetSummary(sessionRef.current) : null),
+      ).catch(showError);
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -387,11 +394,18 @@ export function useWorkout(userId: string | null) {
     // bugs caused by stale closures or rapid state updates.
     const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
-    if (onInsertedSet) {
+    if (onInsertedSet && setsRemaining > 0) {
       // The planned set this custom set pushed back is next, at the plan's own weight:
       // a custom set's weight or rating never carries into it.
       setSession({ ...updatedSession, insertedSet: undefined, currentSetNumber: session.currentSetNumber + 1 });
       if (betweenSetRest > 0) startRestTimer(betweenSetRest);
+    } else if (onInsertedSet && session.currentExerciseIndex < session.workout.exercises.length - 1) {
+      // An extra set added after the exercise finished: carry on to the next exercise.
+      setSession({ ...updatedSession, insertedSet: undefined, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
+      if (betweenExerciseRest > 0) startRestTimer(betweenExerciseRest);
+    } else if (onInsertedSet) {
+      setSession({ ...updatedSession, insertedSet: undefined });
+      endWorkoutInternal(newSets);
     } else if (setsRemaining > 0) {
       // The weight just logged (edited in the set dialog or not) carries into
       // the next set of this exercise; for assisted exercises that's the band count.
@@ -431,7 +445,12 @@ export function useWorkout(userId: string | null) {
       const exercises = session.workout.exercises.map((e) =>
         e.id === currentExercise.id ? { ...e, sets: Math.max(1, e.sets - 1) } : e
       );
-      setSession({ ...session, insertedSet: undefined, workout: { ...session.workout, exercises } });
+      const removed = { ...session, insertedSet: undefined, workout: { ...session.workout, exercises } };
+      // An extra set after the exercise was done: go back to where we were, the next exercise.
+      const wasExtra = session.currentSetNumber > currentExercise.sets - 1;
+      setSession(wasExtra && session.currentExerciseIndex < exercises.length - 1
+        ? { ...removed, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 }
+        : removed);
       return;
     }
 
@@ -640,6 +659,31 @@ export function useWorkout(userId: string | null) {
     });
   }, []);
 
+  // One more set of the exercise just finished (e.g. working up to a work weight), done before
+  // the next exercise. Only offered until the next exercise's first set is logged; a rest
+  // that's already running keeps running.
+  const canAddAnotherSet = Boolean(
+    session && !session.insertedSet && session.currentExerciseIndex > 0 && session.currentSetNumber === 1 &&
+    !session.completedSets.some((s) => s.exerciseOrder === session.workout.exercises[session.currentExerciseIndex].order)
+  );
+  const addAnotherSet = useCallback((reps: number, weight: number) => {
+    setSession((prev) => {
+      if (!prev || prev.insertedSet || prev.currentExerciseIndex === 0 || prev.currentSetNumber !== 1) return prev;
+      const current = prev.workout.exercises[prev.currentExerciseIndex];
+      if (prev.completedSets.some((s) => s.exerciseOrder === current.order)) return prev;
+      const index = prev.currentExerciseIndex - 1;
+      const finished = prev.workout.exercises[index];
+      const exercises = prev.workout.exercises.map((e, i) => (i === index ? { ...e, sets: e.sets + 1 } : e));
+      return {
+        ...prev,
+        workout: { ...prev.workout, exercises },
+        currentExerciseIndex: index,
+        currentSetNumber: finished.sets + 1,
+        insertedSet: { exerciseId: finished.id, reps, weight },
+      };
+    });
+  }, []);
+
   // Adds a custom set at the current position; the planned current set becomes the next one.
   const insertSet = useCallback((reps: number, weight: number) => {
     setSession((prev) => {
@@ -731,5 +775,7 @@ export function useWorkout(userId: string | null) {
     updateSets,
     insertSet,
     isInsertedSet: onInsertedSet,
+    canAddAnotherSet,
+    addAnotherSet,
   };
 }

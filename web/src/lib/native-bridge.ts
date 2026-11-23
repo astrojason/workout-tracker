@@ -1,5 +1,5 @@
 import type { ActiveSession } from "./types";
-import { currentSetView } from "./inserted-set";
+import { nextSetSummary } from "./next-set";
 
 // The iOS app (mobile/) hosts this site in a React Native WebView. Web → native goes through
 // ReactNativeWebView.postMessage; native → web replies by calling window.__nativeReply.
@@ -58,32 +58,22 @@ export interface WorkoutMirrorState {
   notify: boolean; // whether to post a "rest complete" notification
   nextLabel: string;
   nextDetail: string;
+  reps: string; // rep/time target of the set shown, e.g. "8–10 reps"
 }
 
 export function buildMirrorState(session: ActiveSession, now: number, notify: boolean): WorkoutMirrorState {
-  const exercises = session.workout.exercises;
-  const exercise = exercises[session.currentExerciseIndex];
-  const completed = session.completedSets.filter((s) => s.exerciseOrder === exercise.order).length;
-
-  let nextLabel = "";
-  let nextDetail = "";
-  if (exercise.sets - completed > 0) {
-    nextLabel = "Next Set";
-    nextDetail = `${exercise.name} - Set ${session.currentSetNumber}`;
-  } else if (session.currentExerciseIndex < exercises.length - 1) {
-    nextLabel = "Up Next";
-    nextDetail = exercises[session.currentExerciseIndex + 1].name;
-  }
-
+  const exercise = session.workout.exercises[session.currentExerciseIndex];
+  const next = nextSetSummary(session);
   return {
     exercise: exercise.name,
     set: session.currentSetNumber,
     sets: exercise.sets,
-    weight: currentSetView(session)?.weight ?? 0,
+    weight: next?.weight ?? 0,
     restEndsAt: session.isResting ? now + session.restTimeRemaining * 1000 : null,
     restSeconds: exercise.restSeconds || 120,
     notify,
-    nextLabel,
-    nextDetail,
+    nextLabel: next?.label ?? "",
+    nextDetail: next?.detail ?? "",
+    reps: next?.reps ?? "",
   };
 }

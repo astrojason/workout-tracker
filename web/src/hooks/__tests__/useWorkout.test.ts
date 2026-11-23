@@ -727,6 +727,77 @@ describe("useWorkout", () => {
     });
   });
 
+  describe("addAnotherSet (one more set of the exercise just finished)", () => {
+    async function finishFirstExercise(restSeconds = 0) {
+      const bench = makeExercise({ name: "Bench", sets: 2, restSeconds, currentWeight: 135, order: 1 });
+      const row = makeExercise({ name: "Row", sets: 2, restSeconds: 0, currentWeight: 100, order: 2 });
+      const workout = makeWorkout({ exercises: [bench, row] });
+      const hook = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await hook.result.current.startWorkout(workout, getDefinitions()); });
+      act(() => { hook.result.current.completeSet(10, 135, false, "normal"); });
+      act(() => { hook.result.current.skipRest(); });
+      act(() => { hook.result.current.completeSet(10, 135, false, "normal"); });
+      return { ...hook, bench, row };
+    }
+
+    it("goes back to the finished exercise for an extra set with its own reps and weight", async () => {
+      const { result, bench } = await finishFirstExercise();
+      expect(result.current.currentExercise!.name).toBe("Row");
+      expect(result.current.canAddAnotherSet).toBe(true);
+
+      act(() => { result.current.addAnotherSet(6, 145); });
+      expect(result.current.currentExercise!.id).toBe(bench.id);
+      expect(result.current.session!.currentSetNumber).toBe(3);
+      expect(result.current.currentExercise!.sets).toBe(3);
+      expect(result.current.currentWeight).toBe(145);
+
+      act(() => { result.current.completeSet(6, 145, false, "normal"); });
+      expect(result.current.session!.completedSets[2]).toMatchObject({ setNumber: 3, targetWeight: 145, targetReps: 6 });
+      expect(result.current.currentExercise!.name).toBe("Row");
+      expect(result.current.session!.currentSetNumber).toBe(1);
+      expect(result.current.currentWeight).toBe(100);
+    });
+
+    it("keeps the rest that's already running", async () => {
+      const bench = makeExercise({ name: "Bench", sets: 1, restSeconds: 90, currentWeight: 135, order: 1, restAfter: 90 });
+      const row = makeExercise({ name: "Row", sets: 1, restSeconds: 0, currentWeight: 100, order: 2 });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await result.current.startWorkout(makeWorkout({ exercises: [bench, row] }), getDefinitions()); });
+      act(() => { result.current.completeSet(10, 135, false, "normal"); });
+      expect(result.current.session!.isResting).toBe(true);
+      act(() => { result.current.addAnotherSet(5, 155); });
+      expect(result.current.session!.isResting).toBe(true);
+      expect(result.current.currentExercise!.name).toBe("Bench");
+    });
+
+    it("isn't offered once the next exercise has started, or on the first exercise", async () => {
+      const { result } = await finishFirstExercise();
+      act(() => { result.current.completeSet(10, 100, false, "normal"); });
+      expect(result.current.canAddAnotherSet).toBe(false);
+      act(() => { result.current.addAnotherSet(5, 100); });
+      expect(result.current.currentExercise!.name).toBe("Row");
+      expect(result.current.session!.currentSetNumber).toBe(2);
+    });
+
+    it("Remove on the extra set goes back to the next exercise", async () => {
+      const { result, bench } = await finishFirstExercise();
+      act(() => { result.current.addAnotherSet(6, 145); });
+      act(() => { result.current.skipSet(); });
+      expect(result.current.currentExercise!.name).toBe("Row");
+      expect(result.current.session!.currentSetNumber).toBe(1);
+      expect(result.current.session!.workout.exercises.find((e) => e.id === bench.id)!.sets).toBe(2);
+      expect(result.current.session!.completedSets).toHaveLength(2);
+    });
+
+    it("the extra set is the exercise's final set, so its result drives progression", async () => {
+      const { result, bench } = await finishFirstExercise();
+      act(() => { result.current.addAnotherSet(8, 145); });
+      act(() => { result.current.completeSet(8, 145, false, "normal"); });
+      const last = result.current.session!.completedSets.filter((s) => s.definitionId === bench.definitionId).at(-1)!;
+      expect(last.actualWeight).toBe(145);
+    });
+  });
+
   it("updateWeight does not affect other exercises", async () => {
     const ex1 = makeExercise({ name: "Ex1", sets: 1, restSeconds: 0, order: 1 });
     const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });
