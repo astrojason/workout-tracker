@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.33.1',
+    date: '2026-11-23',
+    changes: [
+      'AMRAP sets are no longer rated: they always count as Hard, so the Easy/Normal/Hard buttons are hidden for them and an AMRAP set never bumps the next set\'s weight.',
+    ],
+  },
+  {
     version: '1.33.0',
     date: '2026-11-23',
     changes: [

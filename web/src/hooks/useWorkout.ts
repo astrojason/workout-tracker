@@ -347,8 +347,14 @@ export function useWorkout(userId: string | null) {
     startRestTimerFromEnd(endDate);
   }
 
-  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => {
+  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, givenRating: "easy" | "normal" | "hard", notes?: string) => {
     if (!session || !currentExercise) return;
+
+    // AMRAP sets are hard by design, so their rating never counts: always recorded as hard
+    // (which also means an AMRAP set never live-bumps the next set's weight).
+    const isAmrapSet = currentExercise.repMax.type === "failure" ||
+      (currentExercise.lastSetAmrap === true && session.currentSetNumber === currentExercise.sets);
+    const rating = isAmrapSet ? "hard" : givenRating;
 
     const targetReps =
       currentExercise.repMax.type === "count" &&

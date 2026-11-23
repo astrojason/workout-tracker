@@ -136,3 +136,37 @@ describe("adding a custom set mid-exercise", () => {
     expect(onSkipSet).toHaveBeenCalled();
   });
 });
+
+describe("AMRAP set completion", () => {
+  const curls: ResolvedExercise = {
+    ...plank, id: "curl", definitionId: "def-curl", name: "Curl", equipmentType: "dumbbell", progressionRule: "add_5lb",
+    isTimeBased: false, currentWeight: 30, sets: 2, repMin: 8, repMax: { type: "count", value: 10 }, lastSetAmrap: true,
+  };
+  function renderAt(setNumber: number) {
+    const onCompleteSet = vi.fn();
+    const s: ActiveSession = {
+      workout: { id: "w", programId: "p", programName: "Program", week: 1, dayOfWeek: "Thursday", exercises: [curls] },
+      resolvedWeights: { curl: 30 }, currentExerciseIndex: 0, currentSetNumber: setNumber, completedSets: [],
+      isResting: false, restTimeRemaining: 0, startTime: new Date(), prsAchieved: [],
+    };
+    render(
+      <ActiveWorkout session={s} onCompleteSet={onCompleteSet} onSkipSet={vi.fn()} onSkipRest={vi.fn()} onEndWorkout={vi.fn()}
+        onUpdateWeight={vi.fn()} onUpdateSets={vi.fn()} onInsertSet={vi.fn()} onDismiss={vi.fn()} onPause={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Complete Set" }));
+    return onCompleteSet;
+  }
+
+  it("doesn't ask for a rating on an AMRAP set and saves it as hard", () => {
+    const onCompleteSet = renderAt(2);
+    expect(screen.queryByRole("button", { name: "Easy" })).toBeNull();
+    expect(screen.getByText(/AMRAP sets count as Hard/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onCompleteSet.mock.calls[0][3]).toBe("hard");
+  });
+
+  it("still asks for a rating on a normal set", () => {
+    renderAt(1);
+    expect(screen.getByRole("button", { name: "Easy" })).toBeInTheDocument();
+  });
+});

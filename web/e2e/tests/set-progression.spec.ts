@@ -86,11 +86,13 @@ test.describe("Set progression with rest timer", () => {
     });
 
     test("advancing past Set 3 ends the workout, not skipping to next exercise", async ({ page }) => {
-        const completeSet = async (reps: string) => {
+        const completeSet = async (reps: string, amrap = false) => {
             await page.getByRole("button", { name: /complete set/i }).click();
             await page.getByLabel(/reps/i).fill(reps);
             await page.getByLabel(/weight/i).fill("90");
-            await page.getByRole("button", { name: /normal/i }).click();
+            // An AMRAP set isn't rated: it always counts as hard.
+            if (amrap) await expect(page.getByText(/AMRAP sets count as Hard/)).toBeVisible();
+            else await page.getByRole("button", { name: /normal/i }).click();
             await page.getByRole("button", { name: /save/i }).click();
             const skipBtn = page.getByRole("button", { name: /skip rest/i });
             if (await skipBtn.isVisible()) await skipBtn.click();
@@ -98,7 +100,7 @@ test.describe("Set progression with rest timer", () => {
 
         await completeSet("9");
         await completeSet("8");
-        await completeSet("12"); // AMRAP set
+        await completeSet("12", true); // AMRAP set
 
         // Workout complete screen should appear
         await expect(page.getByText(/workout complete/i)).toBeVisible();

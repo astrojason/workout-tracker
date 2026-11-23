@@ -798,6 +798,27 @@ describe("useWorkout", () => {
     });
   });
 
+  describe("AMRAP sets are always rated hard", () => {
+    it("records an all-AMRAP set as hard, whatever rating is passed, and doesn't live-bump", async () => {
+      const exercise = makeExercise({ sets: 3, restSeconds: 0, currentWeight: 100, repMax: { type: "failure" } });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await result.current.startWorkout(makeWorkout({ exercises: [exercise] }), getDefinitions()); });
+      act(() => { result.current.completeSet(12, 100, false, "easy"); });
+      expect(result.current.session!.completedSets[0].rating).toBe("hard");
+      expect(result.current.currentWeight).toBe(100);
+    });
+
+    it("records the lastSetAmrap final set as hard, but earlier sets keep their rating", async () => {
+      const exercise = makeExercise({ sets: 2, restSeconds: 0, currentWeight: 100, lastSetAmrap: true });
+      const other = makeExercise({ name: "Other", sets: 1, restSeconds: 0, order: 2 });
+      const { result } = renderHook(() => useWorkout("user-1"));
+      await act(async () => { await result.current.startWorkout(makeWorkout({ exercises: [exercise, other] }), getDefinitions()); });
+      act(() => { result.current.completeSet(10, 100, false, "normal"); });
+      act(() => { result.current.completeSet(14, 100, false, "easy"); });
+      expect(result.current.session!.completedSets.map((s) => s.rating)).toEqual(["normal", "hard"]);
+    });
+  });
+
   it("updateWeight does not affect other exercises", async () => {
     const ex1 = makeExercise({ name: "Ex1", sets: 1, restSeconds: 0, order: 1 });
     const ex2 = makeExercise({ name: "Ex2", sets: 1, restSeconds: 0, order: 2 });
