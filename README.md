@@ -92,7 +92,7 @@ Next.js App Router + Firebase Auth (Google) + Firestore
 Weights are planned in the XLSX and then move on their own as you train (`lib/progression-service.ts`):
 
 - `base_weight: fixed` → that value; `"progressive"` → seeded from `total_weight` (or the last session)
-- When a session is saved, each exercise's next weight is chosen from its `progression_rule` using the final set: reps against the rep range, the Easy/Normal/Hard rating, and an Epley 1RM projection for AMRAP sets (capped at 2× the target reps)
+- When a session is saved, each exercise's next weight is chosen from its `progression_rule` using the final set: reps against the rep range, the Easy/Normal/Hard rating, and an Epley 1RM projection for AMRAP sets (capped at 2× the target reps). AMRAP sets aren't rated: they always count as Hard
 - A weight is held after 2+ weeks away from an exercise and drops one increment after 4+ weeks
 - Deleting a session undoes the weight changes it caused
 - You can override a weight before or during a workout with the weight editor

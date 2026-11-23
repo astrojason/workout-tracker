@@ -9,6 +9,8 @@ import { resolveWorkout } from "@/lib/types";
 import type { ProgressionChange } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
 import { rampWarmups } from "@/lib/warmup-ramp";
+import { currentSetView } from "@/lib/inserted-set";
+import { nextSetSummary } from "@/lib/next-set";
 import { checkForPRs } from "@/lib/pr-detector";
 import { saveSession, updateProgramExerciseWeight } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -95,6 +97,9 @@ function clearPersistedSession() {
 export function useWorkout(userId: string | null) {
   const { showError } = useError();
   const [session, setSession] = useState<ActiveSession | null>(null);
+  // Latest session, for callbacks that fire later (the rest-complete notification).
+  const sessionRef = useRef<ActiveSession | null>(null);
+  sessionRef.current = session;
   useNativeMirror(session);
   const [pausedSession, setPausedSession] = useState<ActiveSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -275,8 +280,10 @@ export function useWorkout(userId: string | null) {
     }
   }, [userId, initAudio, showError]);
 
-  const currentExercise = session?.workout.exercises[session.currentExerciseIndex] ?? null;
-  const currentWeight = currentExercise ? (session?.resolvedWeights[currentExercise.id] ?? 0) : 0;
+  const currentView = session ? currentSetView(session) : null;
+  const currentExercise = currentView?.exercise ?? null;
+  const currentWeight = currentView?.weight ?? 0;
+  const onInsertedSet = currentView?.isInserted ?? false;
 
   const setsCompletedForCurrent = session ? session.currentSetNumber - 1 : 0;
 
@@ -290,7 +297,10 @@ export function useWorkout(userId: string | null) {
   function startRestTimerFromEnd(endDate: Date) {
     const generation = ++notificationGenerationRef.current;
     function notify() {
-      void notifyRestComplete(() => notificationGenerationRef.current === generation).catch(showError);
+      void notifyRestComplete(
+        () => notificationGenerationRef.current === generation,
+        () => (sessionRef.current ? nextSetSummary(sessionRef.current) : null),
+      ).catch(showError);
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -337,8 +347,14 @@ export function useWorkout(userId: string | null) {
     startRestTimerFromEnd(endDate);
   }
 
-  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, rating: "easy" | "normal" | "hard", notes?: string) => {
+  const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, givenRating: "easy" | "normal" | "hard", notes?: string) => {
     if (!session || !currentExercise) return;
+
+    // AMRAP sets are hard by design, so their rating never counts: always recorded as hard
+    // (which also means an AMRAP set never live-bumps the next set's weight).
+    const isAmrapSet = currentExercise.repMax.type === "failure" ||
+      (currentExercise.lastSetAmrap === true && session.currentSetNumber === currentExercise.sets);
+    const rating = isAmrapSet ? "hard" : givenRating;
 
     const targetReps =
       currentExercise.repMax.type === "count" &&
@@ -384,7 +400,19 @@ export function useWorkout(userId: string | null) {
     // bugs caused by stale closures or rapid state updates.
     const betweenSetRest = currentExercise.restSeconds;
     const betweenExerciseRest = effectiveRestSeconds(currentExercise);
-    if (setsRemaining > 0) {
+    if (onInsertedSet && setsRemaining > 0) {
+      // The planned set this custom set pushed back is next, at the plan's own weight:
+      // a custom set's weight or rating never carries into it.
+      setSession({ ...updatedSession, insertedSet: undefined, currentSetNumber: session.currentSetNumber + 1 });
+      if (betweenSetRest > 0) startRestTimer(betweenSetRest);
+    } else if (onInsertedSet && session.currentExerciseIndex < session.workout.exercises.length - 1) {
+      // An extra set added after the exercise finished: carry on to the next exercise.
+      setSession({ ...updatedSession, insertedSet: undefined, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 });
+      if (betweenExerciseRest > 0) startRestTimer(betweenExerciseRest);
+    } else if (onInsertedSet) {
+      setSession({ ...updatedSession, insertedSet: undefined });
+      endWorkoutInternal(newSets);
+    } else if (setsRemaining > 0) {
       // The weight just logged (edited in the set dialog or not) carries into
       // the next set of this exercise; for assisted exercises that's the band count.
       // Live autoregulation: an "easy" set also bumps it for the very next set,
@@ -413,10 +441,24 @@ export function useWorkout(userId: string | null) {
       setSession(updatedSession);
       endWorkoutInternal(newSets);
     }
-  }, [session, currentExercise, currentWeight, playSetComplete]);
+  }, [session, currentExercise, currentWeight, onInsertedSet, playSetComplete]);
 
   const skipSet = useCallback(() => {
     if (!session || !currentExercise) return;
+
+    if (onInsertedSet) {
+      // Skipping a custom set just takes it back out; there's nothing planned to record.
+      const exercises = session.workout.exercises.map((e) =>
+        e.id === currentExercise.id ? { ...e, sets: Math.max(1, e.sets - 1) } : e
+      );
+      const removed = { ...session, insertedSet: undefined, workout: { ...session.workout, exercises } };
+      // An extra set after the exercise was done: go back to where we were, the next exercise.
+      const wasExtra = session.currentSetNumber > currentExercise.sets - 1;
+      setSession(wasExtra && session.currentExerciseIndex < exercises.length - 1
+        ? { ...removed, currentExerciseIndex: session.currentExerciseIndex + 1, currentSetNumber: 1 }
+        : removed);
+      return;
+    }
 
     const skipped: CompletedSet = {
       id: crypto.randomUUID(),
@@ -454,7 +496,7 @@ export function useWorkout(userId: string | null) {
       setSession({ ...session, completedSets: newSets });
       endWorkoutInternal(newSets);
     }
-  }, [session, currentExercise, currentWeight]);
+  }, [session, currentExercise, currentWeight, onInsertedSet]);
 
   const skipRest = useCallback(() => {
     notificationGenerationRef.current++;
@@ -613,10 +655,54 @@ export function useWorkout(userId: string | null) {
   }, [pausedSession]);
 
   const updateWeight = useCallback((exerciseId: string, newWeight: number) => {
-    setSession((prev) => prev ? {
-      ...prev,
-      resolvedWeights: { ...prev.resolvedWeights, [exerciseId]: newWeight },
-    } : prev);
+    setSession((prev) => {
+      if (!prev) return prev;
+      // During a custom set the weight editor changes that set, not the plan.
+      if (prev.insertedSet?.exerciseId === exerciseId) {
+        return { ...prev, insertedSet: { ...prev.insertedSet, weight: newWeight } };
+      }
+      return { ...prev, resolvedWeights: { ...prev.resolvedWeights, [exerciseId]: newWeight } };
+    });
+  }, []);
+
+  // One more set of the exercise just finished (e.g. working up to a work weight), done before
+  // the next exercise. Only offered until the next exercise's first set is logged; a rest
+  // that's already running keeps running.
+  const canAddAnotherSet = Boolean(
+    session && !session.insertedSet && session.currentExerciseIndex > 0 && session.currentSetNumber === 1 &&
+    !session.completedSets.some((s) => s.exerciseOrder === session.workout.exercises[session.currentExerciseIndex].order)
+  );
+  const addAnotherSet = useCallback((reps: number, weight: number) => {
+    setSession((prev) => {
+      if (!prev || prev.insertedSet || prev.currentExerciseIndex === 0 || prev.currentSetNumber !== 1) return prev;
+      const current = prev.workout.exercises[prev.currentExerciseIndex];
+      if (prev.completedSets.some((s) => s.exerciseOrder === current.order)) return prev;
+      const index = prev.currentExerciseIndex - 1;
+      const finished = prev.workout.exercises[index];
+      const exercises = prev.workout.exercises.map((e, i) => (i === index ? { ...e, sets: e.sets + 1 } : e));
+      return {
+        ...prev,
+        workout: { ...prev.workout, exercises },
+        currentExerciseIndex: index,
+        currentSetNumber: finished.sets + 1,
+        insertedSet: { exerciseId: finished.id, reps, weight },
+      };
+    });
+  }, []);
+
+  // Adds a custom set at the current position; the planned current set becomes the next one.
+  const insertSet = useCallback((reps: number, weight: number) => {
+    setSession((prev) => {
+      if (!prev || prev.insertedSet) return prev;
+      const exercise = prev.workout.exercises[prev.currentExerciseIndex];
+      if (!exercise) return prev;
+      const exercises = prev.workout.exercises.map((e) => (e.id === exercise.id ? { ...e, sets: e.sets + 1 } : e));
+      return {
+        ...prev,
+        workout: { ...prev.workout, exercises },
+        insertedSet: { exerciseId: exercise.id, reps, weight },
+      };
+    });
   }, []);
 
   const retrySave = useCallback(async () => {
@@ -693,5 +779,9 @@ export function useWorkout(userId: string | null) {
     retrySave,
     updateWeight,
     updateSets,
+    insertSet,
+    isInsertedSet: onInsertedSet,
+    canAddAnotherSet,
+    addAnotherSet,
   };
 }

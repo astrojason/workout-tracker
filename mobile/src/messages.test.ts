@@ -22,6 +22,14 @@ describe("restNotificationContent", () => {
   it("names the next set", () => {
     expect(restNotificationContent({ nextLabel: "Next Set", nextDetail: "Bench - Set 2" } as never).body).toBe("Next Set: Bench - Set 2");
   });
+  it("adds the next set's weight and reps on a second line", () => {
+    const body = restNotificationContent({ nextLabel: "Next Set", nextDetail: "Bench - Set 2 of 3", weight: 135, reps: "8–10 reps" } as never).body;
+    expect(body).toBe("Next Set: Bench - Set 2 of 3\n135 lb · 8–10 reps");
+  });
+  it("leaves out the weight when there's no load", () => {
+    const body = restNotificationContent({ nextLabel: "Up Next", nextDetail: "Plank - Set 1 of 3", weight: 0, reps: "45s" } as never).body;
+    expect(body).toBe("Up Next: Plank - Set 1 of 3\n45s");
+  });
   it("falls back when there is no next step", () => {
     expect(restNotificationContent({ nextLabel: "", nextDetail: "" } as never).body).toBe("Time for your next set.");
   });

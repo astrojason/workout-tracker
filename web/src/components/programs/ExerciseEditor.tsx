@@ -136,6 +136,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
   const [repMaxValue, setRepMaxValue] = useState(exercise?.repMax.type === "count" ? exercise.repMax.value : 12);
   const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
   const [skipRest, setSkipRest] = useState(exercise?.restAfter === false);
+  const [skipWarmup, setSkipWarmup] = useState(exercise?.skipWarmup === true);
   const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
@@ -162,6 +163,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
       notes: notes.trim() || null,
       ...(finalSetAmrap ? { lastSetAmrap: true as const } : {}),
       ...(skipRest ? { restAfter: false as const } : {}),
+      ...(skipWarmup && phase !== "warmup" ? { skipWarmup: true as const } : {}),
     };
 
     if (creatingNew) {
@@ -392,6 +394,19 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, onSave, onCanc
             <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${skipRest ? "translate-x-6" : "translate-x-1"}`} />
           </button>
         </div>
+
+        {/* Every non-warm-up exercise gets auto warm-up sets (warmup-ramp.ts) unless this is on */}
+        {phase !== "warmup" && (
+          <label className="mb-4 flex items-center justify-between cursor-pointer">
+            <span className="text-sm text-gray-400">Skip Warm-Up Sets</span>
+            <input
+              type="checkbox"
+              checked={skipWarmup}
+              onChange={(e) => setSkipWarmup(e.target.checked)}
+              className="w-5 h-5 accent-indigo-600"
+            />
+          </label>
+        )}
 
         {/* Progression + Muscle Groups + Unilateral (new only) */}
         {creatingNew && (

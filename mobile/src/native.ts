@@ -9,9 +9,10 @@ import { parseHomeSummary, restNotificationContent, type BridgeMessage, type Wor
 
 const REST_NOTIFICATION_ID = "rest-complete";
 
-// While the app is open the web app already plays its own sound, so don't also show a banner.
+// While the app is open, still show the banner (you may be on another screen or looking away),
+// but stay silent: the web app already plays its own rest-complete sound.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false }),
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
 });
 
 const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;

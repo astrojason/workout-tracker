@@ -160,6 +160,9 @@ export default function HomePage() {
         }}
         onUpdateWeight={workout.updateWeight}
         onUpdateSets={workout.updateSets}
+        onInsertSet={workout.insertSet}
+        canAddAnotherSet={workout.canAddAnotherSet}
+        onAddAnotherSet={workout.addAnotherSet}
         onDismiss={workout.dismissWorkout}
         onPause={workout.pauseWorkout}
         equipmentConfig={equipmentConfig}

@@ -7,6 +7,38 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.33.1',
+    date: '2026-11-23',
+    changes: [
+      'AMRAP sets are no longer rated: they always count as Hard, so the Easy/Normal/Hard buttons are hidden for them and an AMRAP set never bumps the next set\'s weight.',
+    ],
+  },
+  {
+    version: '1.33.0',
+    date: '2026-11-23',
+    changes: [
+      'After finishing an exercise, "+ Another set of …" (on the rest screen, or on the next exercise until you start it) adds one more set with its own reps and weight, prefilled from the set you just did. Handy for working up to a work weight. As the last set, it counts toward progression.',
+      'The rest screen now shows the reps (or time) of the set coming up, along with its weight.',
+      'Rest-complete notifications (iPhone and browser) include the next set\'s weight and reps. The Live Activity shows the reps too.',
+    ],
+  },
+  {
+    version: '1.32.0',
+    date: '2026-11-23',
+    changes: [
+      'New "+ Add Set" button during an exercise: add a set with its own reps and weight right where you are. You do it now, and the planned set moves to the next set number at its own weight. "Remove" takes it back out. A custom set never changes your working weight.',
+    ],
+  },
+  {
+    version: '1.31.0',
+    date: '2026-11-23',
+    changes: [
+      'Every exercise outside the warm-up phase now gets at least one warm-up set, even with no warm-up row in the program: a ramp for barbell and PowerBlock lifts, one set at about half weight for other loaded lifts, and a half-reps set for bodyweight, band and timed exercises.',
+      'New "Skip Warm-Up Sets" checkbox on an exercise in the program editor.',
+      'iPhone app: rest-complete alerts now show as a banner while the app is open, not only when the phone is locked (silent, since the web app plays its own sound).',
+    ],
+  },
+  {
     version: '1.30.0',
     date: '2026-11-23',
     changes: [

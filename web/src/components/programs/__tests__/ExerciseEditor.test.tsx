@@ -413,6 +413,37 @@ describe("ExerciseEditor", () => {
       expect(screen.getByPlaceholderText("e.g. Bench Press")).toBeInTheDocument();
     });
 
+    it("saves skipWarmup when Skip Warm-Up Sets is checked, and round-trips it", () => {
+      const { unmount } = render(
+        <ExerciseEditor exercise={existingOccurrence} maxOrder={9} definitions={[benchDefinition]} onSave={onSave} onCancel={onCancel} />
+      );
+      const box = screen.getByLabelText("Skip Warm-Up Sets") as HTMLInputElement;
+      expect(box.checked).toBe(false);
+      fireEvent.click(box);
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      const saved = onSave.mock.calls[0][0] as ExerciseEditorResult;
+      if (saved.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(saved.occurrence.skipWarmup).toBe(true);
+      unmount();
+
+      render(
+        <ExerciseEditor exercise={{ ...existingOccurrence, skipWarmup: true }} maxOrder={9} definitions={[benchDefinition]} onSave={onSave} onCancel={onCancel} />
+      );
+      expect((screen.getByLabelText("Skip Warm-Up Sets") as HTMLInputElement).checked).toBe(true);
+      fireEvent.click(screen.getByLabelText("Skip Warm-Up Sets"));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      const cleared = onSave.mock.calls[1][0] as ExerciseEditorResult;
+      if (cleared.kind !== "existing") throw new Error("expected kind 'existing'");
+      expect(cleared.occurrence.skipWarmup).toBeUndefined();
+    });
+
+    it("doesn't offer Skip Warm-Up Sets on a warm-up exercise", () => {
+      render(
+        <ExerciseEditor exercise={{ ...existingOccurrence, phase: "warmup" }} maxOrder={9} definitions={[benchDefinition]} onSave={onSave} onCancel={onCancel} />
+      );
+      expect(screen.queryByLabelText("Skip Warm-Up Sets")).toBeNull();
+    });
+
     it("pre-checks Skip Rest Before Next Exercise when the occurrence has restAfter:false, and preserves it untouched", () => {
       const noRestOccurrence: Exercise = { ...existingOccurrence, restAfter: false };
       render(

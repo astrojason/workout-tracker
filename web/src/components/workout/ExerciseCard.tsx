@@ -12,6 +12,7 @@ interface ExerciseCardProps {
   previousPerformance?: PreviousExercisePerformance;
   onEditWeight?: () => void;
   onEditSets?: () => void;
+  isCustomSet?: boolean; // the current set was added mid-exercise (see lib/inserted-set.ts)
 }
 
 function PlateLoadGuide({ equipmentDisplay }: { equipmentDisplay: EquipmentDisplay }) {
@@ -99,7 +100,7 @@ function EquipmentContent({ exercise, equipmentDisplay, editable, previousPerfor
   );
 }
 
-export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, previousPerformance, onEditWeight, onEditSets }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, previousPerformance, onEditWeight, onEditSets, isCustomSet }: ExerciseCardProps) {
   const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
 
   return (
@@ -117,7 +118,10 @@ export function ExerciseCard({ exercise, setNumber, weight, equipmentDisplay, pr
         className={`flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3 mb-3 ${onEditSets ? "cursor-pointer active:bg-gray-700" : ""}`}
         onClick={onEditSets}
       >
-        <div className="text-lg font-bold">Set {setNumber} of {exercise.sets}</div>
+        <div className="text-lg font-bold">
+          Set {setNumber} of {exercise.sets}
+          {isCustomSet && <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-600 text-xs align-middle">Custom set</span>}
+        </div>
         {onEditSets && <span className="text-indigo-400 text-xs">Edit</span>}
       </div>
 

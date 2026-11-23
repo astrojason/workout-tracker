@@ -1,4 +1,5 @@
 import { callNative, isNativeApp } from "./native-bridge";
+import { weightAndReps, type NextSetSummary } from "./next-set";
 
 const PREFERENCE_KEY = "restTimerNotifications";
 let registrationPromise: Promise<ServiceWorkerRegistration> | undefined;
@@ -40,7 +41,14 @@ export async function requestRestPermission(): Promise<NotificationPermission> {
   return Notification.requestPermission();
 }
 
-export async function notifyRestComplete(isCurrent: () => boolean): Promise<void> {
+// "Next Set: Bench Press - Set 2 of 3" then "135 lb · 8–10 reps" on its own line.
+export function restCompleteBody(next: NextSetSummary | null): string {
+  if (!next) return "Time for your next set. Tap to return to your workout.";
+  return `${next.label}: ${next.detail}\n${weightAndReps(next)}`;
+}
+
+/** `nextSet` is read when the rest ends, so it describes the set actually coming up. */
+export async function notifyRestComplete(isCurrent: () => boolean, nextSet: () => NextSetSummary | null = () => null): Promise<void> {
   // The native app schedules its own notification from the mirrored workout state.
   if (isNativeApp()) return;
   if (!supportsRestNotifications() || !restNotificationsEnabled() || Notification.permission !== "granted") return;
@@ -48,7 +56,7 @@ export async function notifyRestComplete(isCurrent: () => boolean): Promise<void
   // Permission, preference, or the workout can change while registration loads.
   if (!isCurrent() || !restNotificationsEnabled() || Notification.permission !== "granted") return;
   await registration.showNotification("Rest complete", {
-    body: "Time for your next set. Tap to return to your workout.",
+    body: restCompleteBody(nextSet()),
     tag: "workout-rest-complete",
   });
 }

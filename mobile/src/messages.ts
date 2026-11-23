@@ -9,6 +9,12 @@ export interface WorkoutMirrorState {
   notify: boolean;
   nextLabel: string;
   nextDetail: string;
+  reps?: string; // rep/time target of the set shown, e.g. "8–10 reps"; absent from older web builds
+}
+
+/** "135 lb · 8–10 reps"; the weight is left out when there's no load (bodyweight, bands). */
+export function weightAndReps(state: Pick<WorkoutMirrorState, "weight" | "reps">): string {
+  return [state.weight > 0 ? `${state.weight} lb` : "", state.reps ?? ""].filter(Boolean).join(" · ");
 }
 
 export interface BridgeMessage {
@@ -33,7 +39,9 @@ export function replyScript(id: number, ok: boolean, value: unknown): string {
 export function restNotificationContent(state: WorkoutMirrorState): { title: string; body: string } {
   return {
     title: "Rest complete",
-    body: state.nextDetail ? `${state.nextLabel}: ${state.nextDetail}` : "Time for your next set.",
+    body: state.nextDetail
+      ? [`${state.nextLabel}: ${state.nextDetail}`, weightAndReps(state)].filter(Boolean).join("\n")
+      : "Time for your next set.",
   };
 }
 

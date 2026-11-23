@@ -62,7 +62,7 @@ test.describe("Mid-workout weight override", () => {
         await page.getByRole("button", { name: /complete set/i }).click();
         await page.getByLabel(/reps/i).fill("11");
         await page.getByLabel(/weight/i).fill("85");
-        await page.getByRole("button", { name: /normal/i }).click();
+        await expect(page.getByText(/AMRAP sets count as Hard/)).toBeVisible(); // not rated
         await page.getByRole("button", { name: /save/i }).click();
 
         // Workout complete — check session detail

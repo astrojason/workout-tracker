@@ -85,6 +85,7 @@ export interface Exercise {
   restAfter?: false | number;    // rest before the NEXT exercise only: false = skip it, number = override its duration. Never affects rest between this exercise's own sets — that always uses restSeconds.
   weight?: number;               // this row's own planned weight from the spreadsheet; only a warm-up row uses it — working rows follow the program weight
   equipmentDetail?: string | null; // this row's own band colour/size etc.; wins over the definition's
+  skipWarmup?: boolean;          // true = don't generate warm-up sets before this exercise (see warmup-ramp.ts)
 }
 
 // An Exercise occurrence merged with its definition — the shape the workout UI actually works with.
@@ -339,6 +340,9 @@ export interface ActiveSession {
   restTimeRemaining: number;
   startTime: Date;
   prsAchieved: PRResult[];
+  // A custom set added mid-exercise, done at the current set position before the planned
+  // set it pushed back (the exercise's `sets` already counts it). See lib/inserted-set.ts.
+  insertedSet?: { exerciseId: string; reps: number; weight: number };
   // Set once the user ends the workout (mid-session or after the last set) so the summary
   // shows even when no PR was achieved. In-memory only: never persisted.
   ended?: boolean;

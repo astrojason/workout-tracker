@@ -21,7 +21,9 @@ export function SetCompletionModal({
   const [reps, setReps] = useState(defaultReps);
   const [weight, setWeight] = useState(targetWeight);
   const [failed, setFailed] = useState(false);
-  const [rating, setRating] = useState<"easy" | "normal" | "hard">("normal");
+  // An AMRAP set is meant to be hard by design, so it isn't rated: it's always recorded as hard.
+  const isAmrap = exercise.repMax.type === "failure" || (exercise.lastSetAmrap === true && setNumber === exercise.sets);
+  const [rating, setRating] = useState<"easy" | "normal" | "hard">(isAmrap ? "hard" : "normal");
   const [notes, setNotes] = useState("");
 
   const timeBased = isTimeBased(exercise);
@@ -96,6 +98,9 @@ export function SetCompletionModal({
         )}
 
         {/* Rating */}
+        {isAmrap ? (
+          <p className="mb-5 text-sm text-gray-400">AMRAP sets count as Hard, so there&apos;s no rating to pick.</p>
+        ) : (
         <div className="mb-5">
           <label className="text-sm text-gray-400 block mb-2">Difficulty</label>
           <div className="flex rounded-xl overflow-hidden border border-gray-700">
@@ -112,6 +117,7 @@ export function SetCompletionModal({
             ))}
           </div>
         </div>
+        )}
 
         {/* Failed toggle */}
         <div className="mb-5 flex items-center justify-between">
@@ -151,7 +157,7 @@ export function SetCompletionModal({
             Cancel
           </button>
           <button
-            onClick={() => onSave(reps, weight, failed, rating, notes || undefined)}
+            onClick={() => onSave(reps, weight, failed, isAmrap ? "hard" : rating, notes || undefined)}
             className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition"
           >
             Save
