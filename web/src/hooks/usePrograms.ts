@@ -11,7 +11,10 @@ import {
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { parseBaselineMeasurements, parseXLSX } from "@/lib/xlsx-parser";
-import { resolveExerciseDefinitions } from "@/lib/exercise-import";
+import { resolveExerciseDefinitions, type ExerciseMatchRequest, type ExerciseMatchDecision } from "@/lib/exercise-import";
+
+// Asked once per spreadsheet exercise that isn't in the library (see resolveExerciseDefinitions).
+export type UnmatchedExerciseHandler = (request: ExerciseMatchRequest) => Promise<ExerciseMatchDecision>;
 import { DAY_ORDER } from "@/lib/types";
 
 export function usePrograms(userId: string | null) {
@@ -148,6 +151,7 @@ export function usePrograms(userId: string | null) {
   async function _saveAndReload(
     parsed: ReturnType<typeof parseXLSX>,
     nameOverride?: string,
+    onUnmatched?: UnmatchedExerciseHandler,
   ) {
     if (!userId) return;
     const finalPrograms = nameOverride
@@ -163,7 +167,7 @@ export function usePrograms(userId: string | null) {
     }));
     // Matches each exercise name against the user's global exercise library
     // (creating or updating definitions as needed) before anything is saved.
-    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
+    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts, { onUnmatched });
     for (const prog of finalPrograms) {
       await saveProgram(userId, { ...prog, createdAt: Timestamp.now() });
     }
@@ -178,15 +182,22 @@ export function usePrograms(userId: string | null) {
     }
   }
 
-  const importXLSX = useCallback(async (buffer: ArrayBuffer, nameOverride?: string) => {
+  const importXLSX = useCallback(async (buffer: ArrayBuffer, nameOverride?: string, onUnmatched?: UnmatchedExerciseHandler) => {
     if (!userId) return;
-    const parsed = parseXLSX(buffer);
+    // The program id comes from its name, so two imports never collide on a shared default id.
+    const parsed = parseXLSX(buffer, nameOverride);
+    const incoming = parsed.programs[0];
+    if (programs.some((p) => p.id === incoming.id)) {
+      throw new Error(
+        `A program named "${incoming.name}" already exists. Choose a different name, or use Re-import on that program to refresh it.`,
+      );
+    }
     const baseline = parseBaselineMeasurements(buffer);
-    await _saveAndReload(parsed, nameOverride);
+    await _saveAndReload(parsed, nameOverride, onUnmatched);
     // The spreadsheet's Measurements sheet is the user's starting point: record it as
     // the first check-in. Re-imports skip this so refreshing a program never duplicates it.
     if (baseline) await saveBodyMeasurement(userId, { date: new Date(), ...baseline });
-  }, [userId, settings]);
+  }, [userId, settings, programs]);
 
   // Re-import: replaces workout definitions for an existing program without
   // touching createdAt (so completed-days scoping stays correct).
@@ -194,13 +205,14 @@ export function usePrograms(userId: string | null) {
     programId: string,
     programName: string,
     data: ArrayBuffer,
+    onUnmatched?: UnmatchedExerciseHandler,
   ) => {
     if (!userId) return;
     const existing = programs.find((p) => p.id === programId);
     const parsed = parseXLSX(data, programName);
 
     const finalParsedWorkouts = parsed.workouts.map((w) => ({ ...w, programId, programName }));
-    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts);
+    const { workouts: finalWorkouts, weights } = await resolveExerciseDefinitions(userId, finalParsedWorkouts, { onUnmatched });
 
     // Update the program doc (totalWeeks may change) but preserve createdAt.
     for (const prog of parsed.programs) {

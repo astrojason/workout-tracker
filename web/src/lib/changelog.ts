@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.30.0',
+    date: '2026-11-23',
+    changes: [
+      'Import now understands general programs: a workbook with one sheet per weekday and Exercise / Sets / Reps / Weight / Notes columns (like Reacher_Build.xlsx). "2+1" sets, AMRAP rows, timed reps and weights like "42.5 lb" or "3 bands" are mapped to equipment and progression automatically.',
+      'Import and Re-import ask about each exercise that is not in your library, one at a time: use an existing exercise or create a new one. Cancelling changes nothing.',
+      'Importing under the name of an existing program is refused instead of overwriting it.',
+      'Fixed the white border around the favicon.',
+    ],
+  },
+  {
     version: '1.29.1',
     date: '2026-11-22',
     changes: [

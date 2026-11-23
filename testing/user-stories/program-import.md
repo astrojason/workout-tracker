@@ -19,6 +19,28 @@
 - Exercises within a workout are sorted: warmup → main → finisher → cooldown → mobility, then by `Order` within each phase
 - After sorting, exercises are re-indexed 1–N
 
+## General (Single-Week) Program Import
+
+**As a user importing a general program (e.g. `Reacher_Build.xlsx`):** one sheet per weekday with columns `Exercise | Sets | Reps / Time | Weight | Notes` and no Week/Phase/Equip columns.
+
+- The import detects this format automatically (no day sheet has a `Week` column) and creates a program with 1 week
+- `2+1` sets become 3 sets with the last set AMRAP; the following `(AMRAP)` row is merged into that exercise (its progression note is kept) rather than imported twice
+- Reps like `5 min` / `Max hold` / `1 min on` become timed exercises (seconds); `Max` / `AMRAP` become to-failure
+- Weights are mapped to equipment: `3 bands` → assisted pull-up, `BW` → bodyweight, `Loop band` → loop band, `15 lb KB` → kettlebell, EZ-bar lifts → EZ bar, lb weights at a non-Home location → machine, other lb weights → barbell / PowerBlock / dumbbell by size
+- Rows with warmup/activation notes are warm-ups; everything else is a main exercise
+- Text the importer cannot map (an unrecognised weight) is kept in the exercise's notes, never dropped
+- An invalid `Sets` or `Reps / Time` value gives an error naming the sheet and row
+- Importing under the name of an existing program is refused with an error (use Re-import instead); the program id comes from the chosen name, so importing never overwrites another program
+
+## Matching Imported Exercises to the Library
+
+**As a user importing or re-importing a program:**
+
+- Exercises whose name matches one in my library (case-insensitive) are linked automatically
+- For each exercise with no match I am asked, one at a time ("Exercise 2 of 5"), whether to use an existing library exercise or create a new one; the closest-named library exercise is pre-selected and I can search the library
+- Linking to an existing exercise keeps that exercise as it is (no rename); creating makes a new exercise from the spreadsheet row
+- Cancelling at any prompt stops the import with "Import cancelled — nothing was changed."; no programs, workouts or exercises are written
+
 ## Invalid Import
 
 **As a user importing a malformed XLSX:**

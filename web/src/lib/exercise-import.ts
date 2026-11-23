@@ -1,4 +1,4 @@
-import type { Exercise, Workout, Phase, EquipmentType, ProgressionRule, RepTarget, ProgramExerciseWeight } from "./types";
+import type { Exercise, Workout, Phase, EquipmentType, ProgressionRule, RepTarget, ProgramExerciseWeight, ExerciseDefinition } from "./types";
 import {
   getExerciseDefinitions, updateExerciseDefinitionMeta, createExerciseDefinition,
 } from "./firestore";
@@ -26,6 +26,26 @@ export interface ParsedExercise {
   notes: string | null;
   lastSetAmrap?: boolean;
   restAfter?: false | number;
+}
+
+/** One exercise from the spreadsheet that has no same-named exercise in the library. */
+export interface ExerciseMatchRequest {
+  exercise: ParsedExercise;
+  index: number;   // 1-based position among the unmatched exercises
+  total: number;
+  candidates: ExerciseDefinition[]; // the whole library, for the user to pick from
+}
+
+export type ExerciseMatchDecision =
+  | { action: "create" }
+  | { action: "use"; definitionId: string }
+  | { action: "cancel" };
+
+export class ImportCancelledError extends Error {
+  constructor() {
+    super("Import cancelled — nothing was changed.");
+    this.name = "ImportCancelledError";
+  }
 }
 
 export interface ParsedWorkout {
@@ -86,13 +106,34 @@ export function pickDefinitionSources(parsedWorkouts: ParsedWorkout[]): Map<stri
 // spreadsheet's Total Weight always wins there.
 export async function resolveExerciseDefinitions(
   userId: string,
-  parsedWorkouts: ParsedWorkout[]
+  parsedWorkouts: ParsedWorkout[],
+  options: { onUnmatched?: (request: ExerciseMatchRequest) => Promise<ExerciseMatchDecision> } = {},
 ): Promise<{ workouts: Workout[]; weights: Record<string, ProgramExerciseWeight> }> {
   const existingDefs = await getExerciseDefinitions(userId);
   const byName = new Map(existingDefs.map((d) => [d.name.trim().toLowerCase(), d]));
   const resolvedIdByName = new Map<string, string>();
   const seedByName = pickSeedWeights(parsedWorkouts);
   const sourceByName = pickDefinitionSources(parsedWorkouts);
+
+  // Ask about every unmatched exercise, one at a time, BEFORE writing anything, so
+  // cancelling part-way leaves the library untouched.
+  if (options.onUnmatched) {
+    const unmatched = [...sourceByName].filter(([key]) => !byName.has(key));
+    for (let i = 0; i < unmatched.length; i++) {
+      const [key, exercise] = unmatched[i];
+      const decision = await options.onUnmatched({
+        exercise, index: i + 1, total: unmatched.length, candidates: existingDefs,
+      });
+      if (decision.action === "cancel") throw new ImportCancelledError();
+      if (decision.action === "use") {
+        if (!existingDefs.some((d) => d.id === decision.definitionId)) {
+          throw new Error(`Exercise "${exercise.name}" was linked to "${decision.definitionId}", which is not in your exercise library.`);
+        }
+        // Pre-resolved: the main loop skips it, so the library exercise is kept as-is (not renamed).
+        resolvedIdByName.set(key, decision.definitionId);
+      }
+    }
+  }
 
   const workouts: Workout[] = [];
   for (const pw of parsedWorkouts) {

@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import type { Program, Phase, EquipmentType, ProgressionRule, RepTarget } from "./types";
 import { PHASE_ORDER } from "./types";
 import type { ParsedExercise, ParsedWorkout } from "./exercise-import";
+import { isWeeklyCycleWorkbook, parseGeneralProgram } from "./general-program-parser";
 
 export type { ParsedExercise, ParsedWorkout } from "./exercise-import";
 export { resolveExerciseDefinitions } from "./exercise-import";
@@ -184,6 +185,10 @@ export function parseXLSX(
   programName = "Reacher Build"
 ): { programs: Omit<Program, "createdAt">[]; workouts: ParsedWorkout[] } {
   const workbook = XLSX.read(data, { type: "array" });
+
+  // Workbooks without the Week/Phase/Equip columns are "general" programs: a single
+  // repeating week described in free text (see general-program-parser.ts).
+  if (!isWeeklyCycleWorkbook(workbook)) return parseGeneralProgram(workbook, programName);
 
   let maxWeek = 0;
   const workoutMap = new Map<string, { week: number; day: string; exercises: ParsedExercise[] }>();

@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ExerciseMatchModal } from "@/components/ui/ExerciseMatchModal";
+import { ImportCancelledError, type ExerciseMatchDecision, type ExerciseMatchRequest } from "@/lib/exercise-import";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useError } from "@/components/providers/ErrorProvider";
 import { usePrograms } from "@/hooks/usePrograms";
@@ -39,6 +41,22 @@ export default function SettingsPage() {
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
+  // The exercise-match question currently on screen. The import awaits `resolve`, so the
+  // user is asked about one unmatched exercise at a time.
+  const [matchPrompt, setMatchPrompt] = useState<{
+    request: ExerciseMatchRequest;
+    resolve: (d: ExerciseMatchDecision) => void;
+  } | null>(null);
+
+  function askAboutExercise(request: ExerciseMatchRequest): Promise<ExerciseMatchDecision> {
+    return new Promise((resolve) => {
+      setMatchPrompt({
+        request,
+        resolve: (d) => { setMatchPrompt(null); resolve(d); },
+      });
+    });
+  }
+
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -56,12 +74,16 @@ export default function SettingsPage() {
     setImporting(true);
     setImportResult(null);
     try {
-      await importXLSX(pendingImport.buffer, importName.trim() || pendingImport.defaultName);
+      await importXLSX(pendingImport.buffer, importName.trim() || pendingImport.defaultName, askAboutExercise);
       setImportResult(`Imported "${importName.trim() || pendingImport.defaultName}" successfully!`);
       setPendingImport(null);
     } catch (err) {
-      showError(err);
-      setImportResult("Import failed — see error details.");
+      if (err instanceof ImportCancelledError) {
+        setImportResult(err.message);
+      } else {
+        showError(err);
+        setImportResult("Import failed — see error details.");
+      }
     } finally {
       setImporting(false);
     }
@@ -76,11 +98,15 @@ export default function SettingsPage() {
     setReimportingId(id);
     try {
       const data = await file.arrayBuffer();
-      await reimportProgram(id, name, data);
+      await reimportProgram(id, name, data, askAboutExercise);
       setImportResult(`Re-imported "${name}" successfully!`);
     } catch (err) {
-      showError(err);
-      setImportResult("Re-import failed — see error details.");
+      if (err instanceof ImportCancelledError) {
+        setImportResult(err.message);
+      } else {
+        showError(err);
+        setImportResult("Re-import failed — see error details.");
+      }
     } finally {
       setReimportingId(null);
     }
@@ -491,6 +517,13 @@ export default function SettingsPage() {
         ) : null;
       })()}
 
+      {matchPrompt && (
+        <ExerciseMatchModal
+          key={matchPrompt.request.exercise.name}
+          request={matchPrompt.request}
+          onDecide={matchPrompt.resolve}
+        />
+      )}
     </div>
   );
 }
