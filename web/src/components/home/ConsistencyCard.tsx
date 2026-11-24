@@ -14,7 +14,7 @@ export function ConsistencyCard({
     : Math.min(100, Math.round((completedThisWeek / plannedThisWeek) * 100));
 
   return (
-    <section className="mb-6 rounded-2xl border border-gray-800 bg-gray-900 p-5">
+    <section className="desk-flat mb-6 lg:mb-0 rounded-2xl border border-gray-800 bg-gray-900 p-5">
       <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">
         Workout consistency
       </h2>

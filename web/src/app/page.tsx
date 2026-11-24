@@ -9,6 +9,8 @@ import { scopeDefinitions } from "@/lib/types";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ConsistencyCard } from "@/components/home/ConsistencyCard";
+import { UpToday } from "@/components/home/UpToday";
+import { RecentWorkouts } from "@/components/home/RecentWorkouts";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { CoachSection } from "@/components/workout/CoachSection";
@@ -321,15 +323,40 @@ export default function HomePage() {
     today,
   );
 
+  // Desktop "Up today": the first program with a regular (non-checklist) workout today, else any.
+  const programsToday = activePrograms
+    .map((program) => ({ program, workout: getTodaysWorkout(program.id) }))
+    .filter((p): p is { program: typeof p.program; workout: Workout } => p.workout !== null);
+  const upToday = programsToday.find((p) => !isChecklistWorkout(p.workout)) ?? programsToday[0];
+
+  const customWorkoutButton = (className: string) => (
+    <button
+      onClick={openCustomWorkout}
+      disabled={customLoading}
+      aria-busy={customLoading}
+      className={`rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition disabled:opacity-50 ${className}`}
+    >
+      {customLoading ? "Loading last weights…" : "Custom workout"}
+    </button>
+  );
+
+  // Phones: one column. Desktop (lg): program cards in two columns, with consistency, today's
+  // exercises and recent workouts in a side column. The consistency card and custom-workout button
+  // each render once per layout; the other copy is display:none, so only one is ever on screen.
   return (
-    <div className="max-w-lg mx-auto p-4">
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
       {/* Header */}
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold">{dayName}</h1>
-        <p className="text-gray-400">{dateStr}</p>
+      <div className="text-center mb-6 lg:flex lg:items-end lg:justify-between lg:text-left">
+        <div>
+          <h1 className="text-2xl font-bold lg:text-3xl">{dayName}</h1>
+          <p className="text-gray-400">{dateStr}</p>
+        </div>
+        {customWorkoutButton("hidden lg:block px-5 py-2.5 text-sm")}
       </div>
 
-      <ConsistencyCard {...consistency} />
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start">
+      <div>
+      <div className="lg:hidden"><ConsistencyCard {...consistency} /></div>
 
       {/* Resume Banner */}
       {workout.pausedSession && (
@@ -364,7 +391,7 @@ export default function HomePage() {
           <p className="text-gray-500 text-sm mb-4">Go to Settings to import a program.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:items-start">
           {activePrograms.map((program) => {
             // Read from the live session list (same as the streak above), so a workout
             // that was just saved shows as done without a reload.
@@ -408,14 +435,22 @@ export default function HomePage() {
         </div>
       )}
 
-      <button
-        onClick={openCustomWorkout}
-        disabled={customLoading}
-        aria-busy={customLoading}
-        className="w-full mt-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition disabled:opacity-50"
-      >
-        {customLoading ? "Loading last weights…" : "Custom workout"}
-      </button>
+      {customWorkoutButton("w-full mt-4 py-3 lg:hidden")}
+      </div>
+
+      <aside className="hidden lg:flex lg:flex-col lg:gap-6">
+        <ConsistencyCard {...consistency} />
+        {upToday && (
+          <UpToday
+            program={upToday.program}
+            workout={upToday.workout}
+            week={currentWeek(upToday.program.id)}
+            definitions={definitionsFor(upToday.program.id)}
+          />
+        )}
+        <RecentWorkouts sessions={sessions} />
+      </aside>
+      </div>
 
       <NativeHomeSummary summary={homeSummary} />
     </div>

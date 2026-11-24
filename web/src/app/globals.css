@@ -48,3 +48,25 @@ select.input-field {
 .app-shell .min-h-screen {
   min-height: calc(100vh - var(--app-nav-h));
 }
+
+/* Desktop (lg, 1024px+): the nav is a fixed top bar, so the shell reserves its height above
+   every view instead of below. */
+@media (min-width: 64rem) {
+  :root {
+    --app-nav-h: 3.5rem;
+  }
+  .app-shell {
+    padding-bottom: 0;
+    padding-top: var(--app-nav-h);
+  }
+
+  /* A card on a phone, a flat section with a top divider on desktop. Unlayered, so it wins
+     over the card's own bg/border/rounded/px utilities without repeating lg: on each one. */
+  .desk-flat {
+    background: transparent;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

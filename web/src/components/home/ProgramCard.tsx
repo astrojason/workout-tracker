@@ -74,7 +74,7 @@ export function ProgramCard({
   }
 
   return (
-    <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+    <div data-testid="program-card" className="desk-flat bg-gray-900 rounded-2xl p-5 border border-gray-800">
       {/* Header */}
       <div className="flex justify-between items-start mb-4">
         <div>

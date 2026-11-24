@@ -11,6 +11,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+// A stat tile on phones; a flat, left-aligned block with a top divider on desktop.
+const STAT_CLASS = "desk-flat bg-gray-900 rounded-xl p-3 text-center border border-gray-800 lg:py-4 lg:text-left lg:flex lg:flex-col lg:justify-center";
+
 export default function ExerciseProgressPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = use(params);
   const exerciseName = decodeURIComponent(name);
@@ -39,16 +42,18 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
   const chartKey = isTimeBased || isBodyweight ? "reps" : mode;
 
   return (
-    <div className="max-w-lg mx-auto p-4">
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
       <Link href="/history" className="text-indigo-400 text-sm mb-4 inline-block">
         &larr; Back to History
       </Link>
 
-      <h1 className="text-2xl font-bold mb-6">{exerciseName}</h1>
+      {/* Header: on desktop the weight/volume toggle sits beside the name */}
+      <div className="lg:flex lg:items-center lg:justify-between lg:gap-4 lg:mb-6">
+      <h1 className="text-2xl font-bold mb-6 lg:mb-0 lg:text-3xl">{exerciseName}</h1>
 
       {/* Mode Toggle — only for weighted exercises */}
       {!isTimeBased && !isBodyweight && (
-        <div className="flex bg-gray-900 rounded-xl p-1 mb-6 border border-gray-800">
+        <div className="flex bg-gray-900 rounded-xl p-1 mb-6 border border-gray-800 lg:mb-0 lg:w-[260px]">
           <button
             onClick={() => setMode("weight")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${
@@ -67,6 +72,7 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
           </button>
         </div>
       )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -78,8 +84,10 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
         </div>
       ) : (
         <>
+          {/* Desktop: chart with the stats stacked beside it */}
+          <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6 lg:mb-8">
           {/* Chart */}
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 mb-6">
+          <div className="desk-flat bg-gray-900 rounded-xl p-4 border border-gray-800 mb-6 lg:mb-0">
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -101,40 +109,42 @@ export default function ExerciseProgressPage({ params }: { params: Promise<{ nam
           </div>
 
           {/* Stats */}
-          <div className={`grid gap-3 mb-6 ${isTimeBased || isBodyweight ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className={`grid gap-3 mb-6 lg:mb-0 lg:grid-cols-1 lg:auto-rows-fr ${isTimeBased || isBodyweight ? "grid-cols-2" : "grid-cols-3"}`}>
             {isTimeBased ? (
-              <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-                <div className="font-bold">{formatTimeValue(maxReps)}</div>
+              <div className={STAT_CLASS}>
+                <div className="font-bold lg:text-2xl">{formatTimeValue(maxReps)}</div>
                 <div className="text-xs text-gray-400">Max Duration</div>
               </div>
             ) : isBodyweight ? (
-              <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-                <div className="font-bold">{maxReps}</div>
+              <div className={STAT_CLASS}>
+                <div className="font-bold lg:text-2xl">{maxReps}</div>
                 <div className="text-xs text-gray-400">Max Reps</div>
               </div>
             ) : (
               <>
-                <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-                  <div className="font-bold">{cleanWeight(maxWeight)} lbs</div>
+                <div className={STAT_CLASS}>
+                  <div className="font-bold lg:text-2xl">{cleanWeight(maxWeight)} lbs</div>
                   <div className="text-xs text-gray-400">Max Weight</div>
                 </div>
-                <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-                  <div className="font-bold">{cleanWeight(maxVolume)}</div>
+                <div className={STAT_CLASS}>
+                  <div className="font-bold lg:text-2xl">{cleanWeight(maxVolume)}</div>
                   <div className="text-xs text-gray-400">Max Volume</div>
                 </div>
               </>
             )}
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="font-bold">{history.length}</div>
+            <div className={STAT_CLASS}>
+              <div className="font-bold lg:text-2xl">{history.length}</div>
               <div className="text-xs text-gray-400">Sessions</div>
             </div>
           </div>
 
+          </div>
+
           {/* Recent Sets */}
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Recent Sets</h2>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:divide-y-0">
             {history.slice(-20).reverse().map((entry, i) => (
-              <div key={i} className="px-4 py-3 flex justify-between text-sm">
+              <div key={i} className="px-4 py-3 lg:px-0 lg:border-b lg:border-gray-800 flex justify-between text-sm">
                 <span className="text-gray-400">
                   {entry.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>

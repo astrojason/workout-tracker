@@ -7,10 +7,10 @@ import { useHistory } from "@/hooks/useHistory";
 import { usePrograms } from "@/hooks/usePrograms";
 import { getSessionsForWeek } from "@/lib/firestore";
 import { formatSessionsWeekAsText } from "@/lib/week-export";
-import { formatDuration, formatTimeValue } from "@/lib/types";
-import { Timestamp } from "firebase/firestore";
+import { formatTimeValue } from "@/lib/types";
 import Link from "next/link";
 import { CopySessionButton } from "@/components/history/CopySessionButton";
+import { SessionSummary } from "@/components/history/SessionSummary";
 import { BodyMetricsSection } from "@/components/history/BodyMetricsSection";
 import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
 
@@ -77,14 +77,16 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">History</h1>
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
+      {/* Header: on desktop the copy-a-week controls sit beside the title */}
+      <div className="lg:flex lg:items-center lg:justify-between lg:gap-4 lg:mb-6">
+      <h1 className="text-2xl font-bold mb-6 lg:mb-0 lg:text-3xl">History</h1>
 
       {/* Copy a Logged Week */}
       {programs.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Copy a Logged Week</h2>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex flex-wrap items-center gap-2">
+        <div className="mb-6 lg:mb-0 lg:flex lg:items-center lg:gap-2">
+          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 lg:mb-0 lg:mr-1 lg:text-xs">Copy a Logged Week</h2>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex flex-wrap items-center gap-2 lg:bg-transparent lg:border-0 lg:p-0 lg:flex-nowrap">
             <select
               value={copyProgramId}
               onChange={(e) => { setCopyProgramId(e.target.value); setCopyWeek(1); }}
@@ -113,6 +115,11 @@ export default function HistoryPage() {
           </div>
         </div>
       )}
+      </div>
+
+      {/* Desktop: body metrics and exercise progress on the left, recent workouts on the right */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-12 lg:items-start">
+      <div>
 
       <BodyMetricsSection
         entries={bodyMetrics.entries}
@@ -127,12 +134,12 @@ export default function HistoryPage() {
       {exerciseStats.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Exercise Progress</h2>
-          <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 lg:border-b">
             {visibleExercises.map((stat) => (
               <Link
                 key={stat.name}
                 href={`/exercise/${encodeURIComponent(stat.name)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-gray-800 transition"
+                className="flex items-center justify-between px-4 py-3 lg:px-0 hover:bg-gray-800 lg:hover:bg-transparent lg:hover:text-indigo-300 transition"
               >
                 <span className="font-medium">{stat.name}</span>
                 <span className="text-sm text-gray-400 ml-4 shrink-0">
@@ -147,7 +154,7 @@ export default function HistoryPage() {
             {exerciseStats.length > EXERCISES_PAGE_SIZE && (
               <button
                 onClick={() => setShowAllExercises((v) => !v)}
-                className="w-full px-4 py-3 text-indigo-400 text-sm text-left hover:bg-gray-800 transition"
+                className="w-full px-4 py-3 lg:px-0 text-indigo-400 text-sm text-left hover:bg-gray-800 lg:hover:bg-transparent lg:hover:text-indigo-300 transition"
               >
                 {showAllExercises
                   ? "Show less"
@@ -158,6 +165,9 @@ export default function HistoryPage() {
         </div>
       )}
 
+      </div>
+
+      <div>
       {/* Session List */}
       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Recent Workouts</h2>
 
@@ -166,42 +176,13 @@ export default function HistoryPage() {
           No workouts yet. Complete a workout to see it here.
         </div>
       ) : (
-        <div className="space-y-2">
-          {visibleSessions.map((session) => {
-            const date = session.date instanceof Timestamp
-              ? session.date.toDate()
-              : new Date(session.date as unknown as string);
-
-            return (
-              <div key={session.id} className="bg-gray-900 rounded-xl border border-gray-800 flex items-stretch hover:bg-gray-800 transition">
-                <Link
-                  href={`/session/${session.id}`}
-                  className="flex-1 p-4 flex items-center justify-between"
-                >
-                  <div>
-                    <div className="font-semibold">{session.programName}</div>
-                    <div className="text-sm text-gray-400">
-                      {session.dayOfWeek} &middot; Week {session.week}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {session.skipped ? "Skipped" : formatDuration(session.durationSeconds)}
-                    </div>
-                  </div>
-                  {session.skipped ? (
-                    <span className="ml-3 text-amber-500 text-xs font-semibold">Skipped</span>
-                  ) : session.completed ? (
-                    <span className="ml-3 text-green-400">&#x2713;</span>
-                  ) : null}
-                </Link>
-                <CopySessionButton session={session} />
-              </div>
-            );
-          })}
+        <div className="space-y-2 lg:space-y-0">
+          {visibleSessions.map((session) => (
+            <div key={session.id} className="desk-flat bg-gray-900 rounded-xl border border-gray-800 flex items-stretch hover:bg-gray-800 lg:hover:bg-gray-900/60 transition">
+              <SessionSummary session={session} className="flex-1 p-4 lg:px-0" />
+              <CopySessionButton session={session} />
+            </div>
+          ))}
           {sessions.length > SESSIONS_PAGE_SIZE && (
             <button
               onClick={() => setShowAllSessions((v) => !v)}
@@ -214,6 +195,8 @@ export default function HistoryPage() {
           )}
         </div>
       )}
+      </div>
+      </div>
 
     </div>
   );

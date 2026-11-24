@@ -10,7 +10,8 @@ import { scanEquipmentPhoto, identifyEquipment } from "@/lib/equipment-scan";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
 import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
-import { scopeDefinitions, PHASE_COLORS, DAY_ORDER, repTargetDisplay, finalSetAmrapNote, formatRestTime, exerciseWeightDisplay, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
+import { scopeDefinitions, DAY_ORDER, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
+import { ExerciseSummary, UnresolvedExerciseSummary } from "@/components/programs/ExerciseSummary";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
@@ -158,9 +159,10 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1280px] lg:p-8">
+      {/* Header: title, then week tabs below it on phones and beside it on desktop */}
+      <div className="lg:flex lg:items-center lg:justify-between lg:gap-4 lg:mb-6">
+      <div className="flex items-center gap-3 mb-6 lg:mb-0">
         <Link href="/settings" className="text-gray-400 hover:text-white transition">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -170,7 +172,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Week Tabs */}
-      <div className="flex items-center justify-between gap-2 mb-6">
+      <div className="flex items-center justify-between gap-2 mb-6 lg:mb-0">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((week) => (
             <button
@@ -194,6 +196,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           {weekCopied ? "Copied!" : "Copy Week"}
         </button>
       </div>
+      </div>
 
       {/* Loading */}
       {(loadingWorkouts || definitionsLoading) && (
@@ -207,8 +210,9 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
         <p className="text-gray-500 text-center py-8">No workouts for this week.</p>
       )}
 
+      <div className="lg:grid lg:grid-cols-2 lg:gap-x-14 lg:gap-y-12 lg:items-start">
       {!loadingWorkouts && !definitionsLoading && sortedWorkouts.map((workout) => (
-        <div key={workout.id} className="mb-6">
+        <div key={workout.id} className="mb-6 lg:mb-0">
           {/* Day Header */}
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-300">{workout.dayOfWeek}</h2>
@@ -231,7 +235,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             </button>
           </div>
 
-          <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
             {workout.exercises
               .slice()
               .sort((a, b) => a.order - b.order)
@@ -244,15 +248,9 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                   exercise = resolveExercise(rawExercise, definitions);
                 } catch (err) {
                   return (
-                    <div key={rawExercise.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                    <div key={rawExercise.id} className="px-4 py-3 lg:px-0 lg:py-4 flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="inline-block w-2 h-2 rounded-full bg-red-600" />
-                          <span className="font-semibold text-red-400">Unresolved exercise</span>
-                        </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {err instanceof Error ? err.message : String(err)}
-                        </div>
+                        <UnresolvedExerciseSummary error={err} />
                       </div>
                       <button
                         onClick={() => setConfirmDelete({ workoutId: workout.id, exerciseId: rawExercise.id })}
@@ -266,26 +264,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   );
                 }
-                const phaseColor = PHASE_COLORS[exercise.phase] || "bg-gray-600";
-                const weightDisplay = exerciseWeightDisplay(exercise);
-
                 return (
-                  <div key={exercise.id} className="px-4 py-3">
+                  <div key={exercise.id} className="px-4 py-3 lg:px-0 lg:py-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`inline-block w-2 h-2 rounded-full ${phaseColor}`} />
-                          <span className="font-semibold truncate">{exercise.name}</span>
-                          {exercise.isUnilateral && (
-                            <span className="text-orange-400 text-xs">ES</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {exercise.sets} x {repTargetDisplay(exercise.repMin, exercise.repMax, exercise)}
-                          {" | "}{weightDisplay}
-                          {exercise.restSeconds > 0 && <> | {formatRestTime(exercise.restSeconds)} rest</>}
-                          {finalSetAmrapNote(exercise) && <> | <span className="text-amber-400">{finalSetAmrapNote(exercise)}</span></>}
-                        </div>
+                        <ExerciseSummary exercise={exercise} />
                         {exercise.notes && (
                           <div className="text-xs text-gray-600 mt-1 truncate">{exercise.notes}</div>
                         )}
@@ -319,7 +302,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
               })}
 
             {/* Add Exercise */}
-            <div className="px-4 py-3">
+            <div className="px-4 py-3 lg:px-0 lg:py-4">
               <button
                 onClick={() => setEditingExercise({ workout, exercise: null })}
                 className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
@@ -330,6 +313,7 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       ))}
+      </div>
 
       {/* Exercise Editor Modal */}
       {editingExercise && (

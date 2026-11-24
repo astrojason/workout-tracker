@@ -375,7 +375,7 @@ export function BodyMetricsSection({
         </form>
       )}
 
-      <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+      <div className="desk-flat rounded-xl border border-gray-800 bg-gray-900 p-4">
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="h-7 w-7 animate-spin rounded-full border-b-2 border-indigo-500" />

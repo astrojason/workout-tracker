@@ -68,7 +68,7 @@ export default function EquipmentPage() {
       )}
 
       {(isDirty || saving) && (
-        <div className="fixed bottom-16 left-0 right-0 px-4 pb-2">
+        <div className="fixed bottom-16 left-0 right-0 px-4 pb-2 lg:bottom-0 lg:pb-4">
           <div className="max-w-lg mx-auto">
             <button
               onClick={handleSave}

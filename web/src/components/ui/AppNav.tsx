@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { BottomNav } from "./BottomNav";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 // The footer is part of the app shell (layout.tsx), so every view has it. The tab for the
 // current section is highlighted; other routes (a session, an exercise, a program) highlight none.
@@ -13,5 +14,6 @@ function sectionFor(pathname: string) {
 }
 
 export function AppNav() {
-  return <BottomNav active={sectionFor(usePathname())} />;
+  const { user } = useAuth();
+  return <BottomNav active={sectionFor(usePathname())} email={user?.email} />;
 }

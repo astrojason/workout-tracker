@@ -9,6 +9,9 @@ import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
+// Desktop programs table: name, length, current week, actions.
+const PROGRAM_COLUMNS = "lg:grid-cols-[minmax(0,1fr)_120px_140px_180px] lg:gap-4 lg:items-center";
+
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { showError } = useError();
@@ -170,8 +173,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
+      <h1 className="text-2xl font-bold mb-6 lg:text-3xl">Settings</h1>
 
       {/* Programs */}
       <section className="mb-8">
@@ -183,9 +186,13 @@ export default function SettingsPage() {
           onChange={handleReimportFileSelect}
           className="hidden"
         />
-        <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          {/* Desktop: the program rows line up as a table under these column headings */}
+          <div className={`hidden lg:grid ${PROGRAM_COLUMNS} py-2.5 text-xs font-semibold uppercase text-gray-500`}>
+            <span>Program</span><span>Length</span><span>Current week</span><span className="text-right">Actions</span>
+          </div>
           {activePrograms.map((program) => (
-            <div key={program.id} className="px-4 py-3">
+            <div key={program.id} className="px-4 py-3 lg:px-0 lg:py-3.5">
               {renamingId === program.id ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -215,21 +222,22 @@ export default function SettingsPage() {
                   </button>
                 </div>
               ) : (
-                <div className="flex justify-between items-center">
-                  <div>
+                <div className={`flex justify-between items-center lg:grid ${PROGRAM_COLUMNS}`}>
+                  <div className="lg:contents">
                     <div className="font-semibold">{program.name}</div>
-                    <div className="text-xs text-gray-500">{program.totalWeeks} weeks</div>
+                    <div className="text-xs text-gray-500 lg:text-sm">{program.totalWeeks} weeks</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 lg:contents">
                     <select
                       value={currentWeek(program.id)}
                       onChange={(e) => setCurrentWeek(program.id, parseInt(e.target.value))}
-                      className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
+                      className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700 lg:w-[110px]"
                     >
                       {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
                         <option key={w} value={w}>Week {w}</option>
                       ))}
                     </select>
+                    <div className="flex items-center gap-2 lg:justify-end">
                     <button
                       onClick={() => startRename(program.id, program.name)}
                       className="text-gray-600 hover:text-green-400 transition p-1"
@@ -287,6 +295,7 @@ export default function SettingsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -294,7 +303,7 @@ export default function SettingsPage() {
           ))}
 
           {/* Import */}
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 lg:px-0 lg:py-3.5">
             <input
               ref={fileInputRef}
               type="file"
@@ -358,9 +367,9 @@ export default function SettingsPage() {
               {archivedPrograms.length} archived program{archivedPrograms.length !== 1 ? "s" : ""}
             </button>
             {showArchived && (
-              <div className="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+              <div className="desk-flat mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
                 {archivedPrograms.map((program) => (
-                  <div key={program.id} className="px-4 py-3">
+                  <div key={program.id} className="px-4 py-3 lg:px-0">
                     <div className="flex justify-between items-center">
                       <div>
                         <div className="font-semibold text-gray-400">{program.name}</div>
@@ -394,10 +403,12 @@ export default function SettingsPage() {
         )}
       </section>
 
+      {/* The smaller sections: two columns on desktop, reordered to pair related ones */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-6 lg:items-start">
       {/* Rest Timer */}
-      <section className="mb-8">
+      <section className="mb-8 lg:mb-0 lg:order-1">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Rest Timer</h2>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 px-4 py-3">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 px-4 py-3">
           <div className="flex justify-between items-center">
             <span>Default Rest Time</span>
             <select
@@ -416,12 +427,12 @@ export default function SettingsPage() {
       </section>
 
       {/* Equipment */}
-      <section className="mb-8">
+      <section className="mb-8 lg:mb-0 lg:order-3">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Equipment</h2>
-        <div className="bg-gray-900 rounded-xl border border-gray-800">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800">
           <Link
             href="/settings/equipment"
-            className="px-4 py-3 flex justify-between items-center hover:bg-gray-800/50 transition rounded-xl"
+            className="px-4 py-3 lg:px-0 flex justify-between items-center hover:bg-gray-800/50 lg:hover:bg-transparent lg:hover:text-indigo-300 transition rounded-xl lg:rounded-none"
           >
             <span>Manage Equipment</span>
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -430,7 +441,7 @@ export default function SettingsPage() {
           </Link>
           <Link
             href="/settings/machines"
-            className="px-4 py-3 flex justify-between items-center hover:bg-gray-800/50 transition rounded-xl border-t border-gray-800"
+            className="px-4 py-3 lg:px-0 flex justify-between items-center hover:bg-gray-800/50 lg:hover:bg-transparent lg:hover:text-indigo-300 transition rounded-xl lg:rounded-none border-t border-gray-800"
           >
             <span>Manage Gym Machines</span>
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,12 +452,12 @@ export default function SettingsPage() {
       </section>
 
       {/* Exercise Library */}
-      <section className="mb-8">
+      <section className="mb-8 lg:mb-0 lg:order-5">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Exercise Library</h2>
-        <div className="bg-gray-900 rounded-xl border border-gray-800">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800">
           <Link
             href="/settings/exercises"
-            className="px-4 py-3 flex justify-between items-center hover:bg-gray-800/50 transition rounded-xl"
+            className="px-4 py-3 lg:px-0 flex justify-between items-center hover:bg-gray-800/50 lg:hover:bg-transparent lg:hover:text-indigo-300 transition rounded-xl lg:rounded-none"
           >
             <span>Manage Exercises</span>
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -457,9 +468,9 @@ export default function SettingsPage() {
       </section>
 
       {/* Sound */}
-      <section className="mb-8">
+      <section className="mb-8 lg:mb-0 lg:order-2">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Notifications</h2>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 px-4 py-3">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 px-4 py-3">
           <div className="flex justify-between items-center">
             <span>Timer Sound</span>
             <button
@@ -479,14 +490,14 @@ export default function SettingsPage() {
       </section>
 
       {/* Account */}
-      <section className="mb-8">
+      <section className="mb-8 lg:mb-0 lg:order-4">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Account</h2>
-        <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
-          <div className="px-4 py-3 flex justify-between items-center">
+        <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          <div className="px-4 py-3 lg:px-0 flex justify-between items-center">
             <span className="text-gray-400 text-sm">Signed in as</span>
             <span className="text-sm">{user.email || user.displayName || "Google User"}</span>
           </div>
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 lg:px-0">
             <button
               onClick={signOut}
               className="text-red-400 hover:text-red-300 text-sm font-semibold transition"
@@ -496,6 +507,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+      </div>
 
       {confirmArchiveId && (() => {
         const program = activePrograms.find((p) => p.id === confirmArchiveId);
