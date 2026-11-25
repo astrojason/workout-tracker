@@ -124,6 +124,8 @@ export default function SettingsPage() {
     setDeletingId(programId);
     try {
       await deleteProgram(programId);
+    } catch (err) {
+      showError(err);
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -155,8 +157,35 @@ export default function SettingsPage() {
     setConfirmArchiveId(null);
     try {
       await archiveProgram(programId);
+    } catch (err) {
+      showError(err);
     } finally {
       setArchivingId(null);
+    }
+  }
+
+  const [weekSavingId, setWeekSavingId] = useState<string | null>(null);
+  const [savingSetting, setSavingSetting] = useState<"rest" | "sound" | null>(null);
+
+  async function handleChangeWeek(programId: string, week: number) {
+    setWeekSavingId(programId);
+    try {
+      await setCurrentWeek(programId, week);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setWeekSavingId(null);
+    }
+  }
+
+  async function saveSetting(which: "rest" | "sound", updates: Parameters<typeof updateUserSettings>[0]) {
+    setSavingSetting(which);
+    try {
+      await updateUserSettings(updates);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setSavingSetting(null);
     }
   }
 
@@ -164,6 +193,8 @@ export default function SettingsPage() {
     setArchivingId(programId);
     try {
       await unarchiveProgram(programId);
+    } catch (err) {
+      showError(err);
     } finally {
       setArchivingId(null);
     }
@@ -249,7 +280,9 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2 lg:contents">
                     <select
                       value={currentWeek(program.id)}
-                      onChange={(e) => setCurrentWeek(program.id, parseInt(e.target.value))}
+                      onChange={(e) => handleChangeWeek(program.id, parseInt(e.target.value))}
+                      disabled={weekSavingId === program.id}
+                      aria-busy={weekSavingId === program.id}
                       className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700 lg:w-[110px]"
                     >
                       {Array.from({ length: program.totalWeeks }, (_, i) => i + 1).map((w) => (
@@ -400,7 +433,7 @@ export default function SettingsPage() {
                           disabled={archivingId === program.id}
                           className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded-lg transition font-semibold"
                         >
-                          {archivingId === program.id ? "..." : "Reactivate"}
+                          {archivingId === program.id ? "Reactivating…" : "Reactivate"}
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(program.id)}
@@ -432,7 +465,9 @@ export default function SettingsPage() {
             <span>Default Rest Time</span>
             <select
               value={settings.defaultRestSeconds}
-              onChange={(e) => updateUserSettings({ defaultRestSeconds: parseInt(e.target.value) })}
+              onChange={(e) => saveSetting("rest", { defaultRestSeconds: parseInt(e.target.value) })}
+              disabled={savingSetting === "rest"}
+              aria-busy={savingSetting === "rest"}
               className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm border border-gray-700"
             >
               <option value={60}>60s</option>
@@ -491,9 +526,14 @@ export default function SettingsPage() {
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Notifications</h2>
         <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 px-4 py-3">
           <div className="flex justify-between items-center">
-            <span>Timer Sound</span>
+            <span id="timer-sound-label">Timer Sound{savingSetting === "sound" ? " · Saving…" : ""}</span>
             <button
-              onClick={() => updateUserSettings({ soundEnabled: !settings.soundEnabled })}
+              type="button"
+              role="switch"
+              aria-checked={settings.soundEnabled}
+              aria-labelledby="timer-sound-label"
+              disabled={savingSetting === "sound"}
+              onClick={() => saveSetting("sound", { soundEnabled: !settings.soundEnabled })}
               className={`w-12 h-7 rounded-full transition relative ${
                 settings.soundEnabled ? "bg-indigo-600" : "bg-gray-700"
               }`}

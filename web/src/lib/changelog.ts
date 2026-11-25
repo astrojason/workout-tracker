@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.43.1',
+    date: '2026-11-24',
+    changes: [
+      'Settings on the phone now shows the error when archiving, reactivating or deleting a program, changing its week, or saving the rest time or timer sound fails, instead of failing silently.',
+      'Those controls show that they are saving while they work, and the timer sound toggle is announced as a switch to screen readers.',
+    ],
+  },
+  {
     version: '1.43.0',
     date: '2026-11-24',
     changes: [
