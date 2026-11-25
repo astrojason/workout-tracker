@@ -1,6 +1,6 @@
-// Desktop layout (design "1a Centered workspace"): at desktop widths the bottom nav becomes a top
-// bar, cards flatten into sections with divider lines, and Home gains an "Up today" list beside the
-// program cards (recent sessions moved into the Overview, see desktop-overview.spec.ts). Phone widths keep the existing layout.
+// Desktop layout: at desktop widths the bottom nav becomes a top bar and cards flatten into sections
+// with divider lines. Home at desktop width is the Overview report only (desktop-overview.spec.ts);
+// the workout cards are phone-only. Phone widths keep the existing layout.
 import { expect, test } from "@playwright/test";
 
 const DESKTOP = { width: 1280, height: 800 };
@@ -75,25 +75,22 @@ test.describe("flat sections", () => {
   });
 });
 
-test.describe("home side column", () => {
-  test.beforeEach(async ({ page }) => {
+test.describe("home layout", () => {
+  // Desktop Home is the Overview report only; the workout cards (programs, today's workout,
+  // custom workout) are phone-only. A paused workout's banner shows on both.
+  test("at desktop width Home shows the Overview and no workout cards", async ({ page }) => {
     await page.setViewportSize(DESKTOP);
-    await page.goto("/test-preview/home-desktop");
+    await page.goto("/test-preview/home-layout");
+    await expect(page.getByText("Overview placeholder")).toBeVisible();
+    await expect(page.getByText("Training placeholder")).toHaveCount(0);
+    await expect(page.getByText("Banner placeholder")).toBeVisible();
   });
 
-  test("Up today lists today's exercises and links to the program editor", async ({ page }) => {
-    const upToday = page.getByRole("region", { name: "Up today" });
-    await expect(upToday.getByText("Preview Program · Tuesday · Week 3")).toBeVisible();
-    await expect(upToday.getByText("Bench Press")).toBeVisible();
-    await expect(upToday.getByText("Main", { exact: true })).toBeVisible();
-    await expect(upToday.getByText("Final set AMRAP")).toBeVisible();
-    await expect(upToday.getByRole("link", { name: "Edit program →" })).toHaveAttribute("href", "/programs/preview-program");
+  test("on a phone Home shows the workout cards and no Overview", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto("/test-preview/home-layout");
+    await expect(page.getByText("Training placeholder")).toBeVisible();
+    await expect(page.getByText("Overview placeholder")).toHaveCount(0);
+    await expect(page.getByText("Banner placeholder")).toBeVisible();
   });
-
-  test("Up today shows an exercise it can't resolve with the error, instead of hiding it", async ({ page }) => {
-    const upToday = page.getByRole("region", { name: "Up today" });
-    await expect(upToday.getByText("Unresolved exercise")).toBeVisible();
-    await expect(upToday.getByText(/Exercise definition missing-def not found/)).toBeVisible();
-  });
-
 });

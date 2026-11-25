@@ -9,9 +9,8 @@ import { scopeDefinitions } from "@/lib/types";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ConsistencyCard } from "@/components/home/ConsistencyCard";
-import { UpToday } from "@/components/home/UpToday";
+import { HomeLayout } from "@/components/home/HomeLayout";
 import { DesktopOverview } from "@/components/overview/DesktopOverview";
-import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { CoachSection } from "@/components/workout/CoachSection";
@@ -53,8 +52,6 @@ export default function HomePage() {
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState<Date>(new Date());
   const { showError } = useError();
-  // Desktop leads with the reporting Overview; phones keep the workout-first Home.
-  const isDesktop = useIsDesktop();
 
   async function loadLastPerformance(): Promise<WorkoutSessionDoc[]> {
     const last = await getLastPerformance(user!.uid);
@@ -326,72 +323,44 @@ export default function HomePage() {
     today,
   );
 
-  // Desktop "Up today": the first program with a regular (non-checklist) workout today, else any.
-  const programsToday = activePrograms
-    .map((program) => ({ program, workout: getTodaysWorkout(program.id) }))
-    .filter((p): p is { program: typeof p.program; workout: Workout } => p.workout !== null);
-  const upToday = programsToday.find((p) => !isChecklistWorkout(p.workout)) ?? programsToday[0];
-
-  const customWorkoutButton = (className: string) => (
-    <button
-      onClick={openCustomWorkout}
-      disabled={customLoading}
-      aria-busy={customLoading}
-      className={`rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition disabled:opacity-50 ${className}`}
-    >
-      {customLoading ? "Loading last weights…" : "Custom workout"}
-    </button>
-  );
-
-  // Phones: one column. Desktop (lg): the Overview report first, then today's training — program
-  // cards in two columns with today's exercises beside them (consistency and recent sessions are in
-  // the Overview). The custom-workout button renders once per layout; the other copy is display:none.
+  // Home is the workout-first page on a phone and the Overview report at desktop width; see HomeLayout.
   return (
-    <div className="max-w-lg mx-auto p-4 lg:max-w-[1360px] lg:p-8">
-      {isDesktop && (
-        <div className="hidden lg:block mb-10">
-          <DesktopOverview userId={user.uid} programs={activePrograms} definitions={definitions} onWeightsChanged={refreshPrograms} />
+    <HomeLayout
+      banner={workout.pausedSession && (
+      <div className="mb-4 bg-indigo-950 border border-indigo-700 rounded-xl p-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-indigo-200">Workout paused</p>
+          <p className="text-sm text-indigo-400 truncate">
+            {workout.pausedSession.workout.programName} &middot; {workout.pausedSession.workout.dayOfWeek}
+          </p>
         </div>
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={workout.dismissWorkout}
+            className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-semibold transition"
+          >
+            Discard
+          </button>
+          <button
+            onClick={workout.resumeWorkout}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition"
+          >
+            Resume
+          </button>
+        </div>
+      </div>
       )}
-
+      overview={
+        <DesktopOverview userId={user.uid} programs={activePrograms} definitions={definitions} onWeightsChanged={refreshPrograms} />
+      }
+      training={<>
       {/* Header */}
-      <div className="text-center mb-6 lg:flex lg:items-end lg:justify-between lg:text-left lg:border-t lg:border-gray-800 lg:pt-8">
-        <div>
-          <h1 className="text-2xl font-bold lg:text-3xl">{dayName}</h1>
-          <p className="text-gray-400">{dateStr}</p>
-        </div>
-        {customWorkoutButton("hidden lg:block px-5 py-2.5 text-sm")}
+      <div className="text-center mb-6">
+        <h1 className="text-2xl font-bold">{dayName}</h1>
+        <p className="text-gray-400">{dateStr}</p>
       </div>
 
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start">
-      <div>
-      <div className="lg:hidden"><ConsistencyCard {...consistency} /></div>
-
-      {/* Resume Banner */}
-      {workout.pausedSession && (
-        <div className="mb-4 bg-indigo-950 border border-indigo-700 rounded-xl p-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-semibold text-indigo-200">Workout paused</p>
-            <p className="text-sm text-indigo-400 truncate">
-              {workout.pausedSession.workout.programName} &middot; {workout.pausedSession.workout.dayOfWeek}
-            </p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={workout.dismissWorkout}
-              className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 text-sm font-semibold transition"
-            >
-              Discard
-            </button>
-            <button
-              onClick={workout.resumeWorkout}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition"
-            >
-              Resume
-            </button>
-          </div>
-        </div>
-      )}
+      <ConsistencyCard {...consistency} />
 
       {/* Programs */}
       {activePrograms.length === 0 ? (
@@ -400,7 +369,7 @@ export default function HomePage() {
           <p className="text-gray-500 text-sm mb-4">Go to Settings to import a program.</p>
         </div>
       ) : (
-        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:items-start">
+        <div className="space-y-4">
           {activePrograms.map((program) => {
             // Read from the live session list (same as the streak above), so a workout
             // that was just saved shows as done without a reload.
@@ -444,22 +413,17 @@ export default function HomePage() {
         </div>
       )}
 
-      {customWorkoutButton("w-full mt-4 py-3 lg:hidden")}
-      </div>
-
-      <aside className="hidden lg:flex lg:flex-col lg:gap-6">
-        {upToday && (
-          <UpToday
-            program={upToday.program}
-            workout={upToday.workout}
-            week={currentWeek(upToday.program.id)}
-            definitions={definitionsFor(upToday.program.id)}
-          />
-        )}
-      </aside>
-      </div>
+      <button
+        onClick={openCustomWorkout}
+        disabled={customLoading}
+        aria-busy={customLoading}
+        className="w-full mt-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition disabled:opacity-50"
+      >
+        {customLoading ? "Loading last weights…" : "Custom workout"}
+      </button>
 
       <NativeHomeSummary summary={homeSummary} />
-    </div>
+      </>}
+    />
   );
 }

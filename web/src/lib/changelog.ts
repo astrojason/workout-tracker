@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.36.1',
+    date: '2026-11-24',
+    changes: [
+      'Desktop Home is now the Overview only: program cards, today\'s workout and Custom workout no longer show below it. They stay on phones.',
+    ],
+  },
+  {
     version: '1.36.0',
     date: '2026-11-24',
     changes: [
