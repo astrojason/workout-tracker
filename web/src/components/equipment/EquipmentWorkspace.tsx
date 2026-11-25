@@ -133,7 +133,8 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
                 {reach.map((row) => {
                   const s = reachStats(row.loads);
                   const span = s.max - s.min || 1;
-                  const gapIsBig = s.biggestGap && s.smallestStep !== null && s.biggestGap.to - s.biggestGap.from > s.smallestStep + 0.001;
+                  // biggestGap is only set for a jump that stands out (see reachStats).
+                  const gapIsBig = s.biggestGap !== null;
                   const n = usedBy(row);
                   return (
                     <tr key={row.key} className="border-t border-gray-800 whitespace-nowrap">
@@ -143,7 +144,16 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
                       </td>
                       <td className="px-3 py-2.5 text-right text-gray-300">{s.smallestStep === null ? "—" : unitOf(row, s.smallestStep)}</td>
                       <td className={`px-3 py-2.5 text-right ${gapIsBig ? "text-amber-300" : "text-gray-300"}`}>
-                        {s.biggestGap ? `${cleanWeight(s.biggestGap.from)} → ${cleanWeight(s.biggestGap.to)}` : "—"}
+                        {s.biggestGap ? (
+                          <>
+                            {cleanWeight(s.biggestGap.from)} → {cleanWeight(s.biggestGap.to)}
+                            {s.biggestGap.count > 1 && <span className="ml-1.5 text-xs text-amber-300/70">+{s.biggestGap.count - 1} more</span>}
+                          </>
+                        ) : s.largestStep !== null ? (
+                          <span title={`Every jump between weights is ${unitOf(row, s.largestStep)} or less`}>
+                            No big gaps <span className="text-xs text-gray-500">≤ {unitOf(row, s.largestStep)}</span>
+                          </span>
+                        ) : "—"}
                       </td>
                       <td className="px-3 py-2.5">
                         <svg viewBox="0 0 400 16" className="w-full h-4 block" role="img" aria-label={`${row.loads.length} loads from ${unitOf(row, s.min)} to ${unitOf(row, s.max)}`}>

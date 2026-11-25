@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.50.1',
+    date: '2026-11-25',
+    changes: [
+      'Fixed: What you can load called the first of many equal jumps the "biggest gap" (a FitArc showed 0 → 0.5 even though every jump is 0.5 lb or less). A gap is now shown only when a jump stands out from the rest, with how many more there are; otherwise it says No big gaps and the largest jump.',
+    ],
+  },
+  {
     version: '1.50.0',
     date: '2026-11-25',
     changes: [

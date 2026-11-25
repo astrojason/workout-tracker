@@ -17,8 +17,20 @@ test.describe("equipment workspace", () => {
     await expect(bar).toContainText("45–220 lb");
     await expect(bar).toContainText("5 lb");
     await expect(bar).toContainText("80 → 95");
+    await expect(bar).toContainText("+1 more"); // a second 15 lb jump
     await expect(reach(page).getByRole("row", { name: /Kettlebells/ })).toContainText("18–26 lb");
     await expect(reach(page).getByRole("row", { name: /Barbell \(45 lb\)/ })).toContainText("2 exercises");
+  });
+
+  test("a regular step that recurs through the range isn't called a gap", async ({ page }) => {
+    const items = page.getByRole("region", { name: "Your own equipment" });
+    await items.getByLabel("Item name").fill("FitArc");
+    await items.getByLabel("Kind").selectOption("plate_loaded");
+    await items.getByLabel("Empty weight (lb)").fill("0");
+    await items.getByRole("button", { name: "Add item" }).click();
+    const fitarc = reach(page).getByRole("row", { name: /FitArc/ });
+    await expect(fitarc).toContainText("No big gaps");
+    await expect(fitarc).not.toContainText("0 →");
   });
 
   test("lists working weights you can't make, with the nearest you can", async ({ page }) => {

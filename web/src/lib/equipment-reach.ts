@@ -42,15 +42,33 @@ export function equipmentReach(config: UserEquipmentConfig): ReachRow[] {
   return rows;
 }
 
-export function reachStats(loads: number[]): { min: number; max: number; smallestStep: number | null; biggestGap: { from: number; to: number } | null } {
-  let smallestStep: number | null = null;
-  let biggestGap: { from: number; to: number } | null = null;
-  for (let i = 1; i < loads.length; i++) {
-    const step = Math.round((loads[i] - loads[i - 1]) * 100) / 100;
-    if (smallestStep === null || step < smallestStep) smallestStep = step;
-    if (!biggestGap || step > biggestGap.to - biggestGap.from + EPS) biggestGap = { from: loads[i - 1], to: loads[i] };
-  }
-  return { min: loads[0], max: loads[loads.length - 1], smallestStep, biggestGap };
+export interface ReachStats {
+  min: number;
+  max: number;
+  smallestStep: number | null;
+  largestStep: number | null;
+  // A real hole: the largest jump, only when it stands out (bigger than the equipment's other jumps
+  // and in at most MAX_GAP_PLACES places). The first one, and how many jumps that big there are.
+  // Null when the largest jump is just the regular step recurring through the range (plates).
+  biggestGap: { from: number; to: number; count: number } | null;
+}
+
+const MAX_GAP_PLACES = 2;
+
+export function reachStats(loads: number[]): ReachStats {
+  const steps = loads.slice(1).map((l, i) => Math.round((l - loads[i]) * 100) / 100);
+  if (steps.length === 0) return { min: loads[0], max: loads[loads.length - 1], smallestStep: null, largestStep: null, biggestGap: null };
+  const smallestStep = Math.min(...steps);
+  const largestStep = Math.max(...steps);
+  const at = steps.flatMap((s, i) => (Math.abs(s - largestStep) < EPS ? [i] : []));
+  const standsOut = largestStep > smallestStep + EPS && at.length <= MAX_GAP_PLACES;
+  return {
+    min: loads[0],
+    max: loads[loads.length - 1],
+    smallestStep,
+    largestStep,
+    biggestGap: standsOut ? { from: loads[at[0]], to: loads[at[0] + 1], count: at.length } : null,
+  };
 }
 
 export interface Unmakeable {

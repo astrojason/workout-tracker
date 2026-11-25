@@ -1,3 +1,4 @@
+import { plateLoads } from "../equipment-items";
 import { describe, expect, it } from "vitest";
 import type { ExerciseDefinition, Program, UserEquipmentConfig } from "../types";
 import { DEFAULT_EQUIPMENT_CONFIG } from "../equipment-calculator";
@@ -41,13 +42,24 @@ describe("equipmentReach", () => {
 });
 
 describe("reachStats", () => {
-  it("gives the range, the smallest step and the first biggest gap", () => {
-    expect(reachStats([18, 26, 35, 44])).toEqual({ min: 18, max: 44, smallestStep: 8, biggestGap: { from: 26, to: 35 } });
-    expect(reachStats([3])).toEqual({ min: 3, max: 3, smallestStep: null, biggestGap: null });
+  it("gives the range, the smallest and largest steps, and the first biggest gap with how many there are", () => {
+    expect(reachStats([18, 26, 35, 44])).toEqual({ min: 18, max: 44, smallestStep: 8, largestStep: 9, biggestGap: { from: 26, to: 35, count: 2 } });
+    expect(reachStats([3])).toEqual({ min: 3, max: 3, smallestStep: null, largestStep: null, biggestGap: null });
   });
   it("finds the barbell's biggest gap", () => {
     const loads = equipmentReach(config).find((r) => r.name === "Barbell (45 lb)")!.loads;
-    expect(reachStats(loads).biggestGap).toEqual({ from: 80, to: 95 });
+    expect(reachStats(loads).biggestGap).toEqual({ from: 80, to: 95, count: 2 }); // and a second 15 lb jump higher up
+  });
+  // A jump that recurs all through the range is the equipment's normal step, not a gap: plates on a
+  // FitArc alternate 0.25 and 0.5 lb jumps hundreds of times, so "0 → 0.5" was meaningless.
+  it("reports no gap when the largest jump is the equipment's regular step", () => {
+    const fitarc = plateLoads(0, 1, DEFAULT_EQUIPMENT_CONFIG);
+    expect(reachStats(fitarc)).toMatchObject({ smallestStep: 0.25, largestStep: 0.5, biggestGap: null });
+    expect(reachStats([5, 10, 15, 20]).biggestGap).toBeNull(); // even steps
+    expect(reachStats([18, 26]).biggestGap).toBeNull();        // a single jump has nothing to stand out from
+  });
+  it("reports a real hole in uneven settings", () => {
+    expect(reachStats([5, 10, 15, 22.5, 30]).biggestGap).toEqual({ from: 15, to: 22.5, count: 2 });
   });
 });
 
