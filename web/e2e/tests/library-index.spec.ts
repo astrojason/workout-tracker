@@ -23,6 +23,37 @@ test.describe("programs and exercises", () => {
     await expect(squat.getByRole("button", { name: "Edit Back Squat" })).toBeVisible();
   });
 
+  test("sorts by any column: text A to Z first, numbers and dates highest or latest first", async ({ page }) => {
+    const names = () => exercises(page).locator("tbody tr td:first-child a").allTextContents();
+    const header = (name: string) => exercises(page).getByRole("columnheader", { name });
+    // Default: most recently done first.
+    await expect(header("Last done")).toHaveAttribute("aria-sort", "descending");
+    expect(await names()).toEqual(["Back Squat", "Assisted Pull-up", "Hammer Curl"]);
+
+    await header("Exercise").getByRole("button").click();
+    await expect(header("Exercise")).toHaveAttribute("aria-sort", "ascending");
+    await expect(header("Last done")).not.toHaveAttribute("aria-sort", /.+/);
+    expect(await names()).toEqual(["Assisted Pull-up", "Back Squat", "Hammer Curl"]);
+    await header("Exercise").getByRole("button").click();
+    await expect(header("Exercise")).toHaveAttribute("aria-sort", "descending");
+    expect(await names()).toEqual(["Hammer Curl", "Back Squat", "Assisted Pull-up"]);
+
+    await header("Sessions").getByRole("button").click();
+    await expect(header("Sessions")).toHaveAttribute("aria-sort", "descending");
+    expect(await names()).toEqual(["Back Squat", "Assisted Pull-up", "Hammer Curl"]);
+
+    await header("Equipment").getByRole("button").click();
+    expect(await names()).toEqual(["Assisted Pull-up", "Back Squat", "Hammer Curl"]); // Assisted pullup, Barbell 45, Dumbbell
+  });
+
+  test("sorting keeps the search filter", async ({ page }) => {
+    await exercises(page).getByLabel("Search exercises").fill("u"); // all three have a "u"
+    await exercises(page).getByRole("columnheader", { name: "Exercise" }).getByRole("button").click();
+    const names = await exercises(page).locator("tbody tr td:first-child a").allTextContents();
+    expect(names).toEqual([...names].sort());
+    expect(names.length).toBeGreaterThan(0);
+  });
+
   test("filters exercises by search and equipment", async ({ page }) => {
     await exercises(page).getByLabel("Search exercises").fill("pull");
     await expect(exercises(page).locator("tbody tr")).toHaveCount(1);

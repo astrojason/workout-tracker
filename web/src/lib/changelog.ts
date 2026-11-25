@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.49.0',
+    date: '2026-11-25',
+    changes: [
+      'Exercises: sort the table by any column. Click a heading to sort by it (names and text A to Z first, sessions and last done highest or latest first) and click again to reverse. Sorting keeps your search and equipment filter.',
+    ],
+  },
+  {
     version: '1.48.0',
     date: '2026-11-25',
     changes: [
