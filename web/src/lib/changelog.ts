@@ -7,6 +7,24 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.44.0',
+    date: '2026-11-24',
+    changes: [
+      'Your own equipment: add things the equipment sections don\'t cover under Equipment → Your own equipment. An item is plate-loaded (its empty weight, loaded with your plates on one side like a FitArc, or both), a set of fixed weights (like medicine balls), or no weight (like a stability ball).',
+      'Link an exercise to an item in the exercise library. Its workout shows the plate math on that item (one side for a FitArc), a next-weight-step progression moves through the item\'s weights, and the Equipment page checks its working weight against the item instead of a barbell.',
+      'Each weighted item gets its own row in What you can load.',
+    ],
+  },
+  {
+    version: '1.43.2',
+    date: '2026-11-24',
+    changes: [
+      'Equipment: each working weight you can\'t make now has buttons to switch to the nearest weight you can (for example "Use 18 lb"), and an Edit exercise link for when the exercise\'s equipment is wrong. Before, the list only reported the problem.',
+      'Exercises: every exercise has an Edit link.',
+      'The exercise library opens straight on the exercise you followed a link for, instead of making you find it in the list.',
+    ],
+  },
+  {
     version: '1.43.1',
     date: '2026-11-24',
     changes: [

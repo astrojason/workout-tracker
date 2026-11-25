@@ -77,12 +77,12 @@ describe("unmakeableWeights", () => {
       definitions, config,
     );
     expect(result).toEqual([
-      { programName: "Block B", exerciseName: "Back Squat", weight: 85, unit: "lb", reason: "Your plates can't make it", below: 80, above: 95 },
-      { programName: "Block B", exerciseName: "Goblet Squat", weight: 20, unit: "lb", reason: "No kettlebell that weight", below: 18, above: 26 },
-      { programName: "Block B", exerciseName: "Seated Leg Curl", weight: 95, unit: "lb", reason: "Not a setting on the machine", below: 90, above: 100 },
-      { programName: "Block B", exerciseName: "Assisted Pull-up", weight: 4, unit: "bands", reason: "More bands than you own", below: 3, above: null },
-      { programName: "Block B", exerciseName: "Overhead Press", weight: 65, unit: "lb", reason: "You don't have a 35 lb barbell", below: null, above: null },
-      { programName: "Block B", exerciseName: "DB Row", weight: 52.5, unit: "lb", reason: "Outside your dumbbells", below: 50, above: null },
+      { programId: "p1", programName: "Block B", definitionId: "squat", exerciseName: "Back Squat", weight: 85, unit: "lb", reason: "Your plates can't make it", below: 80, above: 95 },
+      { programId: "p1", programName: "Block B", definitionId: "goblet", exerciseName: "Goblet Squat", weight: 20, unit: "lb", reason: "No kettlebell that weight", below: 18, above: 26 },
+      { programId: "p1", programName: "Block B", definitionId: "curl", exerciseName: "Seated Leg Curl", weight: 95, unit: "lb", reason: "Not a setting on the machine", below: 90, above: 100 },
+      { programId: "p1", programName: "Block B", definitionId: "pull", exerciseName: "Assisted Pull-up", weight: 4, unit: "bands", reason: "More bands than you own", below: 3, above: null },
+      { programId: "p1", programName: "Block B", definitionId: "press", exerciseName: "Overhead Press", weight: 65, unit: "lb", reason: "You don't have a 35 lb barbell", below: null, above: null },
+      { programId: "p1", programName: "Block B", definitionId: "row", exerciseName: "DB Row", weight: 52.5, unit: "lb", reason: "Outside your dumbbells", below: 50, above: null },
     ]);
   });
 });

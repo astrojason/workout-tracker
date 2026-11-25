@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { updateExerciseDefinitionMeta, updateExerciseDefinitionWeight } from "@/lib/firestore";
-import type { ExerciseDefinition, EquipmentType, ProgressionRule, GymMachine } from "@/lib/types";
+import type { ExerciseDefinition, EquipmentItem, EquipmentType, ProgressionRule, GymMachine } from "@/lib/types";
 import { GymMachineSelect } from "@/components/programs/GymMachineSelect";
 import { parseWeightOptions } from "@/lib/types";
 import { useError } from "@/components/providers/ErrorProvider";
@@ -42,7 +43,22 @@ export default function ExerciseLibraryPage() {
   const { user } = useAuth();
   const { showError } = useError();
   const { definitions, machines, loading, reload } = useExerciseDefinitions(user?.uid ?? null);
+  // The user's own equipment items, which an exercise can be linked to.
+  const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
+  const items = equipmentConfig.items ?? [];
   const [editingId, setEditingId] = useState<string | null>(null);
+  // ?edit=<definitionId> (linked from Equipment and Exercises) opens that exercise's editor and
+  // scrolls to it once the library has loaded. Read after mount: there's no URL on the server.
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("edit");
+    if (id) { setLinkedId(id); setEditingId(id); }
+  }, []);
+  useEffect(() => {
+    if (!linkedId || loading || !definitions[linkedId]) return;
+    document.getElementById(`exercise-${linkedId}`)?.scrollIntoView({ block: "center" });
+    setLinkedId(null);
+  }, [linkedId, loading, definitions]);
 
   const sorted = Object.values(definitions).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -75,10 +91,11 @@ export default function ExerciseLibraryPage() {
         <div className="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
           {sorted.map((def) =>
             editingId === def.id ? (
+              <div key={def.id} id={`exercise-${def.id}`}>
               <ExerciseDefinitionEditRow
-                key={def.id}
                 definition={def}
                 machines={machines}
+                items={items}
                 userId={user.uid}
                 onDone={async () => {
                   setEditingId(null);
@@ -87,6 +104,7 @@ export default function ExerciseLibraryPage() {
                 onCancel={() => setEditingId(null)}
                 onError={showError}
               />
+              </div>
             ) : (
               <button
                 key={def.id}
@@ -95,7 +113,7 @@ export default function ExerciseLibraryPage() {
               >
                 <div className="font-semibold">{def.name}</div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  {def.brand ? `${def.brand} · ` : ""}{def.equipmentType.replace(/_/g, " ")}{def.machineId && machines.some((m) => m.id === def.machineId) ? ` (${machines.find((m) => m.id === def.machineId)!.name})` : def.weightOptions?.length ? ` (${def.weightOptions.length} weights)` : ""}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""} · {def.progressionRule.replace(/_/g, " ")}
+                  {def.brand ? `${def.brand} · ` : ""}{def.equipmentType.replace(/_/g, " ")}{def.machineId && machines.some((m) => m.id === def.machineId) ? ` (${machines.find((m) => m.id === def.machineId)!.name})` : def.weightOptions?.length ? ` (${def.weightOptions.length} weights)` : ""}{def.equipmentDetail ? ` · ${def.equipmentDetail}` : ""}{items.find((i) => i.id === def.equipmentItemId) ? ` · on ${items.find((i) => i.id === def.equipmentItemId)!.name}` : ""} · {def.progressionRule.replace(/_/g, " ")}
                 </div>
                 {def.muscleGroups.length > 0 && (
                   <div className="text-xs text-gray-600 mt-0.5">{def.muscleGroups.join(", ")}</div>
@@ -114,10 +132,11 @@ export default function ExerciseLibraryPage() {
 }
 
 function ExerciseDefinitionEditRow({
-  definition, machines, userId, onDone, onCancel, onError,
+  definition, machines, items, userId, onDone, onCancel, onError,
 }: {
   definition: ExerciseDefinition;
   machines: GymMachine[];
+  items: EquipmentItem[];
   userId: string;
   onDone: () => void;
   onCancel: () => void;
@@ -128,6 +147,8 @@ function ExerciseDefinitionEditRow({
   const [weightOptionsText, setWeightOptionsText] = useState(definition.weightOptions?.join(", ") ?? "");
   // A linked machine's weights replace the typed list (definition.weightOptions already holds them).
   const [machineId, setMachineId] = useState(definition.machineId ?? "");
+  // One of the user's own equipment items; an item that has since been removed counts as none.
+  const [itemId, setItemId] = useState(items.some((i) => i.id === definition.equipmentItemId) ? definition.equipmentItemId! : "");
   const [muscleGroupsText, setMuscleGroupsText] = useState(definition.muscleGroups.join(", "));
   const [equipmentType, setEquipmentType] = useState<EquipmentType>(definition.equipmentType);
   const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
@@ -149,6 +170,7 @@ function ExerciseDefinitionEditRow({
         brand: brand.trim() || null,
         weightOptions: equipmentType === "machine" ? (linkedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : null,
         machineId: linkedMachine?.id ?? null,
+        equipmentItemId: itemId || null,
         muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
         equipmentType,
         equipmentDetail: equipmentType === "band" ? (equipmentDetail.trim() || null) : null,
@@ -201,6 +223,14 @@ function ExerciseDefinitionEditRow({
           </select>
         </Field>
       </div>
+
+      <Field label="Your own equipment item (optional)">
+        <select aria-label="Equipment item" value={itemId} onChange={(e) => setItemId(e.target.value)} className="input-field">
+          <option value="">None — use the equipment type above</option>
+          {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+        </select>
+        {items.length === 0 && <p className="mt-1 text-xs text-gray-500">Add items under Equipment → Your own equipment.</p>}
+      </Field>
 
       {equipmentType === "machine" && machines.length > 0 && (
         <GymMachineSelect machines={machines} value={machineId} onChange={setMachineId} />

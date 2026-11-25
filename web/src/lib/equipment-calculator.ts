@@ -257,6 +257,18 @@ function parseWeightFromDetail(detail: string): number | null {
 }
 
 export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, config?: UserEquipmentConfig): EquipmentDisplay {
+  // An exercise linked to one of the user's own items is loaded on that item. If the item has been
+  // deleted, or has no weight, the exercise's own equipment type decides as before.
+  const item = exercise.equipmentItemId ? config?.items?.find((i) => i.id === exercise.equipmentItemId) : undefined;
+  if (item?.kind === "plate_loaded") {
+    const base = item.baseWeight ?? 0;
+    const oneSided = (item.sides ?? 1) === 1;
+    if (weight <= base) return { type: "barbell", config: { targetWeight: base, barWeight: base, achievedWeight: base, perSide: [], isLandmine: oneSided } };
+    const loaded = oneSided ? calculateLandmine(weight, base, config) : calculateBarbell(weight, base, config);
+    return { type: "barbell", config: { ...loaded, isLandmine: oneSided } };
+  }
+  if (item?.kind === "fixed") return { type: "item", name: item.name, weight };
+
   switch (exercise.equipmentType) {
     case "barbell_45": {
       const landmine = isLandmineExercise(exercise);
@@ -325,6 +337,7 @@ export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, 
 
 export function equipmentDisplayText(display: EquipmentDisplay): string {
   switch (display.type) {
+    case "item": return `${display.name}: ${cleanWeight(display.weight)} lbs`;
     case "barbell": return plateFullDisplayString(display.config);
     case "powerblock": return `PowerBlock: ${cleanWeight(display.weight)} lbs`;
     case "dumbbell": return `Dumbbell: ${cleanWeight(display.weight)} lbs`;
@@ -347,6 +360,7 @@ export function equipmentDisplayText(display: EquipmentDisplay): string {
 
 export function equipmentShortText(display: EquipmentDisplay): string {
   switch (display.type) {
+    case "item": return `${cleanWeight(display.weight)} lbs`;
     case "barbell": return `${cleanWeight(display.config.achievedWeight)} lbs`;
     case "powerblock":
     case "dumbbell":

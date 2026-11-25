@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Program } from "@/lib/types";
-import { getPrograms } from "@/lib/firestore";
+import { getPrograms, updateProgramExerciseWeight } from "@/lib/firestore";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
@@ -47,6 +47,20 @@ export function DesktopEquipment({ userId }: { userId: string }) {
       onSave={equipment.saveConfig}
       definitions={definitions}
       programs={programs}
+      onSetWeight={async (programId, definitionId, weight) => {
+        const program = programs.find((p) => p.id === programId);
+        const hardStreak = program?.weights?.[definitionId]?.hardStreak ?? 0;
+        try {
+          await updateProgramExerciseWeight(userId, programId, definitionId, weight, hardStreak);
+          setPrograms((ps) => (ps ?? []).map((p) => (p.id === programId
+            ? { ...p, weights: { ...p.weights, [definitionId]: { currentWeight: weight, hardStreak } } }
+            : p)));
+          return true;
+        } catch (err) {
+          showError(err);
+          return false;
+        }
+      }}
       machinesSlot={(
         <GymMachinesManager
           machines={gym.machines}

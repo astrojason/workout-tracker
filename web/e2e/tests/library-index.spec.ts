@@ -16,11 +16,12 @@ test.describe("programs and exercises", () => {
   test("lists the exercise library, linking each to its report", async ({ page }) => {
     await expect(exercises(page).locator("tbody tr")).toHaveCount(3);
     const squat = exercises(page).getByRole("row", { name: /Back Squat/ });
-    await expect(squat.getByRole("link", { name: "Back Squat" })).toHaveAttribute("href", "/exercise/Back%20Squat");
+    await expect(squat.getByRole("link", { name: "Back Squat", exact: true })).toHaveAttribute("href", "/exercise/Back%20Squat");
     await expect(squat).toContainText("Barbell 45");
     await expect(squat).toContainText("Quads · Glutes");
     await expect(exercises(page).getByRole("row", { name: /Hammer Curl/ })).toContainText("Never");
     await expect(exercises(page).getByRole("link", { name: /Edit the library/ })).toHaveAttribute("href", "/settings/exercises");
+    await expect(squat.getByRole("link", { name: "Edit Back Squat" })).toHaveAttribute("href", "/settings/exercises?edit=squat");
   });
 
   test("filters exercises by search and equipment", async ({ page }) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ExerciseDefinition, Program, UserEquipmentConfig } from "@/lib/types";
 import { cleanWeight } from "@/lib/types";
@@ -15,6 +16,7 @@ import { LoopBandsSection } from "@/components/settings/LoopBandsSection";
 import { FixedDumbbellsSection } from "@/components/settings/FixedDumbbellsSection";
 import { GripperSection } from "@/components/settings/GripperSection";
 import { AssistedPullupSection } from "@/components/settings/AssistedPullupSection";
+import { EquipmentItemsSection } from "@/components/settings/EquipmentItemsSection";
 
 export interface EquipmentWorkspaceProps {
   config: UserEquipmentConfig; // as saved
@@ -22,6 +24,8 @@ export interface EquipmentWorkspaceProps {
   definitions: Record<string, ExerciseDefinition>;
   programs: Program[];
   machinesSlot: ReactNode; // the gym machines manager, which saves on its own
+  // Sets an exercise's working weight in a program; reports its own error and resolves false on failure.
+  onSetWeight: (programId: string, definitionId: string, weight: number) => Promise<boolean>;
 }
 
 const unitOf = (row: ReachRow, n: number) => (row.unit === "bands" ? `${n} band${n === 1 ? "" : "s"}` : `${cleanWeight(n)} lb`);
@@ -36,10 +40,21 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 
 // Desktop Equipment page: what the equipment can load and which working weights it can't make,
 // both following the edits live, above the editors for everything owned.
-export function EquipmentWorkspace({ config, onSave, definitions, programs, machinesSlot }: EquipmentWorkspaceProps) {
+export function EquipmentWorkspace({ config, onSave, definitions, programs, machinesSlot, onSetWeight }: EquipmentWorkspaceProps) {
   const [draft, setDraft] = useState(config);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [fixing, setFixing] = useState<string | null>(null); // the can't-make item being set
+  const [fixed, setFixed] = useState<string | null>(null);
+
+  async function applyWeight(p: { programId: string; programName: string; definitionId: string; exerciseName: string }, weight: number, label: string) {
+    const key = `${p.programId}/${p.definitionId}`;
+    setFixing(key);
+    setFixed(null);
+    const ok = await onSetWeight(p.programId, p.definitionId, weight);
+    setFixing(null);
+    if (ok) setFixed(`✓ ${p.exerciseName} in ${p.programName} is now ${label}`);
+  }
 
   useEffect(() => setDraft(config), [config]);
 
@@ -48,6 +63,7 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
   const problems = unmakeableWeights(programs, definitions, draft);
   const defs = Object.values(definitions);
   const usedBy = (row: ReachRow) => {
+    if (row.itemId) return defs.filter((d) => d.equipmentItemId === row.itemId).length;
     const types = row.key === "powerblock" || row.key === "dumbbells" ? ["powerblock", "dumbbell"] : row.types;
     return defs.filter((d) => types.includes(d.equipmentType)).length;
   };
@@ -145,7 +161,8 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
           <h2 id="equipment-problems-title" className="font-semibold">
             {problems.length > 0 ? `${problems.length} working weight${problems.length === 1 ? "" : "s"} you can't make` : "No working weights you can't make"}
           </h2>
-          <p className="text-sm text-gray-400">Each active program&apos;s current weights, checked against your equipment and machine settings.</p>
+          <p className="text-sm text-gray-400">Each active program&apos;s current weights, checked against your equipment and machine settings. Switch to a weight you can make, or fix the exercise if its equipment is wrong.</p>
+          {fixed && <p role="status" className="mt-2 text-sm text-green-400">{fixed}</p>}
         </div>
         {problems.length > 0 && (
           <ul>
@@ -155,12 +172,32 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
                 ? `Nearest: ${cleanWeight(p.below)} or ${unit(p.above)}`
                 : p.below !== null ? `Nearest: ${unit(p.below)}` : p.above !== null ? `Nearest: ${unit(p.above)}` : null;
               return (
-                <li key={`${p.programName}-${p.exerciseName}`} className="flex flex-wrap justify-between gap-3 px-5 py-3 border-t border-gray-800 first:border-t-0 text-sm">
+                <li key={`${p.programId}-${p.definitionId}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-gray-800 first:border-t-0 text-sm">
                   <span>
                     <strong>{p.exerciseName}</strong> at <strong>{unit(p.weight)}</strong>
                     <span className="text-gray-400"> · {p.programName} · {p.reason}</span>
+                    {near && <span className="block text-xs text-gray-400">{near}</span>}
                   </span>
-                  {near && <span className="text-gray-300">{near}</span>}
+                  <span className="flex flex-wrap items-center gap-2">
+                    {fixing === `${p.programId}/${p.definitionId}` ? (
+                      <button type="button" disabled className="h-8 px-3 rounded-lg bg-indigo-600 text-xs font-semibold opacity-60 inline-flex items-center gap-1.5">
+                        <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" aria-hidden="true" />Saving…
+                      </button>
+                    ) : (
+                      [p.below, p.above].filter((w): w is number => w !== null).map((w) => (
+                        <button
+                          key={w}
+                          type="button"
+                          disabled={fixing !== null}
+                          onClick={() => applyWeight(p, w, unit(w))}
+                          className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold disabled:opacity-50"
+                        >
+                          Use {unit(w)}
+                        </button>
+                      ))
+                    )}
+                    <Link href={`/settings/exercises?edit=${encodeURIComponent(p.definitionId)}`} className="h-8 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold inline-flex items-center">Edit exercise</Link>
+                  </span>
                 </li>
               );
             })}
@@ -186,6 +223,9 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
         <Card title="Grippers">
           <GripperSection config={draft} onChange={patch} />
         </Card>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 pt-5 [&>section]:mb-5">
+          <EquipmentItemsSection config={draft} onChange={patch} />
+        </div>
       </div>
 
       <section aria-labelledby="equipment-machines-title" className="bg-gray-900 border border-gray-800 rounded-xl p-5">

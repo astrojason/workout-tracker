@@ -58,6 +58,7 @@ export interface ExerciseDefinition {
   weightOptions?: number[] | null; // machine only: the weights the machine can be set to, ascending (not always an even step)
   brand?: string | null;       // equipment maker/model, e.g. "Lifecycle"; lets the AI identify a machine when its photo is unclear
   machineId?: string | null;   // machine only: a GymMachine whose weights replace weightOptions (see applyGymMachines)
+  equipmentItemId?: string | null; // one of the user's own equipment items (UserEquipmentConfig.items) it's done with
   muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
@@ -214,6 +215,7 @@ export interface UserEquipmentConfig {
   loopBands: LoopBandSize[];    // owned loop bands
   assistedPullupBands: number;  // max bands available for pullup assist
   grippers: CoCLevel[];         // owned Captains of Crush levels
+  items?: EquipmentItem[];      // the user's own equipment that fits none of the above (absent on older configs)
 }
 
 // ── Session / history ──
@@ -325,6 +327,20 @@ export interface PowerBlockInstructions {
   label: string; // e.g. "Selector to 25 · no rods"
 }
 
+// Equipment the user describes themselves, for things the fixed categories above don't cover.
+// plate_loaded: its own empty weight, loaded with the user's plates on one side (a FitArc, a
+// pulley's loading pin) or both. fixed: a set of fixed weights (medicine balls). none: owned, no
+// weight to track (a stability ball). Exercises link to one via ExerciseDefinition.equipmentItemId.
+export type EquipmentItemKind = "plate_loaded" | "fixed" | "none";
+export interface EquipmentItem {
+  id: string;
+  name: string;
+  kind: EquipmentItemKind;
+  baseWeight?: number; // plate_loaded only
+  sides?: 1 | 2;       // plate_loaded only
+  weights?: number[];  // fixed only, ascending
+}
+
 export type EquipmentDisplay =
   | { type: "barbell"; config: PlateConfiguration }
   | { type: "powerblock"; weight: number; instructions: PowerBlockInstructions }
@@ -336,7 +352,8 @@ export type EquipmentDisplay =
   | { type: "kettlebell"; weight: number }
   | { type: "gripper"; weight: number }
   | { type: "pulley"; config: PlateConfiguration }
-  | { type: "loop_band"; size: LoopBandSize };
+  | { type: "loop_band"; size: LoopBandSize }
+  | { type: "item"; name: string; weight: number };
 
 // ── Active workout state ──
 

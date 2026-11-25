@@ -32,6 +32,7 @@ const initial: UserEquipmentConfig = {
 
 export default function EquipmentWorkspaceTestPage() {
   const [saved, setSaved] = useState(initial);
+  const [programList, setProgramList] = useState(programs);
   const [lastSaved, setLastSaved] = useState("nothing");
   // Set once React has hydrated, so tests don't click before handlers are attached.
   const [hydrated, setHydrated] = useState(false);
@@ -54,7 +55,12 @@ export default function EquipmentWorkspaceTestPage() {
         config={saved}
         onSave={save}
         definitions={definitions}
-        programs={programs}
+        programs={programList}
+        onSetWeight={async (programId, definitionId, weight) => {
+          await new Promise((r) => setTimeout(r, 400));
+          setProgramList((ps) => ps.map((p) => (p.id === programId ? { ...p, weights: { ...p.weights, [definitionId]: { currentWeight: weight, hardStreak: 0 } } } : p)));
+          return true;
+        }}
         machinesSlot={<p>Machines placeholder</p>}
       />
     </main>

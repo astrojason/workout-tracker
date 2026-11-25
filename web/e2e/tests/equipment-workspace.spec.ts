@@ -50,6 +50,53 @@ test.describe("equipment workspace", () => {
     await expect(warnings(page).getByRole("listitem").filter({ hasText: "Back Squat" })).toHaveCount(1);
   });
 
+  test("a can't-make weight can be set to the nearest one you can make", async ({ page }) => {
+    const goblet = warnings(page).getByRole("listitem").filter({ hasText: "Goblet Squat" });
+    await expect(goblet.getByRole("link", { name: "Edit exercise" })).toHaveAttribute("href", "/settings/exercises?edit=goblet");
+    await goblet.getByRole("button", { name: "Use 18 lb" }).click();
+    await expect(goblet.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    await expect(page.getByText("✓ Goblet Squat in Block B is now 18 lb")).toBeVisible();
+    await expect(warnings(page).getByRole("listitem").filter({ hasText: "Goblet Squat" })).toHaveCount(0);
+  });
+
+  test("adds your own equipment: plate-loaded, fixed weights and no weight", async ({ page }) => {
+    const items = page.getByRole("region", { name: "Your own equipment" });
+    await items.getByLabel("Item name").fill("FitArc");
+    await items.getByLabel("Kind").selectOption("plate_loaded");
+    await items.getByLabel("Empty weight (lb)").fill("5");
+    await items.getByLabel("Loaded on").selectOption("1");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(items.getByRole("listitem").filter({ hasText: "FitArc" })).toContainText("5 lb empty · plates on one side");
+    await expect(reach(page).getByRole("row", { name: /FitArc/ })).toContainText("5–");
+    await expect(page.getByText("1 unsaved change")).toBeVisible();
+
+    await items.getByLabel("Item name").fill("Medicine balls");
+    await items.getByLabel("Kind").selectOption("fixed");
+    await items.getByLabel("Weights (lb)").fill("9, 2, 6");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(reach(page).getByRole("row", { name: /Medicine balls/ })).toContainText("2–9 lb");
+
+    await items.getByLabel("Item name").fill("Stability ball");
+    await items.getByLabel("Kind").selectOption("none");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(items.getByRole("listitem").filter({ hasText: "Stability ball" })).toContainText("No weight");
+    await expect(reach(page).getByRole("row", { name: /Stability ball/ })).toHaveCount(0);
+  });
+
+  test("an item needs a valid weight, and removing one asks first", async ({ page }) => {
+    const items = page.getByRole("region", { name: "Your own equipment" });
+    await items.getByLabel("Item name").fill("Pin");
+    await items.getByLabel("Kind").selectOption("plate_loaded");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(items.getByText("Enter what it weighs empty, in lb (0 if nothing).")).toBeVisible();
+    await items.getByLabel("Empty weight (lb)").fill("0");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await items.getByRole("button", { name: "Remove Pin…" }).click();
+    await expect(page.getByRole("heading", { name: "Remove Pin" })).toBeVisible();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(items.getByRole("listitem").filter({ hasText: "Pin" })).toHaveCount(0);
+  });
+
   test("includes gym machines", async ({ page }) => {
     await expect(page.getByText("Machines placeholder")).toBeVisible();
   });

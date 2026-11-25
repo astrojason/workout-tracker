@@ -1,6 +1,7 @@
 import type { ResolvedExercise, CompletedSet, UserEquipmentConfig } from "./types";
 import { barWeight, WEIGHT_INCREMENTS } from "./types";
 import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIGHTS } from "./equipment-calculator";
+import { findItem } from "./equipment-items";
 
 // Snaps a computed weight down to the nearest achievable equipment value.
 // Barbell/landmine already floor by construction (calculateBarbell/calculateLandmine
@@ -9,6 +10,15 @@ import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIG
 // function (dumbbell, kettlebell, band, bodyweight, gripper, assisted_pullup) pass through.
 export function roundDownToAchievable(weight: number, exercise: ResolvedExercise, config?: UserEquipmentConfig): number {
   if (weight <= 0) return 0;
+  const item = findItem(config, exercise.equipmentItemId);
+  if (item?.kind === "plate_loaded") {
+    const base = item.baseWeight ?? 0;
+    return (item.sides ?? 1) === 1 ? calculateLandmine(weight, base, config).achievedWeight : calculateBarbell(weight, base, config).achievedWeight;
+  }
+  if (item?.kind === "fixed") {
+    const fits = [...(item.weights ?? [])].sort((a, b) => b - a).find((w) => w <= weight);
+    return fits ?? weight;
+  }
   const bw = barWeight(exercise.equipmentType);
   if (bw !== null) {
     const name = exercise.name.toLowerCase();
@@ -83,11 +93,14 @@ function progressFromRating(
   // Fixed-weight machine: same double progression as kettlebells, but the next weight is the next
   // option the machine can actually be set to (gaps can be uneven). With no known options we hold
   // rather than guess a weight it can't select.
-  if (exercise.progressionRule === "add_weight" && exercise.equipmentType === "machine") {
+  const fixedItem = findItem(config, exercise.equipmentItemId);
+  if (exercise.progressionRule === "add_weight" && (exercise.equipmentType === "machine" || fixedItem?.kind === "fixed")) {
     const finalSetOk = finalSet.completed && (isAmrapFinalSet
       ? finalSet.actualReps >= (finalSet.targetReps || exercise.repMin) * 2
       : exercise.repMax.type === "count" && finalSet.rating === "easy" && finalSet.actualReps >= exercise.repMax.value);
-    const next = finalSetOk ? [...(exercise.weightOptions ?? [])].sort((x, y) => x - y).find((w) => w > exercise.currentWeight) : undefined;
+    // A linked fixed-weight item's weights win over the exercise's own options.
+    const options = fixedItem?.kind === "fixed" ? fixedItem.weights ?? [] : exercise.weightOptions ?? [];
+    const next = finalSetOk ? [...options].sort((x, y) => x - y).find((w) => w > exercise.currentWeight) : undefined;
     if (next !== undefined) return { currentWeight: next, hardStreak: 0 };
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
   }

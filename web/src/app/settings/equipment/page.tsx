@@ -13,6 +13,7 @@ import { LoopBandsSection } from "@/components/settings/LoopBandsSection";
 import { FixedDumbbellsSection } from "@/components/settings/FixedDumbbellsSection";
 import { GripperSection } from "@/components/settings/GripperSection";
 import { AssistedPullupSection } from "@/components/settings/AssistedPullupSection";
+import { EquipmentItemsSection } from "@/components/settings/EquipmentItemsSection";
 import type { UserEquipmentConfig } from "@/lib/types";
 
 export default function EquipmentPage() {
@@ -64,6 +65,7 @@ export default function EquipmentPage() {
           <FixedDumbbellsSection config={draft} onChange={patch} />
           <GripperSection config={draft} onChange={patch} />
           <AssistedPullupSection config={draft} onChange={patch} />
+          <EquipmentItemsSection config={draft} onChange={patch} />
         </>
       )}
 

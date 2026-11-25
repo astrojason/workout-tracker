@@ -1,5 +1,5 @@
 import type { EquipmentType, ExerciseDefinition, Program, UserEquipmentConfig } from "./types";
-import { calculateBarbell } from "./equipment-calculator";
+import { findItem, itemLoads, plateLoads } from "./equipment-items";
 
 // What the user's equipment can load, and which programmed working weights it can't make.
 // Barbell loads use the app's own plate calculation, so a load counts only if the workout screen
@@ -11,21 +11,13 @@ export interface ReachRow {
   unit: "lb" | "bands";
   loads: number[]; // ascending
   types: EquipmentType[]; // the exercise equipment types it serves
+  itemId?: string;        // one of the user's own items (exercises link to it directly)
 }
 
 const EPS = 0.001;
 const same = (a: number, b: number) => Math.abs(a - b) < EPS;
 
-function barbellLoads(bar: number, config: UserEquipmentConfig): number[] {
-  const maxPerSide = config.plates.reduce((sum, p) => sum + p.weight * Math.floor(p.totalOwned / 2), 0);
-  const loads: number[] = [];
-  // Every plate is a multiple of 0.25 lb, so per-side totals move in 0.25 steps (0.5 for the bar).
-  for (let perSide = 0; perSide <= maxPerSide + EPS; perSide += 0.25) {
-    const target = Math.round((bar + perSide * 2) * 100) / 100;
-    if (same(calculateBarbell(target, bar, config).achievedWeight, target)) loads.push(target);
-  }
-  return loads;
-}
+const barbellLoads = (bar: number, config: UserEquipmentConfig) => plateLoads(bar, 2, config);
 
 function powerBlockLoads(config: UserEquipmentConfig): number[] {
   if (!config.powerBlock.owned) return [];
@@ -47,6 +39,10 @@ export function equipmentReach(config: UserEquipmentConfig): ReachRow[] {
   if (config.assistedPullupBands > 0) {
     rows.push({ key: "assisted", name: "Assisted pull-up", unit: "bands", loads: Array.from({ length: config.assistedPullupBands + 1 }, (_, i) => i), types: ["assisted_pullup"] });
   }
+  for (const item of config.items ?? []) {
+    if (item.kind === "none") continue;
+    rows.push({ key: `item:${item.id}`, name: item.name, unit: "lb", loads: itemLoads(item, config), types: [], itemId: item.id });
+  }
   return rows;
 }
 
@@ -62,7 +58,9 @@ export function reachStats(loads: number[]): { min: number; max: number; smalles
 }
 
 export interface Unmakeable {
+  programId: string;
   programName: string;
+  definitionId: string;
   exerciseName: string;
   weight: number;
   unit: "lb" | "bands";
@@ -95,35 +93,44 @@ export function unmakeableWeights(
     for (const [definitionId, { currentWeight: weight }] of Object.entries(program.weights ?? {})) {
       const def = definitions[definitionId];
       if (!def || !(weight > 0)) continue;
-      const item = (reason: string, loads: number[] | null, unit: "lb" | "bands" = "lb"): Unmakeable => ({
-        programName: program.name, exerciseName: def.name, weight, unit, reason,
+      const entry = (reason: string, loads: number[] | null, unit: "lb" | "bands" = "lb"): Unmakeable => ({
+        programId: program.id, programName: program.name, definitionId, exerciseName: def.name, weight, unit, reason,
         ...(loads ? nearest(loads, weight) : { below: null, above: null }),
       });
       const has = (loads: number[]) => loads.some((l) => same(l, weight));
 
+      // Linked to one of the user's own items: that item's loads are what count.
+      const linked = findItem(config, def.equipmentItemId);
+      if (linked) {
+        if (linked.kind === "none") continue;
+        const loads = itemLoads(linked, config);
+        if (!has(loads)) out.push(entry(linked.kind === "fixed" ? `Not one of the ${linked.name}` : `Your plates can't make it on the ${linked.name}`, loads));
+        continue;
+      }
+
       switch (def.equipmentType) {
         case "barbell_45": case "barbell_35": case "barbell_ez": {
           const loads = loadsFor(def.equipmentType);
-          if (!loads) out.push(item(`You don't have a ${BAR_NAME[def.equipmentType]}`, null));
-          else if (!has(loads)) out.push(item("Your plates can't make it", loads));
+          if (!loads) out.push(entry(`You don't have a ${BAR_NAME[def.equipmentType]}`, null));
+          else if (!has(loads)) out.push(entry("Your plates can't make it", loads));
           break;
         }
         case "powerblock": case "dumbbell":
-          if (!has(dumbbells)) out.push(item("Outside your dumbbells", dumbbells));
+          if (!has(dumbbells)) out.push(entry("Outside your dumbbells", dumbbells));
           break;
         case "kettlebell": {
           const loads = sorted(config.kettlebells);
-          if (!has(loads)) out.push(item("No kettlebell that weight", loads));
+          if (!has(loads)) out.push(entry("No kettlebell that weight", loads));
           break;
         }
         case "machine": {
           const loads = def.weightOptions && def.weightOptions.length > 0 ? sorted(def.weightOptions) : null;
-          if (loads && !has(loads)) out.push(item("Not a setting on the machine", loads));
+          if (loads && !has(loads)) out.push(entry("Not a setting on the machine", loads));
           break;
         }
         case "assisted_pullup":
           if (weight > config.assistedPullupBands || !Number.isInteger(weight)) {
-            out.push({ ...item("More bands than you own", null, "bands"), below: Math.min(config.assistedPullupBands, Math.floor(weight)), above: null });
+            out.push({ ...entry("More bands than you own", null, "bands"), below: Math.min(config.assistedPullupBands, Math.floor(weight)), above: null });
           }
           break;
         default:

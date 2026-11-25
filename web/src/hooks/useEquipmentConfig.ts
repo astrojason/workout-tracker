@@ -37,6 +37,7 @@ export function useEquipmentConfig(userId: string | null) {
             loopBands: saved?.loopBands ?? base.loopBands,
             assistedPullupBands: saved?.assistedPullupBands ?? base.assistedPullupBands,
             grippers: saved?.grippers ?? base.grippers,
+            items: saved?.items ?? [],
           };
           setConfig(saved ? normalized : base);
         }

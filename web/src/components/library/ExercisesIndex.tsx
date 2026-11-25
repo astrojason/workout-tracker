@@ -66,6 +66,7 @@ export function ExercisesIndex({ rows, sessionLimit }: { rows: ExerciseRow[]; se
                 <tr key={r.id} className="border-t border-gray-800 whitespace-nowrap">
                   <td className="px-5 py-3">
                     <Link href={`/exercise/${encodeURIComponent(r.name)}`} className="font-semibold text-indigo-400 hover:text-indigo-300">{r.name}</Link>
+                    <Link href={`/settings/exercises?edit=${encodeURIComponent(r.id)}`} aria-label={`Edit ${r.name}`} className="ml-2 text-xs text-gray-400 hover:text-white">Edit</Link>
                   </td>
                   <td className="px-3 py-3 text-gray-300">{equipmentLabel(r.equipmentType)}{r.equipmentDetail ? ` · ${r.equipmentDetail}` : ""}</td>
                   <td className="px-3 py-3 text-gray-300">{r.muscles.length > 0 ? r.muscles.join(" · ") : "—"}</td>
