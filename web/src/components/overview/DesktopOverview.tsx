@@ -2,28 +2,29 @@
 
 import { useEffect, useState } from "react";
 import type { ExerciseDefinition, Program } from "@/lib/types";
+import type { WorkoutConsistency } from "@/lib/workout-consistency";
 import { useHistory } from "@/hooks/useHistory";
 import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
 import { updateProgramExerciseWeight } from "@/lib/firestore";
 import { CUSTOM_PROGRAM_ID } from "@/lib/custom-workout";
-import { CONSISTENCY_WEEKS, OverviewReport } from "./OverviewReport";
+import { OverviewReport } from "./OverviewReport";
 
 // Enough for two years of training; if a range ever needs more, the report says some are missing.
 const SESSION_LIMIT = 1000;
 
 // Loads what the desktop Overview needs — sessions for the chosen range plus the equal period
 // before it, and body measurements — and saves working-weight edits to the program.
-export function DesktopOverview({ userId, programs, definitions, onWeightsChanged }: {
+export function DesktopOverview({ userId, programs, definitions, consistency, onWeightsChanged }: {
   userId: string;
   programs: Program[];
   definitions: Record<string, ExerciseDefinition>;
+  consistency: WorkoutConsistency;
   onWeightsChanged: () => Promise<void>;
 }) {
   const [weeks, setWeeks] = useState(12);
   const [programId, setProgramId] = useState<string | null | undefined>(undefined); // undefined = not chosen yet
   const [now] = useState(() => new Date());
-  const loadWeeks = Math.max(weeks * 2, CONSISTENCY_WEEKS);
-  const { sessions, loading } = useHistory(userId, loadWeeks * 7 + 7, SESSION_LIMIT);
+  const { sessions, loading } = useHistory(userId, weeks * 2 * 7 + 7, SESSION_LIMIT);
   const { entries, loading: measurementsLoading } = useBodyMeasurements(userId);
   const [loadedOnce, setLoadedOnce] = useState(false);
 
@@ -64,6 +65,7 @@ export function DesktopOverview({ userId, programs, definitions, onWeightsChange
       now={now}
       reloading={loading}
       truncated={sessions.length >= SESSION_LIMIT}
+      consistency={consistency}
     />
   );
 }

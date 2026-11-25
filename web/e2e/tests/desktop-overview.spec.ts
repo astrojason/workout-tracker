@@ -9,6 +9,8 @@ test.describe("desktop overview", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/test-preview/overview");
+    // On a cold dev server the page can render before React hydrates; input typed then is reset.
+    await page.locator("main[data-hydrated]").waitFor();
   });
 
   test("headline numbers come from the sessions in the range", async ({ page }) => {
@@ -18,6 +20,21 @@ test.describe("desktop overview", () => {
     await expect(kpis.getByTestId("kpi-volume")).toContainText("4,100");
     await expect(kpis.getByTestId("kpi-duration")).toContainText("50 min");
     await expect(kpis.getByTestId("kpi-bodyweight")).toContainText("184.5");
+  });
+
+  test("the comparison sits on its own smaller, fainter line under the change", async ({ page }) => {
+    await page.getByRole("button", { name: "4 wk" }).click();
+    const tile = page.getByTestId("kpi-sessions");
+    const change = tile.getByText("▲ 1", { exact: true });
+    const note = tile.getByText("vs prior 4 wk", { exact: true });
+    await expect(change).toBeVisible();
+    await expect(note).toBeVisible();
+    const [c, n] = [(await change.boundingBox())!, (await note.boundingBox())!];
+    expect(n.y).toBeGreaterThanOrEqual(c.y + c.height - 1);
+    const size = (el: HTMLElement) => parseFloat(getComputedStyle(el).fontSize);
+    expect(await note.evaluate(size)).toBeLessThan(await change.evaluate(size));
+    const color = (el: HTMLElement) => getComputedStyle(el).color;
+    expect(await note.evaluate(color)).not.toBe(await change.evaluate(color));
   });
 
   test("the range buttons change the period the numbers cover", async ({ page }) => {
@@ -67,6 +84,49 @@ test.describe("desktop overview", () => {
     await input.fill("abc");
     await input.press("Enter");
     await expect(page.getByRole("row", { name: /Back Squat/ }).getByText("Enter a weight above 0")).toBeVisible();
+  });
+
+  test("lifts are sorted by how much they improved", async ({ page }) => {
+    const names = await page.getByRole("region", { name: "Lift progression" }).locator("tbody tr td:first-child a").allTextContents();
+    // Plank 60s → 90s (+50%), pull-up 3 → 2 bands (+33%), squat 215 → 225 lb (+5%), bench once (0%).
+    expect(names).toEqual(["Plank", "Assisted Pull-up", "Back Squat", "Bench Press"]);
+  });
+
+  test("assisted pull-ups are shown in bands, not pounds", async ({ page }) => {
+    const row = page.getByRole("row", { name: /Assisted Pull-up/ });
+    await expect(row).toContainText("−1 band");
+    await expect(row).toContainText("2 bands × 6");
+    await expect(row).not.toContainText(" lb");
+    await expect(row.getByLabel("Working weight for Assisted Pull-up")).toHaveValue("2");
+    await expect(row).toContainText("bands");
+    await expect(page.getByRole("region", { name: "Progression changes" }).getByText("3 → 2 bands")).toBeVisible();
+  });
+
+  test("timed exercises are shown as time, including the change", async ({ page }) => {
+    const row = page.getByRole("row", { name: /Plank/ });
+    await expect(row).toContainText("+30s");
+    await expect(row).toContainText("1:30");
+    await expect(row).not.toContainText(" lb");
+    await expect(row.getByLabel("Working weight for Plank")).toHaveCount(0);
+  });
+
+  test("the consistency grid covers the selected range", async ({ page }) => {
+    const days = page.getByRole("region", { name: "Consistency" }).getByTestId("consistency-day");
+    await expect(days).toHaveCount(12 * 7);
+    await page.getByRole("button", { name: "4 wk" }).click();
+    await expect(days).toHaveCount(4 * 7);
+    await expect(page.getByRole("region", { name: "Consistency" })).toContainText("in the last 4 weeks");
+    await page.getByRole("button", { name: "1 yr" }).click();
+    await expect(days).toHaveCount(52 * 7);
+    // A year still fits in the card without scrolling the page sideways.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("the consistency card shows the current streak", async ({ page }) => {
+    const card = page.getByRole("region", { name: "Consistency" });
+    await expect(card).toContainText("5 day streak");
+    await expect(card).toContainText("This week: 2/4 planned sessions");
   });
 
   test("recent sessions link to their detail pages and progression changes are listed", async ({ page }) => {

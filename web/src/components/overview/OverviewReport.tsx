@@ -6,19 +6,24 @@ import type { BodyMeasurementDoc, ExerciseDefinition, Program, WorkoutSessionDoc
 import { formatDuration, scopeDefinitions } from "@/lib/types";
 import { useError } from "@/components/providers/ErrorProvider";
 import {
-  bodyweightTrend, buildOverview, dailyStatus, isWorkingSet, rangeStart, sessionDate, sessionVolume,
+  bodyweightTrend, buildOverview, dailyStatus, formatChange, formatMeasure, isWorkingSet, rangeStart, sessionDate, sessionVolume,
 } from "@/lib/overview-stats";
 import type { DayStatus, LiftSummary } from "@/lib/overview-stats";
+import type { WorkoutConsistency } from "@/lib/workout-consistency";
 
 export const RANGES = [
-  { weeks: 4, label: "4 wk" },
-  { weeks: 12, label: "12 wk" },
-  { weeks: 26, label: "6 mo" },
-  { weeks: 52, label: "1 yr" },
+  { weeks: 4, label: "4 wk", long: "4 weeks" },
+  { weeks: 12, label: "12 wk", long: "12 weeks" },
+  { weeks: 26, label: "6 mo", long: "6 months" },
+  { weeks: 52, label: "1 yr", long: "year" },
 ] as const;
 
-// The consistency grid always covers the last 12 weeks, whatever the range.
-export const CONSISTENCY_WEEKS = 12;
+// Consistency grid squares shrink as the range grows, so a year still fits beside the volume chart.
+function gridCell(weeks: number): { size: number; gap: number } {
+  if (weeks <= 12) return { size: 18, gap: 4 };
+  if (weeks <= 26) return { size: 12, gap: 3 };
+  return { size: 9, gap: 2 };
+}
 const RECENT_SHOWN = 8;
 
 export interface OverviewReportProps {
@@ -34,6 +39,7 @@ export interface OverviewReportProps {
   now: Date;
   reloading?: boolean;  // a wider range is loading; the numbers shown are for the previous one
   truncated?: boolean;  // the session load hit its limit, so the oldest sessions are missing
+  consistency: WorkoutConsistency; // the same streak and this-week count the phone Home shows
 }
 
 const fmt = (n: number, digits = 0) => n.toLocaleString("en-US", { maximumFractionDigits: digits });
@@ -55,16 +61,28 @@ function Spark({ values, w = 84, h = 24 }: { values: number[]; w?: number; h?: n
   );
 }
 
+// A headline number's change on one line, with what it's compared against on a fainter line below.
+function TwoLine({ main, note, className }: { main: string; note: string; className: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className={className}>{main}</span>
+      <span className="text-xs font-normal text-gray-500">{note}</span>
+    </span>
+  );
+}
+
 function Delta({ current, prior, unit = "", label, lowerIsGood = false }: { current: number; prior: number; unit?: string; label: string; lowerIsGood?: boolean }) {
-  if (prior === 0 && current === 0) return <span className="text-gray-500">No sessions in either period</span>;
-  if (prior === 0) return <span className="text-gray-400">Nothing in the prior {label}</span>;
+  if (prior === 0 && current === 0) return <TwoLine main="No sessions" note="in either period" className="text-gray-500" />;
+  if (prior === 0) return <TwoLine main="No data" note={`in the prior ${label}`} className="text-gray-400" />;
   const diff = current - prior;
-  if (diff === 0) return <span className="text-gray-400">Same as prior {label}</span>;
+  if (diff === 0) return <TwoLine main="No change" note={`vs prior ${label}`} className="text-gray-400" />;
   const good = lowerIsGood ? diff < 0 : diff > 0;
   return (
-    <span className={good ? "text-green-400" : "text-orange-400"}>
-      {diff > 0 ? "▲" : "▼"} {fmt(Math.abs(diff), 1)}{unit} vs prior {label}
-    </span>
+    <TwoLine
+      main={`${diff > 0 ? "▲" : "▼"} ${fmt(Math.abs(diff), 1)}${unit}`}
+      note={`vs prior ${label}`}
+      className={good ? "text-green-400" : "text-orange-400"}
+    />
   );
 }
 
@@ -76,7 +94,7 @@ function Kpi({ id, label, value, unit, children, spark }: { id: string; label: s
         <span className="text-3xl font-bold tabular-nums">{value}</span>
         {unit && <span className="text-gray-400">{unit}</span>}
       </div>
-      <div className="flex items-center justify-between gap-2 text-sm font-medium">
+      <div className="flex items-end justify-between gap-2 text-sm font-medium">
         {children}
         {spark && <Spark values={spark} />}
       </div>
@@ -87,7 +105,7 @@ function Kpi({ id, label, value, unit, children, spark }: { id: string; label: s
 type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "invalid"; message: string };
 
 // The working weight for one lift in one program, edited in place. Enter or leaving the field saves.
-function WeightCell({ name, weight, onSave }: { name: string; weight: number; onSave: (w: number) => Promise<void> }) {
+function WeightCell({ name, weight, unit, onSave }: { name: string; weight: number; unit: string; onSave: (w: number) => Promise<void> }) {
   const { showError } = useError();
   const [draft, setDraft] = useState(String(weight));
   const [state, setState] = useState<SaveState>({ kind: "idle" });
@@ -101,8 +119,8 @@ function WeightCell({ name, weight, onSave }: { name: string; weight: number; on
   async function commit() {
     if (draft.trim() === String(weight)) return;
     const next = Number(draft.trim());
-    if (!draft.trim() || !Number.isFinite(next) || next <= 0) {
-      setState({ kind: "invalid", message: "Enter a weight above 0" });
+    if (!draft.trim() || !Number.isFinite(next) || next < 0 || (next === 0 && unit === "lb")) {
+      setState({ kind: "invalid", message: unit === "lb" ? "Enter a weight above 0" : "Enter 0 or more bands" });
       return;
     }
     setState({ kind: "saving" });
@@ -138,7 +156,7 @@ function WeightCell({ name, weight, onSave }: { name: string; weight: number; on
           onBlur={commit}
           className="w-14 bg-transparent text-right font-semibold tabular-nums outline-none disabled:opacity-60"
         />
-        <span className="text-xs text-gray-400">lb</span>
+        <span className="text-xs text-gray-400">{unit}</span>
       </label>
     </div>
   );
@@ -155,10 +173,10 @@ const DAY_LABEL: Record<DayStatus, string> = {
   completed: "Completed", partial: "Partial", skipped: "Skipped", rest: "No session", upcoming: "Upcoming",
 };
 
-function Section({ title, sub, action, children, className = "" }: { title: string; sub?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
+function Section({ title, sub, action, children, className = "", style }: { title: string; sub?: string; action?: React.ReactNode; children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   const id = `overview-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <section aria-labelledby={id} className={`bg-gray-900 border border-gray-800 rounded-xl min-w-0 ${className}`}>
+    <section aria-labelledby={id} className={`bg-gray-900 border border-gray-800 rounded-xl min-w-0 ${className}`} style={style}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-800">
         <div>
           <h2 id={id} className="font-semibold">{title}</h2>
@@ -174,10 +192,12 @@ function Section({ title, sub, action, children, className = "" }: { title: stri
 export function OverviewReport(props: OverviewReportProps) {
   const { sessions, measurements, programs, definitions, weeks, programId, now } = props;
   const range = RANGES.find((r) => r.weeks === weeks)?.label ?? `${weeks} wk`;
+  const rangeLong = RANGES.find((r) => r.weeks === weeks)?.long ?? `${weeks} weeks`;
+  const cell = gridCell(weeks);
   const overview = buildOverview(sessions, { weeks, now, programId });
   const start = rangeStart(weeks, now);
   const bodyweight = bodyweightTrend(measurements, start);
-  const days = dailyStatus(programId ? sessions.filter((s) => s.programId === programId) : sessions, CONSISTENCY_WEEKS, now);
+  const days = dailyStatus(programId ? sessions.filter((s) => s.programId === programId) : sessions, weeks, now);
   const daysDone = days.filter((d) => d.status === "completed").length;
   const program = programs.find((p) => p.id === programId) ?? null;
   const scoped = program ? scopeDefinitions(definitions, program) : null;
@@ -250,14 +270,18 @@ export function OverviewReport(props: OverviewReportProps) {
         <Kpi id="kpi-duration" label="Avg duration" value={overview.avgDurationSeconds.current === null ? "—" : formatDuration(overview.avgDurationSeconds.current)}>
           {overview.avgDurationSeconds.current !== null && overview.avgDurationSeconds.prior !== null ? (
             <Delta current={Math.round(overview.avgDurationSeconds.current / 60)} prior={Math.round(overview.avgDurationSeconds.prior / 60)} unit=" min" label={range} lowerIsGood />
-          ) : <span className="text-gray-500">Finished sessions only</span>}
+          ) : <TwoLine main="—" note="finished sessions only" className="text-gray-500" />}
         </Kpi>
         <Kpi id="kpi-sets" label="Working sets" value={fmt(overview.workingSets.current)}>
           <Delta current={overview.workingSets.current} prior={overview.workingSets.prior} label={range} />
         </Kpi>
         <Kpi id="kpi-bodyweight" label="Bodyweight" value={bodyweight ? fmt(bodyweight.latest, 1) : "—"} unit={bodyweight ? "lb" : undefined} spark={bodyweight?.points}>
           {bodyweight ? (
-            <span className="text-gray-400">{bodyweight.change === 0 ? "No change" : `${bodyweight.change > 0 ? "▲" : "▼"} ${fmt(Math.abs(bodyweight.change), 1)} lb`} in {range}</span>
+            <TwoLine
+              main={bodyweight.change === 0 ? "No change" : `${bodyweight.change > 0 ? "▲" : "▼"} ${fmt(Math.abs(bodyweight.change), 1)} lb`}
+              note={`in ${range}`}
+              className="text-gray-300"
+            />
           ) : <Link href="/history" className="text-indigo-400 hover:text-indigo-300">Add a weigh-in</Link>}
         </Kpi>
       </section>
@@ -293,18 +317,37 @@ export function OverviewReport(props: OverviewReportProps) {
           </div>
         </Section>
 
-        <Section title="Consistency" sub={`${daysDone} training days in the last ${CONSISTENCY_WEEKS} weeks`} className="flex-[1_1_340px]">
+        <Section
+          title="Consistency"
+          sub={`${daysDone} training days in the last ${rangeLong}`}
+          className="grow"
+          // Wide enough for the whole grid (day labels + one column per week + padding).
+          style={{ flexBasis: Math.max(340, 32 + 40 + weeks * (cell.size + cell.gap)) }}
+        >
           <div className="px-5 py-4 flex flex-col gap-4">
+            <div>
+              <p className="text-2xl font-bold text-orange-300">{props.consistency.currentStreak} day streak</p>
+              <p className="text-sm text-gray-400">
+                {props.consistency.plannedThisWeek === 0
+                  ? "No sessions planned this week"
+                  : `This week: ${props.consistency.completedThisWeek}/${props.consistency.plannedThisWeek} planned sessions`}
+              </p>
+            </div>
             <div className="flex gap-2">
-              <div className="grid grid-rows-7 gap-1 text-[10px] leading-[18px] text-gray-400">
+              <div className="grid grid-rows-7 text-[10px] text-gray-400" style={{ gap: cell.gap, gridAutoRows: cell.size, lineHeight: `${cell.size}px` }}>
                 {["Mon", "", "Wed", "", "Fri", "", "Sun"].map((d, i) => <span key={i}>{d}</span>)}
               </div>
-              <div className="grid grid-flow-col grid-rows-7 auto-cols-[18px] gap-1">
+              <div
+                className="grid grid-flow-col grid-rows-7"
+                style={{ gap: cell.gap, gridAutoColumns: cell.size, gridTemplateRows: `repeat(7, ${cell.size}px)` }}
+              >
                 {days.map((d) => (
                   <span
                     key={d.date.getTime()}
+                    data-testid="consistency-day"
                     title={`${d.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}: ${DAY_LABEL[d.status]}`}
-                    className={`h-[18px] w-[18px] rounded box-border ${DAY_STYLE[d.status]}`}
+                    className={`rounded-sm box-border ${DAY_STYLE[d.status]}`}
+                    style={{ width: cell.size, height: cell.size }}
                   />
                 ))}
               </div>
@@ -330,11 +373,11 @@ export function OverviewReport(props: OverviewReportProps) {
               <thead>
                 <tr className="text-xs text-gray-400 bg-gray-800/40 text-left whitespace-nowrap">
                   <th scope="col" className="px-5 py-2.5 font-semibold">Exercise</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold text-right">Working weight</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold text-right">Working load</th>
                   <th scope="col" className="px-3 py-2.5 font-semibold text-right">Change</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Top set trend</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold">Trend</th>
                   <th scope="col" className="px-3 py-2.5 font-semibold text-right">Best e1RM</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold text-right">Last top set</th>
+                  <th scope="col" className="px-3 py-2.5 font-semibold text-right">Last best set</th>
                   <th scope="col" className="px-3 py-2.5 font-semibold text-right">Hard streak</th>
                   <th scope="col" className="px-5 py-2.5 font-semibold text-right">Sessions</th>
                 </tr>
@@ -349,20 +392,24 @@ export function OverviewReport(props: OverviewReportProps) {
                         {def && def.muscleGroups.length > 0 && <div className="text-xs text-gray-400">{def.muscleGroups.join(" · ")}</div>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        {program && def ? (
+                        {program && def && (lift.measure === "weight" || lift.measure === "bands") ? (
                           <WeightCell
                             name={lift.name}
                             weight={def.currentWeight}
+                            unit={lift.measure === "bands" ? "bands" : "lb"}
                             onSave={(w) => props.onSaveWeight(program.id, def.id, w, def.hardStreak)}
                           />
                         ) : <span className="text-gray-500">—</span>}
                       </td>
-                      <td className={`px-3 py-2.5 text-right font-medium ${lift.change > 0 ? "text-green-400" : lift.change < 0 ? "text-orange-400" : "text-gray-400"}`}>
-                        {lift.change > 0 ? "+" : lift.change < 0 ? "−" : ""}{fmt(Math.abs(lift.change), 2)} lb
+                      <td className={`px-3 py-2.5 text-right font-medium ${lift.progress > 0 ? "text-green-400" : lift.progress < 0 ? "text-orange-400" : "text-gray-400"}`}>
+                        {formatChange(lift.measure, lift.change)}
                       </td>
-                      <td className="px-3 py-2.5"><Spark values={lift.topWeights} w={96} /></td>
+                      {/* Drawn so up is always progress: fewer bands plots higher. */}
+                      <td className="px-3 py-2.5"><Spark values={lift.measure === "bands" ? lift.values.map((v) => -v) : lift.values} w={96} /></td>
                       <td className="px-3 py-2.5 text-right">{lift.bestE1RM === null ? "—" : `${fmt(lift.bestE1RM)} lb`}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-300">{fmt(lift.latestTop.weight, 2)} × {lift.latestTop.reps}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-300">
+                        {formatMeasure(lift.measure, lift.latest.value, lift.measure === "weight" || lift.measure === "bands" ? lift.latest.reps : undefined)}
+                      </td>
                       <td className="px-3 py-2.5 text-right text-gray-300">{def ? def.hardStreak : "—"}</td>
                       <td className="px-5 py-2.5 text-right text-gray-300">{lift.sessions}</td>
                     </tr>
@@ -427,7 +474,12 @@ export function OverviewReport(props: OverviewReportProps) {
             <p className="px-5 py-6 text-sm text-gray-500">No automatic weight changes in this range.</p>
           ) : (
             <ul>
-              {overview.changes.slice(0, RECENT_SHOWN).map((c) => (
+              {overview.changes.slice(0, RECENT_SHOWN).map((c) => {
+                // Assisted pull-up weights are band counts, where fewer is progress.
+                const bands = definitions[c.definitionId]?.equipmentType === "assisted_pullup";
+                const better = bands ? c.after < c.before : c.after > c.before;
+                const worse = bands ? c.after > c.before : c.after < c.before;
+                return (
                 <li key={`${c.sessionId}-${c.definitionId}`} className="flex justify-between gap-3 px-5 py-3 border-t border-gray-800 first:border-t-0">
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{nameFor(c.definitionId)}</div>
@@ -435,11 +487,12 @@ export function OverviewReport(props: OverviewReportProps) {
                       {c.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Link>
                   </div>
-                  <span className={`whitespace-nowrap font-semibold tabular-nums ${c.after > c.before ? "text-green-400" : c.after < c.before ? "text-orange-400" : "text-gray-300"}`}>
-                    {fmt(c.before, 2)} → {fmt(c.after, 2)} lb
+                  <span className={`whitespace-nowrap font-semibold tabular-nums ${better ? "text-green-400" : worse ? "text-orange-400" : "text-gray-300"}`}>
+                    {fmt(c.before, 2)} → {bands ? formatMeasure("bands", c.after).replace("No assist", "0 bands") : formatMeasure("weight", c.after)}
                   </span>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </Section>

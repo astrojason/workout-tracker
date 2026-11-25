@@ -351,7 +351,7 @@ export default function HomePage() {
       </div>
       )}
       overview={
-        <DesktopOverview userId={user.uid} programs={activePrograms} definitions={definitions} onWeightsChanged={refreshPrograms} />
+        <DesktopOverview userId={user.uid} programs={activePrograms} definitions={definitions} consistency={consistency} onWeightsChanged={refreshPrograms} />
       }
       training={<>
       {/* Header */}

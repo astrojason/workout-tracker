@@ -7,6 +7,24 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.36.3',
+    date: '2026-11-24',
+    changes: [
+      'The Overview\'s consistency grid now follows the range picker (4 weeks, 12 weeks, 6 months or a year) instead of always showing 12 weeks.',
+      'Overview headline numbers show the change on one line and what it\'s compared with ("vs prior 12 wk") on a smaller, fainter line below.',
+    ],
+  },
+  {
+    version: '1.36.2',
+    date: '2026-11-24',
+    changes: [
+      'Overview lift table is sorted by how much each lift improved, most first.',
+      'Each lift shows its own unit: assisted pull-ups in bands (fewer is progress), timed exercises as time, unweighted exercises in reps, including the change column and progression changes.',
+      'Assisted pull-up band counts no longer count as pounds in volume.',
+      'The Overview\'s consistency card shows your current streak and this week\'s planned sessions.',
+    ],
+  },
+  {
     version: '1.36.1',
     date: '2026-11-24',
     changes: [

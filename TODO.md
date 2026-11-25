@@ -3,6 +3,7 @@
 - "Last time" for some exercises (e.g. Pushdowns) shows reps with no weight; likely older sessions never saved a weight (actualWeight 0). Needs a look at the stored session data before changing anything; falling back to targetWeight would be a guess
 - Streak counter on Home only counts about the last week, because Home now loads only the last 7 days of sessions. Fix by storing the streak (or a lightweight query for just the completed dates) instead of deriving it from loaded sessions
 - Changelog page: the "Changelog" heading and version headings render in a very dim colour on the dark background; check contrast
+- the generated warm up set for a kettlebell exercise suggests equipment that the user does not have, make sure that the calculated warm up sets are possible
 
 ## Features
 

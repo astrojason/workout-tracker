@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BodyMeasurementDoc, CompletedSet, WorkoutSessionDoc } from "../types";
-import { bodyweightTrend, buildOverview, dailyStatus } from "../overview-stats";
+import { bodyweightTrend, buildOverview, dailyStatus, formatChange, formatMeasure } from "../overview-stats";
 
 const NOW = new Date("2026-11-24T18:00:00"); // a Tuesday
 
@@ -102,11 +102,59 @@ describe("buildOverview", () => {
     const squat = o.lifts[0];
     expect(squat.name).toBe("Back Squat");
     expect(squat.definitionId).toBe("squat");
-    expect(squat.topWeights).toEqual([205, 225]);
-    expect(squat.latestTop).toEqual({ weight: 225, reps: 6 });
+    expect(squat.measure).toBe("weight");
+    expect(squat.values).toEqual([205, 225]);
+    expect(squat.latest).toEqual({ value: 225, reps: 6 });
     expect(squat.change).toBe(20);
     expect(squat.bestE1RM).toBeCloseTo(225 * (1 + 6 / 30));
     expect(squat.sessions).toBe(2);
+  });
+
+  it("measures assisted pull-ups in bands, where fewer is progress, and leaves them out of volume", () => {
+    const pull = (bands: number, reps: number) => set({ exerciseName: "Assisted Pull-up", definitionId: "pull", equipmentType: "assisted_pullup", actualWeight: bands, actualReps: reps });
+    const o = buildOverview([
+      session("new", "2026-11-23", [pull(2, 5), pull(2, 6)]),
+      session("old", "2026-11-09", [pull(3, 5)]),
+    ], { weeks: 4, now: NOW });
+    const lift = o.lifts[0];
+    expect(lift.measure).toBe("bands");
+    expect(lift.values).toEqual([3, 2]);
+    expect(lift.latest).toEqual({ value: 2, reps: 6 });
+    expect(lift.change).toBe(-1);
+    expect(lift.progress).toBeCloseTo(1 / 3);
+    expect(lift.bestE1RM).toBeNull();
+    expect(o.volume.current).toBe(0);
+  });
+
+  it("measures timed exercises by their longest hold", () => {
+    const plank = (seconds: number) => set({ exerciseName: "Plank", definitionId: "plank", isTimeBased: true, actualWeight: 0, actualReps: seconds, equipmentType: "bodyweight" });
+    const o = buildOverview([
+      session("new", "2026-11-23", [plank(60), plank(90)]),
+      session("old", "2026-11-09", [plank(45)]),
+    ], { weeks: 4, now: NOW });
+    expect(o.lifts[0]).toMatchObject({ measure: "time", values: [45, 90], latest: { value: 90 }, change: 45, bestE1RM: null });
+  });
+
+  it("measures unweighted exercises by reps", () => {
+    const dips = (reps: number) => set({ exerciseName: "Dips", definitionId: "dips", equipmentType: "bodyweight", actualWeight: 0, actualReps: reps });
+    const o = buildOverview([session("new", "2026-11-23", [dips(12)]), session("old", "2026-11-09", [dips(10)])], { weeks: 4, now: NOW });
+    expect(o.lifts[0]).toMatchObject({ measure: "reps", values: [10, 12], change: 2 });
+  });
+
+  it("sorts lifts by how much they improved, most first", () => {
+    const o = buildOverview([
+      session("new", "2026-11-23", [
+        set({ actualWeight: 210 }),                                                                       // squat +5%
+        set({ exerciseName: "Assisted Pull-up", definitionId: "pull", equipmentType: "assisted_pullup", actualWeight: 2 }), // 3 → 2: +33%
+        set({ exerciseName: "Curl", definitionId: "curl", actualWeight: 25 }),                            // 30 → 25: −17%
+      ]),
+      session("old", "2026-11-09", [
+        set({ actualWeight: 200 }),
+        set({ exerciseName: "Assisted Pull-up", definitionId: "pull", equipmentType: "assisted_pullup", actualWeight: 3 }),
+        set({ exerciseName: "Curl", definitionId: "curl", actualWeight: 30 }),
+      ]),
+    ], { weeks: 4, now: NOW });
+    expect(o.lifts.map((l) => l.name)).toEqual(["Assisted Pull-up", "Back Squat", "Curl"]);
   });
 
   it("filters to one program when asked", () => {
@@ -165,5 +213,27 @@ describe("bodyweightTrend", () => {
 
   it("is null without a weigh-in", () => {
     expect(bodyweightTrend([m("a", "2026-11-20")], new Date(2026, 9, 28))).toBeNull();
+  });
+});
+
+describe("formatMeasure / formatChange", () => {
+  it("labels each kind in its own unit", () => {
+    expect(formatMeasure("weight", 225, 6)).toBe("225 lb × 6");
+    expect(formatMeasure("bands", 3, 5)).toBe("3 bands × 5");
+    expect(formatMeasure("bands", 1, 5)).toBe("1 band × 5");
+    expect(formatMeasure("bands", 0, 8)).toBe("No assist × 8");
+    expect(formatMeasure("time", 90)).toBe("1:30");
+    expect(formatMeasure("reps", 12)).toBe("12 reps");
+  });
+
+  it("labels a change in the lift's unit with its sign", () => {
+    expect(formatChange("weight", 10)).toBe("+10 lb");
+    expect(formatChange("weight", -2.5)).toBe("−2.5 lb");
+    expect(formatChange("bands", -1)).toBe("−1 band");
+    expect(formatChange("bands", -2)).toBe("−2 bands");
+    expect(formatChange("time", 30)).toBe("+30s");
+    expect(formatChange("time", 60)).toBe("+1 min");
+    expect(formatChange("reps", 2)).toBe("+2 reps");
+    expect(formatChange("reps", 0)).toBe("No change");
   });
 });
