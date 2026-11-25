@@ -51,17 +51,19 @@ export function useEquipmentConfig(userId: string | null) {
     return () => { cancelled = true; };
   }, [userId, showError]);
 
-  const saveConfig = useCallback(async (newConfig: UserEquipmentConfig) => {
-    if (!userId) return;
+  // Resolves true once saved; on failure it shows the error, restores the saved config and resolves false.
+  const saveConfig = useCallback(async (newConfig: UserEquipmentConfig): Promise<boolean> => {
+    if (!userId) return false;
     setSaving(true);
     const previous = config;
     setConfig(newConfig); // optimistic update
     try {
       await saveEquipmentConfig(userId, newConfig);
+      return true;
     } catch (err) {
       showError(err);
-      // Revert to previous state since save failed
-      setConfig(previous); // non-critical: best-effort revert; outer showError already surfaced
+      setConfig(previous); // the save failed, so go back to what is actually stored
+      return false;
     } finally {
       setSaving(false);
     }

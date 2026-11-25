@@ -10,6 +10,7 @@ function sectionFor(pathname: string) {
   if (pathname === "/") return "home";
   if (pathname.startsWith("/history")) return "history";
   if (pathname.startsWith("/body")) return "body";
+  if (pathname.startsWith("/equipment")) return "equipment";
   if (pathname.startsWith("/settings")) return "settings";
   return null;
 }

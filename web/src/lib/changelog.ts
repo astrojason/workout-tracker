@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.41.0',
+    date: '2026-11-24',
+    changes: [
+      'New Equipment page on desktop (Equipment in the top bar): every weight your bars and plates, PowerBlock, dumbbells, kettlebells and assisted pull-up bands can make, with the smallest step, the biggest gap and how many exercises use each.',
+      'Lists the working weights in your active programs that your equipment or a machine\'s settings can\'t make, with the nearest weights you can. Both update live as you edit.',
+      'All equipment and gym machines are edited on the same page; equipment changes save together, and discarding asks first. Phones keep editing equipment in Settings.',
+    ],
+  },
+  {
     version: '1.40.0',
     date: '2026-11-24',
     changes: [
