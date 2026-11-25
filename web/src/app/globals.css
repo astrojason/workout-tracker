@@ -70,3 +70,9 @@ select.input-field {
     padding-right: 0;
   }
 }
+
+/* The desktop exercise editor panel slides in from the right (ExerciseEditor). */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

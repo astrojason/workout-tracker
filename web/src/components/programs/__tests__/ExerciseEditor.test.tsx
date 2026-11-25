@@ -17,10 +17,10 @@ function numberInputs(container: HTMLElement): HTMLInputElement[] {
 }
 
 // Toggle buttons (time-based, final-set AMRAP, unilateral) have no accessible text of
-// their own, so they're located positionally among all buttons that aren't Cancel/Save/steppers.
+// their own, so they're located positionally among all buttons that aren't Close/Cancel/Save/steppers.
 function toggleButtons(container: HTMLElement): HTMLButtonElement[] {
   return Array.from(container.querySelectorAll("button")).filter(
-    (b) => !["Cancel", "Add", "Save", "-", "+"].includes(b.textContent ?? "")
+    (b) => !["Cancel", "Add", "Save", "-", "+"].includes(b.textContent ?? "") && b.getAttribute("aria-label") !== "Close"
   );
 }
 

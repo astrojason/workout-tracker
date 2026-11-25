@@ -203,9 +203,28 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
   const canSave = creatingNew ? !!name.trim() && !hasBlockingError : !!selectedDef && !hasBlockingError;
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
-      <div className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-gray-800 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-bold mb-5">{isNewOccurrence ? "Add Exercise" : "Edit Exercise"}</h3>
+    // Phone: a bottom sheet. Tablet: a centred dialog. Desktop: a full-height panel that slides in
+    // from the right below the top bar, with Save/Cancel pinned to its bottom while the form scrolls.
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center overflow-y-auto lg:top-[var(--app-nav-h)] lg:items-stretch lg:justify-end lg:overflow-hidden lg:bg-black/50">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exercise-editor-title"
+        className="bg-gray-900 rounded-t-2xl sm:rounded-2xl w-full max-w-md p-6 border border-gray-800 max-h-[90vh] overflow-y-auto lg:max-w-[480px] lg:max-h-none lg:h-full lg:rounded-none lg:border-0 lg:border-l lg:border-gray-700 lg:pb-0 lg:shadow-2xl motion-safe:lg:animate-[slide-in-right_220ms_ease-out]"
+      >
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <h3 id="exercise-editor-title" className="text-lg font-bold">{isNewOccurrence ? "Add Exercise" : "Edit Exercise"}</h3>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            className="-m-1 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         {/* Exercise picker */}
         <Field label="Exercise">
@@ -462,7 +481,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
         </Field>
 
         {/* Buttons */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 mt-6 lg:sticky lg:bottom-0 lg:-mx-6 lg:px-6 lg:py-4 lg:bg-gray-900 lg:border-t lg:border-gray-800">
           <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition">
             Cancel
           </button>

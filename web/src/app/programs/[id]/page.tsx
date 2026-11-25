@@ -264,8 +264,14 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   );
                 }
+                // The row whose editor is open stays highlighted beside the desktop panel.
+                const isEditing = editingExercise?.exercise?.id === exercise.id;
                 return (
-                  <div key={exercise.id} className="px-4 py-3 lg:px-0 lg:py-4">
+                  <div
+                    key={exercise.id}
+                    aria-current={isEditing || undefined}
+                    className={`px-4 py-3 lg:py-4 ${isEditing ? "bg-indigo-950/60 lg:-mx-3 lg:px-3 lg:rounded-lg" : "lg:px-0"}`}
+                  >
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
                         <ExerciseSummary exercise={exercise} />
