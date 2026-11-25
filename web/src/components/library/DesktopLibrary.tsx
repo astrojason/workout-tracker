@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { Program, Workout } from "@/lib/types";
-import { getAllWorkoutsForProgram, getPrograms } from "@/lib/firestore";
+import { getAllWorkoutsForProgram, getPrograms, saveExerciseDefinition } from "@/lib/firestore";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { exerciseRows, programRows } from "@/lib/library-index";
 import { ProgramsManager } from "./ProgramsManager";
-import { ExercisesIndex } from "./ExercisesIndex";
+import { ExerciseLibraryEditor } from "./ExerciseLibraryEditor";
 
 // Sessions and last-trained dates on both pages come from this many of the latest sessions.
 const SESSION_LIMIT = 200;
@@ -62,7 +63,11 @@ export function DesktopPrograms({ userId }: { userId: string }) {
 export function DesktopExercises({ userId }: { userId: string }) {
   const { showError } = useError();
   const { sessions, loading } = useHistory(userId, undefined, SESSION_LIMIT);
-  const { definitions, loading: definitionsLoading } = useExerciseDefinitions(userId);
+  const { definitions, machines, loading: definitionsLoading, reload } = useExerciseDefinitions(userId);
+  const { config: equipment, loading: equipmentLoading } = useEquipmentConfig(userId);
+  // Only the first load shows the spinner; a reload after a save keeps the table (and its status) up.
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { if (!definitionsLoading) setLoaded(true); }, [definitionsLoading]);
   const [programs, setPrograms] = useState<Program[] | null>(null);
 
   useEffect(() => {
@@ -73,6 +78,15 @@ export function DesktopExercises({ userId }: { userId: string }) {
     return () => { cancelled = true; };
   }, [userId, showError]);
 
-  if (programs === null || loading || definitionsLoading) return <Loading what="exercises" />;
-  return <ExercisesIndex rows={exerciseRows(definitions, programs, sessions)} sessionLimit={SESSION_LIMIT} />;
+  if (programs === null || loading || !loaded || equipmentLoading) return <Loading what="exercises" />;
+  return (
+    <ExerciseLibraryEditor
+      rows={exerciseRows(definitions, programs, sessions)}
+      sessionLimit={SESSION_LIMIT}
+      definitions={definitions}
+      machines={machines}
+      items={equipment.items ?? []}
+      onSave={async (id, save) => { await saveExerciseDefinition(userId, id, save); await reload(); }}
+    />
+  );
 }

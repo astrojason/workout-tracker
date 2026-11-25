@@ -2,46 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { updateExerciseDefinitionMeta, updateExerciseDefinitionWeight } from "@/lib/firestore";
-import type { ExerciseDefinition, EquipmentItem, EquipmentType, ProgressionRule, GymMachine } from "@/lib/types";
-import { GymMachineSelect } from "@/components/programs/GymMachineSelect";
-import { parseWeightOptions } from "@/lib/types";
 import { useError } from "@/components/providers/ErrorProvider";
-
-const EQUIPMENT_OPTIONS: { value: EquipmentType; label: string }[] = [
-  { value: "barbell_45", label: "Olympic Bar (45 lbs)" },
-  { value: "barbell_35", label: "35 lb Bar" },
-  { value: "barbell_ez", label: "EZ Bar (15 lbs)" },
-  { value: "powerblock", label: "PowerBlock" },
-  { value: "dumbbell", label: "Dumbbell" },
-  { value: "band", label: "Serious Steel Band" },
-  { value: "assisted_pullup", label: "Pull-Up Assist (Bands)" },
-  { value: "kettlebell", label: "Kettlebell" },
-  { value: "bodyweight", label: "Bodyweight" },
-  { value: "gripper", label: "Gripper" },
-  { value: "machine", label: "Machine (weight stack)" },
-];
-
-const PROGRESSION_OPTIONS: { value: ProgressionRule; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "add_5lb", label: "Add 5 lbs" },
-  { value: "add_2.5lb", label: "Add 2.5 lbs" },
-  { value: "add_10lb", label: "Add 10 lbs" },
-  { value: "add_weight", label: "Next weight step (machine / kettlebell)" },
-  { value: "add_reps", label: "Add Reps" },
-  { value: "add_time", label: "Add Time" },
-  { value: "reduce_assistance", label: "Reduce Assistance" },
-  { value: "maintain", label: "Maintain" },
-  { value: "deload", label: "Deload" },
-  { value: "progress_gripper", label: "Progress Gripper" },
-];
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { ExerciseDefinitionForm } from "@/components/library/ExerciseDefinitionForm";
 
 export default function ExerciseLibraryPage() {
   const { user } = useAuth();
   const { showError } = useError();
+  const router = useRouter();
+  const isDesktop = useIsDesktop();
   const { definitions, machines, loading, reload } = useExerciseDefinitions(user?.uid ?? null);
   // The user's own equipment items, which an exercise can be linked to.
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
@@ -60,12 +34,26 @@ export default function ExerciseLibraryPage() {
     setLinkedId(null);
   }, [linkedId, loading, definitions]);
 
+  // On desktop the library is edited on the Exercises page, in its side panel (?edit= carries over).
+  useEffect(() => {
+    if (isDesktop) router.replace(`/exercises${window.location.search}`);
+  }, [isDesktop, router]);
+
   const sorted = Object.values(definitions).sort((a, b) => a.name.localeCompare(b.name));
 
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400">Sign in to manage exercises.</p>
+      </div>
+    );
+  }
+
+  if (isDesktop) {
+    return (
+      <div role="status" className="flex items-center justify-center gap-3 py-24 text-gray-400">
+        <span className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500" aria-hidden="true" />
+        Opening Exercises…
       </div>
     );
   }
@@ -92,14 +80,18 @@ export default function ExerciseLibraryPage() {
           {sorted.map((def) =>
             editingId === def.id ? (
               <div key={def.id} id={`exercise-${def.id}`}>
-              <ExerciseDefinitionEditRow
+              <ExerciseDefinitionForm
+                variant="inline"
                 definition={def}
                 machines={machines}
                 items={items}
-                userId={user.uid}
-                onDone={async () => {
+                onSave={async ({ meta, weight }) => {
+                  await updateExerciseDefinitionMeta(user.uid, def.id, meta);
+                  if (weight) await updateExerciseDefinitionWeight(user.uid, def.id, weight.currentWeight, weight.hardStreak);
+                }}
+                onSaved={() => {
                   setEditingId(null);
-                  await reload();
+                  reload().catch(showError);
                 }}
                 onCancel={() => setEditingId(null)}
                 onError={showError}
@@ -127,183 +119,6 @@ export default function ExerciseLibraryPage() {
         </div>
       )}
 
-    </div>
-  );
-}
-
-function ExerciseDefinitionEditRow({
-  definition, machines, items, userId, onDone, onCancel, onError,
-}: {
-  definition: ExerciseDefinition;
-  machines: GymMachine[];
-  items: EquipmentItem[];
-  userId: string;
-  onDone: () => void;
-  onCancel: () => void;
-  onError: (err: unknown) => void;
-}) {
-  const [name, setName] = useState(definition.name);
-  const [brand, setBrand] = useState(definition.brand ?? "");
-  const [weightOptionsText, setWeightOptionsText] = useState(definition.weightOptions?.join(", ") ?? "");
-  // A linked machine's weights replace the typed list (definition.weightOptions already holds them).
-  const [machineId, setMachineId] = useState(definition.machineId ?? "");
-  // One of the user's own equipment items; an item that has since been removed counts as none.
-  const [itemId, setItemId] = useState(items.some((i) => i.id === definition.equipmentItemId) ? definition.equipmentItemId! : "");
-  const [muscleGroupsText, setMuscleGroupsText] = useState(definition.muscleGroups.join(", "));
-  const [equipmentType, setEquipmentType] = useState<EquipmentType>(definition.equipmentType);
-  const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
-  const [progressionRule, setProgressionRule] = useState<ProgressionRule>(definition.progressionRule);
-  const [isUnilateral, setIsUnilateral] = useState(definition.isUnilateral);
-  const [isTimeBased, setIsTimeBased] = useState(definition.isTimeBased);
-  const [currentWeight, setCurrentWeight] = useState(String(definition.currentWeight));
-  const [hardStreak, setHardStreak] = useState(String(definition.hardStreak));
-  const [saving, setSaving] = useState(false);
-
-  const linkedMachine = equipmentType === "machine" ? machines.find((m) => m.id === machineId) ?? null : null;
-
-  async function handleSave() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      await updateExerciseDefinitionMeta(userId, definition.id, {
-        name: name.trim(),
-        brand: brand.trim() || null,
-        weightOptions: equipmentType === "machine" ? (linkedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : null,
-        machineId: linkedMachine?.id ?? null,
-        equipmentItemId: itemId || null,
-        muscleGroups: muscleGroupsText.split(",").map((m) => m.trim()).filter(Boolean),
-        equipmentType,
-        equipmentDetail: equipmentType === "band" ? (equipmentDetail.trim() || null) : null,
-        progressionRule,
-        isUnilateral,
-        isTimeBased,
-      });
-      const weight = parseFloat(currentWeight) || 0;
-      const streak = parseInt(hardStreak, 10) || 0;
-      if (weight !== definition.currentWeight || streak !== definition.hardStreak) {
-        await updateExerciseDefinitionWeight(userId, definition.id, weight, streak);
-      }
-      onDone();
-    } catch (err) {
-      onError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="px-4 py-4 space-y-3 bg-gray-800/30">
-      <Field label="Name">
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="input-field" />
-      </Field>
-
-      <Field label="Brand (optional)">
-        <input type="text" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Lifecycle" className="input-field" />
-      </Field>
-
-      <Field label="Muscle Groups (comma-separated)">
-        <input
-          type="text"
-          value={muscleGroupsText}
-          onChange={(e) => setMuscleGroupsText(e.target.value)}
-          placeholder="e.g. Chest, Triceps"
-          className="input-field"
-        />
-      </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Equipment" noMargin>
-          <select value={equipmentType} onChange={(e) => setEquipmentType(e.target.value as EquipmentType)} className="input-field">
-            {EQUIPMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Progression Rule" noMargin>
-          <select value={progressionRule} onChange={(e) => setProgressionRule(e.target.value as ProgressionRule)} className="input-field">
-            {PROGRESSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </Field>
-      </div>
-
-      <Field label="Your own equipment item (optional)">
-        <select aria-label="Equipment item" value={itemId} onChange={(e) => setItemId(e.target.value)} className="input-field">
-          <option value="">None — use the equipment type above</option>
-          {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-        </select>
-        {items.length === 0 && <p className="mt-1 text-xs text-gray-500">Add items under Equipment → Your own equipment.</p>}
-      </Field>
-
-      {equipmentType === "machine" && machines.length > 0 && (
-        <GymMachineSelect machines={machines} value={machineId} onChange={setMachineId} />
-      )}
-
-      {equipmentType === "machine" && !linkedMachine && (
-        <Field label="Weights the machine can be set to (comma-separated)">
-          <input type="text" value={weightOptionsText} onChange={(e) => setWeightOptionsText(e.target.value)} placeholder="e.g. 50, 75, 100, 150" className="input-field" />
-        </Field>
-      )}
-
-      {equipmentType === "band" && (
-        <Field label="Band Color">
-          <input
-            type="text"
-            value={equipmentDetail}
-            onChange={(e) => setEquipmentDetail(e.target.value)}
-            placeholder="e.g. Blue"
-            className="input-field"
-          />
-        </Field>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Default Weight (lbs) — programs track their own" noMargin>
-          <input type="number" value={currentWeight} onChange={(e) => setCurrentWeight(e.target.value)} step="2.5" className="input-field" />
-        </Field>
-        <Field label="Hard Streak (0-2)" noMargin>
-          <input type="number" value={hardStreak} onChange={(e) => setHardStreak(e.target.value)} min={0} max={2} className="input-field" />
-        </Field>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-400">Each Side (Unilateral)</span>
-        <Toggle checked={isUnilateral} onChange={setIsUnilateral} />
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-400">Time Based</span>
-        <Toggle checked={isTimeBased} onChange={setIsTimeBased} />
-      </div>
-
-      <div className="flex gap-3 pt-2">
-        <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition text-sm">
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!name.trim() || saving}
-          className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 font-bold transition text-sm disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      onClick={() => onChange(!checked)}
-      className={`w-12 h-7 rounded-full transition relative ${checked ? "bg-indigo-600" : "bg-gray-700"}`}
-    >
-      <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
-    </button>
-  );
-}
-
-function Field({ label, children, noMargin }: { label: string; children: React.ReactNode; noMargin?: boolean }) {
-  return (
-    <div className={noMargin ? "" : ""}>
-      <label className="text-xs text-gray-400 block mb-1">{label}</label>
-      {children}
     </div>
   );
 }

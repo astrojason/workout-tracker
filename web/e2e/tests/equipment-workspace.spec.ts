@@ -52,7 +52,7 @@ test.describe("equipment workspace", () => {
 
   test("a can't-make weight can be set to the nearest one you can make", async ({ page }) => {
     const goblet = warnings(page).getByRole("listitem").filter({ hasText: "Goblet Squat" });
-    await expect(goblet.getByRole("link", { name: "Edit exercise" })).toHaveAttribute("href", "/settings/exercises?edit=goblet");
+    await expect(goblet.getByRole("link", { name: "Edit exercise" })).toHaveAttribute("href", "/exercises?edit=goblet");
     await goblet.getByRole("button", { name: "Use 18 lb" }).click();
     await expect(goblet.getByRole("button", { name: "Saving…" })).toBeDisabled();
     await expect(page.getByText("✓ Goblet Squat in Block B is now 18 lb")).toBeVisible();

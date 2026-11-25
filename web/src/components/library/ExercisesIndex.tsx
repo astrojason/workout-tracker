@@ -13,8 +13,8 @@ const ruleLabel = (r: string) => r.replace(/_/g, " ").replace(/(\d)lb/, "$1 lb")
 const date = (d: Date | null) => (d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never");
 
 // Desktop Exercises page: the exercise library, searchable and filterable, each row leading to the
-// exercise's report. Editing the library stays in Settings.
-export function ExercisesIndex({ rows, sessionLimit }: { rows: ExerciseRow[]; sessionLimit: number }) {
+// exercise's report. Edit opens the exercise in the side panel (ExerciseLibraryEditor).
+export function ExercisesIndex({ rows, sessionLimit, onEdit }: { rows: ExerciseRow[]; sessionLimit: number; onEdit: (definitionId: string) => void }) {
   const [query, setQuery] = useState("");
   const [equipment, setEquipment] = useState<"" | EquipmentType>("");
   const types = [...new Set(rows.map((r) => r.equipmentType))].sort();
@@ -42,7 +42,6 @@ export function ExercisesIndex({ rows, sessionLimit }: { rows: ExerciseRow[]; se
               {types.map((t) => <option key={t} value={t}>{equipmentLabel(t)}</option>)}
             </select>
           </label>
-          <Link href="/settings/exercises" className="text-sm text-indigo-400 hover:text-indigo-300">Edit the library in Settings →</Link>
         </div>
       </div>
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
@@ -66,7 +65,7 @@ export function ExercisesIndex({ rows, sessionLimit }: { rows: ExerciseRow[]; se
                 <tr key={r.id} className="border-t border-gray-800 whitespace-nowrap">
                   <td className="px-5 py-3">
                     <Link href={`/exercise/${encodeURIComponent(r.name)}`} className="font-semibold text-indigo-400 hover:text-indigo-300">{r.name}</Link>
-                    <Link href={`/settings/exercises?edit=${encodeURIComponent(r.id)}`} aria-label={`Edit ${r.name}`} className="ml-2 text-xs text-gray-400 hover:text-white">Edit</Link>
+                    <button type="button" onClick={() => onEdit(r.id)} aria-label={`Edit ${r.name}`} className="ml-2 text-xs text-gray-400 hover:text-white">Edit</button>
                   </td>
                   <td className="px-3 py-3 text-gray-300">{equipmentLabel(r.equipmentType)}{r.equipmentDetail ? ` · ${r.equipmentDetail}` : ""}</td>
                   <td className="px-3 py-3 text-gray-300">{r.muscles.length > 0 ? r.muscles.join(" · ") : "—"}</td>

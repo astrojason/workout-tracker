@@ -13,7 +13,11 @@ const def = (id: string, name: string): ExerciseDefinition => ({
   isUnilateral: false, isTimeBased: false, currentWeight: 30, hardStreak: 0, createdAt: now, updatedAt: now,
 });
 
-const { updateMeta } = vi.hoisted(() => ({ updateMeta: vi.fn().mockResolvedValue(undefined) }));
+const { updateMeta, replace, desktop } = vi.hoisted(() => ({
+  updateMeta: vi.fn().mockResolvedValue(undefined), replace: vi.fn(), desktop: { value: false },
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+vi.mock("@/hooks/useIsDesktop", () => ({ useIsDesktop: () => desktop.value }));
 vi.mock("@/lib/firebase", () => ({ db: {}, auth: {} }));
 vi.mock("@/lib/firestore", () => ({ updateExerciseDefinitionMeta: updateMeta, updateExerciseDefinitionWeight: vi.fn() }));
 vi.mock("@/hooks/useEquipmentConfig", () => ({
@@ -34,6 +38,18 @@ import ExerciseLibraryPage from "../page";
 
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
+  desktop.value = false;
+  replace.mockClear();
+});
+
+describe("on desktop", () => {
+  it("sends you to the Exercises page's editor, keeping ?edit=", () => {
+    desktop.value = true;
+    window.history.pushState({}, "", "/settings/exercises?edit=arc");
+    render(<ErrorProvider><ExerciseLibraryPage /></ErrorProvider>);
+    expect(replace).toHaveBeenCalledWith("/exercises?edit=arc");
+    expect(screen.queryByDisplayValue("FlitArc Press")).toBeNull();
+  });
 });
 
 describe("exercise library deep link", () => {

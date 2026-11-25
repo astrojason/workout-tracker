@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.45.0',
+    date: '2026-11-25',
+    changes: [
+      'Desktop: edit an exercise right on the Exercises page. Edit opens it in a panel that slides in from the right, with the fields in two columns and Save always in view. The table updates when you save. Before, it opened the phone layout in Settings.',
+      'Edit exercise links from the Equipment page open that panel too, and the old Settings exercise library sends you there on desktop. Phones keep the library in Settings.',
+    ],
+  },
+  {
     version: '1.44.0',
     date: '2026-11-24',
     changes: [

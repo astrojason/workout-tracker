@@ -196,7 +196,7 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
                         </button>
                       ))
                     )}
-                    <Link href={`/settings/exercises?edit=${encodeURIComponent(p.definitionId)}`} className="h-8 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold inline-flex items-center">Edit exercise</Link>
+                    <Link href={`/exercises?edit=${encodeURIComponent(p.definitionId)}`} className="h-8 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold inline-flex items-center">Edit exercise</Link>
                   </span>
                 </li>
               );

@@ -20,8 +20,7 @@ test.describe("programs and exercises", () => {
     await expect(squat).toContainText("Barbell 45");
     await expect(squat).toContainText("Quads · Glutes");
     await expect(exercises(page).getByRole("row", { name: /Hammer Curl/ })).toContainText("Never");
-    await expect(exercises(page).getByRole("link", { name: /Edit the library/ })).toHaveAttribute("href", "/settings/exercises");
-    await expect(squat.getByRole("link", { name: "Edit Back Squat" })).toHaveAttribute("href", "/settings/exercises?edit=squat");
+    await expect(squat.getByRole("button", { name: "Edit Back Squat" })).toBeVisible();
   });
 
   test("filters exercises by search and equipment", async ({ page }) => {
@@ -31,5 +30,54 @@ test.describe("programs and exercises", () => {
     await exercises(page).getByLabel("Equipment").selectOption("dumbbell");
     await expect(exercises(page).locator("tbody tr")).toHaveCount(1);
     await expect(exercises(page).getByRole("row", { name: /Hammer Curl/ })).toBeVisible();
+  });
+
+  // Editing happens here on desktop, in a panel that slides in from the right (not the phone page).
+  test.describe("editing an exercise", () => {
+    const panel = (page: import("@playwright/test").Page) => page.getByRole("dialog", { name: "Edit Back Squat" });
+
+    test("opens a desktop panel on the right with the form in two columns", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await expect(panel(page)).toBeVisible();
+      const box = (await panel(page).boundingBox())!;
+      expect(box.x + box.width).toBeGreaterThan(1430);
+      expect(box.width).toBeGreaterThan(500);
+      const name = (await panel(page).getByLabel("Name").boundingBox())!;
+      const brand = (await panel(page).getByLabel("Brand (optional)").boundingBox())!;
+      expect(Math.abs(name.y - brand.y)).toBeLessThan(4); // side by side
+      await expect(panel(page).getByRole("button", { name: "Save" })).toBeInViewport();
+    });
+
+    test("saves and shows the change in the table", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await panel(page).getByLabel("Name").fill("Front Squat");
+      await panel(page).getByRole("button", { name: "Save" }).click();
+      await expect(panel(page)).toHaveCount(0);
+      await expect(page.getByRole("status")).toContainText("Saved Front Squat");
+      await expect(exercises(page).getByRole("row", { name: /Front Squat/ })).toBeVisible();
+    });
+
+    test("closes without saving on Close or Escape", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await panel(page).getByRole("button", { name: "Close" }).click();
+      await expect(panel(page)).toHaveCount(0);
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await page.keyboard.press("Escape");
+      await expect(panel(page)).toHaveCount(0);
+    });
+
+    test("reports a failed save and keeps the panel open", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await panel(page).getByLabel("Name").fill("boom");
+      await panel(page).getByRole("button", { name: "Save" }).click();
+      await expect(page.getByRole("heading", { name: "Error" })).toBeVisible();
+      await expect(page.getByText(/Preview save failed/).first()).toBeVisible();
+    });
+
+    test("opens straight on the exercise named in ?edit=", async ({ page }) => {
+      await page.goto("/test-preview/library-index?edit=squat");
+      await page.locator("main[data-hydrated]").waitFor();
+      await expect(panel(page)).toBeVisible();
+    });
   });
 });

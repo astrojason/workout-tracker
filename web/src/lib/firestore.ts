@@ -768,6 +768,18 @@ export async function updateExerciseDefinitionWeight(
   });
 }
 
+export type DefinitionMeta = Parameters<typeof updateExerciseDefinitionMeta>[2];
+// One save from the library editor: the metadata, plus the default weight only when it changed.
+export interface DefinitionSave {
+  meta: DefinitionMeta;
+  weight: { currentWeight: number; hardStreak: number } | null;
+}
+
+export async function saveExerciseDefinition(userId: string, definitionId: string, save: DefinitionSave): Promise<void> {
+  await updateExerciseDefinitionMeta(userId, definitionId, save.meta);
+  if (save.weight) await updateExerciseDefinitionWeight(userId, definitionId, save.weight.currentWeight, save.weight.hardStreak);
+}
+
 export async function deleteExerciseDefinition(userId: string, definitionId: string): Promise<void> {
   await deleteDoc(doc(exerciseDefinitionsCol(userId), definitionId));
 }
