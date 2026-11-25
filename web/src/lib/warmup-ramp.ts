@@ -1,6 +1,8 @@
 import type { ResolvedExercise, UserEquipmentConfig } from "./types";
 import { barWeight } from "./types";
 import { roundDownToAchievable } from "./progression-service";
+import { equipmentLoads } from "./progression-choices";
+import { DEFAULT_EQUIPMENT_CONFIG } from "./equipment-calculator";
 
 // Warm-ups: every exercise outside the warm-up phase gets at least one warm-up set, built from
 // its CURRENT work weight so warm-ups follow progression instead of staying fixed. An exercise
@@ -58,18 +60,25 @@ function rampSteps(e: ResolvedExercise, workWeight: number, config?: UserEquipme
   return steps;
 }
 
-// One lighter set for loaded equipment the app can't ramp (dumbbell, kettlebell, machine, pulley).
-function singleLoadedStep(work: ResolvedExercise): Step | null {
-  const target = work.currentWeight * SINGLE_SET_FRACTION;
-  const weight = work.equipmentType === "machine" && work.weightOptions?.length
-    ? Math.max(0, ...work.weightOptions.filter((w) => w <= target))
-    : Math.floor(target / 5) * 5;
-  return weight > 0 && weight < work.currentWeight ? { weight, reps: work.repMin } : null;
+// One lighter set for loaded equipment the app can't ramp (dumbbell, kettlebell, machine, an item),
+// always on a weight the equipment actually has: about half the work weight, or failing that the
+// heaviest you have that's still a real step lighter. With nothing lighter it returns null, and the
+// warm-up is the work weight for fewer reps.
+function singleLoadedStep(work: ResolvedExercise, config?: UserEquipmentConfig): Step | null {
+  const loads = equipmentLoads(work, config ?? DEFAULT_EQUIPMENT_CONFIG);
+  if (!loads) {
+    // Loaded, but no list of weights to choose from (a pulley): round down to 5 lb as before.
+    const weight = Math.floor((work.currentWeight * SINGLE_SET_FRACTION) / 5) * 5;
+    return weight > 0 && weight < work.currentWeight ? { weight, reps: work.repMin } : null;
+  }
+  const heaviest = (limit: number) => [...loads].reverse().find((l) => l > 0 && l <= limit + 1e-9) ?? null;
+  const weight = heaviest(work.currentWeight * SINGLE_SET_FRACTION) ?? heaviest(work.currentWeight * MAX_FRACTION_OF_WORK);
+  return weight !== null && weight < work.currentWeight ? { weight, reps: work.repMin } : null;
 }
 
 function stepsFor(work: ResolvedExercise, config?: UserEquipmentConfig): Step[] {
   if (work.currentWeight > 0 && !work.isTimeBased && !UNLOADED.has(work.equipmentType)) {
-    const steps = isRampable(work) ? rampSteps(work, work.currentWeight, config) : [singleLoadedStep(work)].filter((s): s is Step => s !== null);
+    const steps = isRampable(work) ? rampSteps(work, work.currentWeight, config) : [singleLoadedStep(work, config)].filter((s): s is Step => s !== null);
     if (steps.length > 0) return steps;
   }
   return [{ weight: work.currentWeight, reps: halfReps(work) }];

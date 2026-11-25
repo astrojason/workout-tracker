@@ -39,13 +39,8 @@ export type RepTarget =
   | { type: "count"; value: number }
   | { type: "failure" };
 
-// Numeric-increment progression rules the auto-progression engine understands.
-// Rules not listed here (band colors, add_reps, maintain, etc.) don't drive currentWeight automatically.
-export const WEIGHT_INCREMENTS: Partial<Record<ProgressionRule, number>> = {
-  "add_5lb": 5,
-  "add_2.5lb": 2.5,
-  "add_10lb": 10,
-};
+// Weight rules are "add_<n>lb" (any n) or "add_weight" (the equipment's next weight); see
+// progression-choices.ts for which ones an exercise's equipment offers.
 
 // ── Core models ──
 

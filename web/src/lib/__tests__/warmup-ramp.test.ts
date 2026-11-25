@@ -1,3 +1,4 @@
+import { DEFAULT_EQUIPMENT_CONFIG } from "../equipment-calculator";
 import { describe, it, expect } from "vitest";
 import { rampWarmups } from "../warmup-ramp";
 import type { ResolvedExercise } from "../types";
@@ -170,9 +171,30 @@ describe("rampWarmups", () => {
       }
     });
 
-    it("loads a dumbbell/kettlebell warm-up at about half, rounded down to 5 lb", () => {
+    it("loads a dumbbell warm-up at about half, on a dumbbell you have", () => {
+      // Default equipment: a 5–50 lb PowerBlock in 2.5 lb steps, so half of 55 is makeable exactly.
       const result = rampWarmups([ex({ id: "db", definitionId: "db", equipmentType: "dumbbell", currentWeight: 55 })]);
-      expect(warmupsBefore(result, "db").map((e) => e.currentWeight)).toEqual([25]);
+      expect(warmupsBefore(result, "db").map((e) => e.currentWeight)).toEqual([27.5]);
+    });
+
+    describe("kettlebells: only the bells you own", () => {
+      const bells = (kettlebells: number[]) => ({ ...DEFAULT_EQUIPMENT_CONFIG, kettlebells });
+      const kb = (w: number) => ex({ id: "kb", definitionId: "kb", equipmentType: "kettlebell", currentWeight: w, repMin: 10 });
+
+      it("uses your lightest bell when none is as light as half", () => {
+        // Half of 15 is 7.5, and there's no 5 lb bell: the 10 is the lighter bell you have.
+        expect(warmupsBefore(rampWarmups([kb(15)], bells([10, 15, 25])), "kb").map((e) => e.currentWeight)).toEqual([10]);
+      });
+
+      it("does the work bell for fewer reps when you have nothing lighter", () => {
+        const wu = warmupsBefore(rampWarmups([kb(15)], bells([15, 25])), "kb");
+        expect(wu.map((e) => [e.currentWeight, e.repMin])).toEqual([[15, 5]]);
+      });
+
+      it("never warms up with a bell you don't own", () => {
+        const wu = warmupsBefore(rampWarmups([kb(35)], bells([15, 35])), "kb");
+        expect(wu.map((e) => e.currentWeight)).toEqual([15]);
+      });
     });
 
     it("loads a machine warm-up at a weight the machine has, at or under half", () => {

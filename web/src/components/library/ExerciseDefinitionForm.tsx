@@ -5,20 +5,7 @@ import type { ExerciseDefinition, GymMachine, ProgressionRule, UserEquipmentConf
 import type { DefinitionSave } from "@/lib/firestore";
 import { cleanWeight, parseWeightOptions } from "@/lib/types";
 import { applyEquipmentChoice, equipmentChoiceValue, equipmentOptionGroups } from "@/lib/equipment-choices";
-
-const PROGRESSION_OPTIONS: { value: ProgressionRule; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "add_5lb", label: "Add 5 lbs" },
-  { value: "add_2.5lb", label: "Add 2.5 lbs" },
-  { value: "add_10lb", label: "Add 10 lbs" },
-  { value: "add_weight", label: "Next weight step (machine / kettlebell)" },
-  { value: "add_reps", label: "Add Reps" },
-  { value: "add_time", label: "Add Time" },
-  { value: "reduce_assistance", label: "Reduce Assistance" },
-  { value: "maintain", label: "Maintain" },
-  { value: "deload", label: "Deload" },
-  { value: "progress_gripper", label: "Progress Gripper" },
-];
+import { progressionOptionGroups } from "@/lib/progression-choices";
 
 interface Props {
   definition: ExerciseDefinition;
@@ -54,6 +41,14 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
   const groups = equipmentOptionGroups(equipment, machines, choice);
   const linkedMachine = choice.startsWith("machine:") ? machines.find((m) => `machine:${m.id}` === choice) ?? null : null;
   const isBand = choice === "type:band";
+  // Weight rules are offered from what the chosen equipment can make (one plate on a FitArc, a pair
+  // on a barbell, the next bell on kettlebells).
+  const picked = applyEquipmentChoice(choice, equipment);
+  const ruleGroups = progressionOptionGroups({
+    name,
+    ...picked,
+    weightOptions: choice === "machine:" ? parseWeightOptions(weightOptionsText) : linkedMachine?.plates ?? null,
+  }, equipment, progressionRule);
   // Band colours you own, plus the exercise's current colour if you no longer have it.
   const bandColours = [...equipment.bands, ...(definition.equipmentDetail && !equipment.bands.includes(definition.equipmentDetail as never) ? [definition.equipmentDetail] : [])];
   const panel = variant === "panel";
@@ -65,7 +60,6 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const picked = applyEquipmentChoice(choice, equipment);
       const weight = parseFloat(currentWeight) || 0;
       const streak = parseInt(hardStreak, 10) || 0;
       const save: DefinitionSave = {
@@ -121,7 +115,11 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
       <Field label="Progression Rule">
         {(id) => (
           <select id={id} value={progressionRule} onChange={(e) => setProgressionRule(e.target.value as ProgressionRule)} className="input-field">
-            {PROGRESSION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {ruleGroups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </optgroup>
+            ))}
           </select>
         )}
       </Field>

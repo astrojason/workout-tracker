@@ -1,5 +1,6 @@
 "use client";
 
+import { progressionOptionGroups } from "@/lib/progression-choices";
 import { useState } from "react";
 import type {
   Exercise, ExerciseDefinition, Phase, EquipmentType, ProgressionRule, RepTarget, UserEquipmentConfig, GymMachine,
@@ -19,20 +20,6 @@ const PHASES: { value: Phase; label: string }[] = [
   { value: "finisher", label: "Finisher" },
   { value: "cooldown", label: "Cooldown" },
   { value: "mobility", label: "Mobility" },
-];
-
-const PROGRESSION_RULES: { value: ProgressionRule; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "add_5lb", label: "Add 5 lbs" },
-  { value: "add_2.5lb", label: "Add 2.5 lbs" },
-  { value: "add_10lb", label: "Add 10 lbs" },
-  { value: "add_reps", label: "Add Reps" },
-  { value: "add_time", label: "Add Time" },
-  { value: "reduce_assistance", label: "Reduce Assistance" },
-  { value: "add_weight", label: "Next weight step (machine / kettlebell)" },
-  { value: "maintain", label: "Maintain" },
-  { value: "deload", label: "Deload" },
-  { value: "progress_gripper", label: "Progress Gripper" },
 ];
 
 // Result handed back to the parent, which owns all Firestore persistence (this
@@ -443,7 +430,16 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
           <>
             <Field label="Progression Rule">
               <select value={progressionRule} onChange={(e) => setProgressionRule(e.target.value as ProgressionRule)} className="input-field">
-                {PROGRESSION_RULES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {/* Weight rules come from what this equipment can make (see progression-choices). */}
+                {progressionOptionGroups(
+                  { name, equipmentType, equipmentItemId: null, weightOptions: equipmentType === "machine" ? (selectedMachine?.plates ?? parseWeightOptions(weightOptionsText)) : null },
+                  equipmentConfig ?? DEFAULT_EQUIPMENT_CONFIG,
+                  progressionRule,
+                ).map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </Field>
 

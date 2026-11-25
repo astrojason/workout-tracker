@@ -103,6 +103,20 @@ test.describe("programs and exercises", () => {
       expect(colours).toEqual(["Red", "Blue"]);
     });
 
+    test("progression rules follow the equipment: plate pairs on a barbell, single plates on the FitArc", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      const rule = panel(page).getByLabel("Progression Rule");
+      const ruleOptions = () => rule.locator("optgroup[label='Add weight'] option").allTextContents();
+      expect(await ruleOptions()).toEqual(["Next weight step (as little as 0.5 lb)", "Add 1 lb", "Add 1.5 lb", "Add 2 lb", "Add 5 lb", "Add 10 lb", "Add 20 lb"]);
+      await panel(page).getByLabel("Equipment", { exact: true }).selectOption({ label: "FitArc" });
+      expect(await ruleOptions()).toContain("Add 0.5 lb");
+      // Back Squat's Add 5 lb is still possible on the FitArc (one 5 lb plate), so it stays chosen.
+      await expect(rule).toHaveValue("add_5lb");
+      await rule.selectOption({ label: "Add 0.5 lb" });
+      await panel(page).getByRole("button", { name: "Save" }).click();
+      await expect(page.getByRole("status")).toContainText("Saved Back Squat");
+    });
+
     test("opens straight on the exercise named in ?edit=", async ({ page }) => {
       await page.goto("/test-preview/library-index?edit=squat");
       await page.locator("main[data-hydrated]").waitFor();

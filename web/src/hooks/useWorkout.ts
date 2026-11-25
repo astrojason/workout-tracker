@@ -419,7 +419,7 @@ export function useWorkout(userId: string | null) {
       // right now — separate from (and in addition to) the end-of-session
       // progression write-back below.
       const loggedWeight = actualWeight > 0 ? actualWeight : currentWeight;
-      const nextWeight = rating === "easy" ? liveEasyBump(loggedWeight, currentExercise) : loggedWeight;
+      const nextWeight = rating === "easy" ? liveEasyBump(loggedWeight, currentExercise, equipmentConfigRef.current) : loggedWeight;
       const bumpedWeights = { ...updatedSession.resolvedWeights, [currentExercise.id]: nextWeight };
       const nextSession = { ...updatedSession, resolvedWeights: bumpedWeights, currentSetNumber: session.currentSetNumber + 1 };
       if (betweenSetRest > 0) {

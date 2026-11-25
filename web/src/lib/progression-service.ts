@@ -1,7 +1,8 @@
 import type { ResolvedExercise, CompletedSet, UserEquipmentConfig } from "./types";
-import { barWeight, WEIGHT_INCREMENTS } from "./types";
+import { barWeight } from "./types";
 import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIGHTS } from "./equipment-calculator";
 import { findItem } from "./equipment-items";
+import { equipmentLoads, nextLoad, previousLoad, weightIncrement } from "./progression-choices";
 
 // Snaps a computed weight down to the nearest achievable equipment value.
 // Barbell/landmine already floor by construction (calculateBarbell/calculateLandmine
@@ -73,10 +74,15 @@ export function computeNextWeight(
   const result = progressFromRating(exercise, finalSet, config);
   if (daysSincePrevious === undefined || daysSincePrevious <= HOLD_AFTER_DAYS) return result;
 
-  const increment = WEIGHT_INCREMENTS[exercise.progressionRule];
+  const increment = weightIncrement(exercise.progressionRule);
   if (daysSincePrevious > DELOAD_AFTER_DAYS && increment) {
     const deloaded = roundDownToAchievable(exercise.currentWeight - increment, exercise, config);
     return { currentWeight: Math.min(result.currentWeight, deloaded), hardStreak: 0 };
+  }
+  // "Next weight step" drops back one of the equipment's own steps.
+  if (daysSincePrevious > DELOAD_AFTER_DAYS && exercise.progressionRule === "add_weight" && config) {
+    const back = previousLoad(exercise, exercise.currentWeight, config);
+    if (back !== null) return { currentWeight: Math.min(result.currentWeight, back), hardStreak: 0 };
   }
   return { ...result, currentWeight: Math.min(result.currentWeight, exercise.currentWeight) };
 }
@@ -94,7 +100,9 @@ function progressFromRating(
   // option the machine can actually be set to (gaps can be uneven). With no known options we hold
   // rather than guess a weight it can't select.
   const fixedItem = findItem(config, exercise.equipmentItemId);
-  if (exercise.progressionRule === "add_weight" && (exercise.equipmentType === "machine" || fixedItem?.kind === "fixed")) {
+  // (A plate-loaded item is stored as a machine but steps through its plate loads, below.)
+  const weightStack = exercise.equipmentType === "machine" && fixedItem?.kind !== "plate_loaded";
+  if (exercise.progressionRule === "add_weight" && (weightStack || fixedItem?.kind === "fixed")) {
     const finalSetOk = finalSet.completed && (isAmrapFinalSet
       ? finalSet.actualReps >= (finalSet.targetReps || exercise.repMin) * 2
       : exercise.repMax.type === "count" && finalSet.rating === "easy" && finalSet.actualReps >= exercise.repMax.value);
@@ -126,7 +134,22 @@ function progressFromRating(
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
   }
 
-  const increment = WEIGHT_INCREMENTS[exercise.progressionRule];
+  // "Next weight step" on any other loaded equipment (plates, a plate-loaded item, dumbbells):
+  // move through the weights it can actually make, by the same ratings as a fixed increment.
+  if (exercise.progressionRule === "add_weight" && config && equipmentLoads(exercise, config)) {
+    const rating = finalSet.completed ? finalSet.rating : "hard";
+    const up = nextLoad(exercise, exercise.currentWeight, config);
+    if (rating === "hard") {
+      const hardStreak = exercise.hardStreak + 1;
+      if (hardStreak >= 3) return { currentWeight: previousLoad(exercise, exercise.currentWeight, config) ?? exercise.currentWeight, hardStreak: 0 };
+      return { currentWeight: exercise.currentWeight, hardStreak };
+    }
+    if (up === null) return { currentWeight: exercise.currentWeight, hardStreak: 0 };
+    const twoUp = rating === "easy" ? nextLoad(exercise, up, config) : null;
+    return { currentWeight: twoUp ?? up, hardStreak: 0 };
+  }
+
+  const increment = weightIncrement(exercise.progressionRule);
   if (!increment) {
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
   }
@@ -165,8 +188,9 @@ function progressFromRating(
 // remain for this exercise) so the very next set loads heavier immediately. This is
 // session-local UI convenience only — it does not touch the persisted definition;
 // computeNextWeight's end-of-session write-back is the source of truth going forward.
-export function liveEasyBump(currentWeight: number, exercise: ResolvedExercise): number {
-  const increment = WEIGHT_INCREMENTS[exercise.progressionRule];
+export function liveEasyBump(currentWeight: number, exercise: ResolvedExercise, config?: UserEquipmentConfig): number {
+  if (exercise.progressionRule === "add_weight") return (config && nextLoad(exercise, currentWeight, config)) ?? currentWeight;
+  const increment = weightIncrement(exercise.progressionRule);
   if (!increment) return currentWeight;
-  return currentWeight + increment;
+  return roundDownToAchievable(currentWeight + increment, exercise, config);
 }

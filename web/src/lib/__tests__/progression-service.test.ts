@@ -127,9 +127,11 @@ describe("computeNextWeight — add_weight on a kettlebell (add reps until the b
     });
   });
 
-  it("leaves add_weight on non-kettlebell equipment alone", () => {
+  it("moves add_weight on dumbbells through the dumbbells you have (two up when easy)", () => {
+    const dumbbells = { ...config, powerBlock: { owned: false, minLbs: 5, maxLbs: 50 }, fixedDumbbells: [20, 25, 30, 35] };
     const exercise = makeExercise({ progressionRule: "add_weight", equipmentType: "dumbbell", currentWeight: 25 });
-    expect(computeNextWeight(exercise, makeSet({ actualReps: 12, rating: "easy" }), config).currentWeight).toBe(25);
+    expect(computeNextWeight(exercise, makeSet({ actualReps: 12, rating: "easy" }), dumbbells).currentWeight).toBe(35);
+    expect(computeNextWeight(exercise, makeSet({ actualReps: 12, rating: "normal" }), dumbbells).currentWeight).toBe(30);
   });
 });
 

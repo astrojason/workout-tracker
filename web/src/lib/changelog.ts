@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.47.0',
+    date: '2026-11-25',
+    changes: [
+      'Progression rules now come from the exercise\'s equipment instead of a fixed Add 5 / 2.5 / 10 lbs list. A one-sided item like the FitArc offers one plate at a time (Add 0.5 lb, Add 0.75 lb, Add 1 lb…), a barbell offers pairs (Add 1 lb, Add 1.5 lb…), and bodyweight or band exercises offer no weight rules at all.',
+      'Next weight step now works for every loaded equipment: plates, plate-loaded items and dumbbells move to the next weight you can actually make (two steps when a set was easy, one back after three hard sessions). Before, it only worked for machines and kettlebells.',
+      'A rule that isn\'t possible with an exercise\'s equipment stays selected and is marked as such, rather than being changed silently.',
+      'Fixed: warm-ups for kettlebells, dumbbells and other fixed weights could use a weight you don\'t own (a 5 lb warm-up for a 15 lb kettlebell). A warm-up now uses a weight you have: about half, or your next lighter one, or the work weight for fewer reps when nothing lighter exists.',
+    ],
+  },
+  {
     version: '1.46.1',
     date: '2026-11-25',
     changes: [
