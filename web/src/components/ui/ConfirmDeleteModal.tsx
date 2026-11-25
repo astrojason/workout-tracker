@@ -4,6 +4,7 @@ interface ConfirmDeleteModalProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   confirmingLabel?: string;
   confirmClassName?: string;
   isConfirming?: boolean;
@@ -15,6 +16,7 @@ export function ConfirmDeleteModal({
   title,
   message,
   confirmLabel = "Delete",
+  cancelLabel = "Cancel",
   confirmingLabel = "Deleting...",
   confirmClassName = "bg-red-600 hover:bg-red-500",
   isConfirming = false,
@@ -31,7 +33,7 @@ export function ConfirmDeleteModal({
             onClick={onCancel}
             className="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold transition"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             onClick={onConfirm}

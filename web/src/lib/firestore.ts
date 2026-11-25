@@ -495,6 +495,16 @@ export function subscribeToSessions(
   }, onError);
 }
 
+// Saves edits to a logged session's sets and duration, then rebuilds the last-performance summary,
+// which holds each exercise's last sets and so may be stale after an edit. PR records and program
+// weights are not recalculated.
+export async function updateSessionSets(
+  userId: string, sessionId: string, update: { sets: CompletedSet[]; durationSeconds: number },
+): Promise<void> {
+  await updateDoc(doc(sessionsCol(userId), sessionId), update);
+  await rebuildLastPerformance(userId);
+}
+
 export async function getSession(
   userId: string, sessionId: string
 ): Promise<WorkoutSessionDoc | null> {

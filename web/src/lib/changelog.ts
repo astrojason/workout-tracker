@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.39.0',
+    date: '2026-11-24',
+    changes: [
+      'History on desktop: your sessions in a list on the left (search by exercise, day or program; filter Completed, Partial or Skipped), and the selected session on the right.',
+      'Edit a logged session in place: weight or bands, reps or time, rating, done/failed/skipped, notes and duration, or remove a set. Changes show as unsaved until you save; discarding, removing a set and deleting the session all ask first.',
+      'Saving rebuilds the "last time" weights used when you next train. PR records and program weights are not recalculated by an edit.',
+      'Body metrics, exercise progress and Copy a Logged Week sit below. Phones keep the existing History page.',
+    ],
+  },
+  {
     version: '1.38.0',
     date: '2026-11-24',
     changes: [

@@ -5,7 +5,10 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { usePrograms } from "@/hooks/usePrograms";
-import { getSessionsForWeek } from "@/lib/firestore";
+import { deleteSession, getSessionsForWeek, updateSessionSets } from "@/lib/firestore";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { HistoryWorkspace } from "@/components/history/HistoryWorkspace";
 import { formatSessionsWeekAsText } from "@/lib/week-export";
 import { formatTimeValue } from "@/lib/types";
 import Link from "next/link";
@@ -16,11 +19,15 @@ import { useBodyMeasurements } from "@/hooks/useBodyMeasurements";
 
 const SESSIONS_PAGE_SIZE = 10;
 const EXERCISES_PAGE_SIZE = 10;
+// Desktop lists sessions in a scrolling column, so it loads more of them than the phone page.
+const DESKTOP_SESSION_LIMIT = 200;
 
 export default function HistoryPage() {
   const { user } = useAuth();
   const { showError } = useError();
-  const { sessions, exerciseStats, loading } = useHistory(user?.uid ?? null);
+  const isDesktop = useIsDesktop();
+  const { sessions, exerciseStats, loading } = useHistory(user?.uid ?? null, undefined, isDesktop ? DESKTOP_SESSION_LIMIT : undefined);
+  const { definitions } = useExerciseDefinitions(user?.uid ?? null);
   const { programs, loading: programsLoading } = usePrograms(user?.uid ?? null);
   const bodyMetrics = useBodyMeasurements(user?.uid ?? null);
   const [showAllExercises, setShowAllExercises] = useState(false);
@@ -76,14 +83,9 @@ export default function HistoryPage() {
     }
   }
 
-  return (
-    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
-      {/* Header: on desktop the copy-a-week controls sit beside the title */}
-      <div className="lg:flex lg:items-center lg:justify-between lg:gap-4 lg:mb-6">
-      <h1 className="text-2xl font-bold mb-6 lg:mb-0 lg:text-3xl">History</h1>
-
-      {/* Copy a Logged Week */}
-      {programs.length > 0 && (
+  // Copy a logged week, and the best set of each exercise: on both layouts.
+  const copyWeekControls = (
+    <>{programs.length > 0 && (
         <div className="mb-6 lg:mb-0 lg:flex lg:items-center lg:gap-2">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 lg:mb-0 lg:mr-1 lg:text-xs">Copy a Logged Week</h2>
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex flex-wrap items-center gap-2 lg:bg-transparent lg:border-0 lg:p-0 lg:flex-nowrap">
@@ -114,24 +116,10 @@ export default function HistoryPage() {
             </button>
           </div>
         </div>
-      )}
-      </div>
-
-      {/* Desktop: body metrics and exercise progress on the left, recent workouts on the right */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-12 lg:items-start">
-      <div>
-
-      <BodyMetricsSection
-        entries={bodyMetrics.entries}
-        loading={bodyMetrics.loading}
-        saving={bodyMetrics.saving}
-        deletingId={bodyMetrics.deletingId}
-        onSave={bodyMetrics.save}
-        onDelete={bodyMetrics.remove}
-      />
-
-      {/* Exercise Progress */}
-      {exerciseStats.length > 0 && (
+      )}</>
+  );
+  const exerciseProgress = (
+    <>{exerciseStats.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Exercise Progress</h2>
           <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 lg:border-b">
@@ -163,7 +151,67 @@ export default function HistoryPage() {
             )}
           </div>
         </div>
-      )}
+      )}</>
+  );
+
+  // Desktop: the session list and the selected session (editable) side by side, with body
+  // metrics and exercise progress below.
+  if (isDesktop) {
+    return (
+      <div className="hidden lg:block max-w-[1360px] mx-auto p-8">
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <h1 className="text-3xl font-bold">History</h1>
+          {copyWeekControls}
+        </div>
+        <HistoryWorkspace
+          sessions={sessions}
+          definitions={definitions}
+          onSave={(id, update) => updateSessionSets(user!.uid, id, update)}
+          onDelete={(id) => deleteSession(user!.uid, id)}
+        />
+        {sessions.length >= DESKTOP_SESSION_LIMIT && (
+          <p className="mt-3 text-sm text-gray-500">Showing your latest {DESKTOP_SESSION_LIMIT} sessions.</p>
+        )}
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-12 items-start">
+          <div>
+      <BodyMetricsSection
+            entries={bodyMetrics.entries}
+            loading={bodyMetrics.loading}
+            saving={bodyMetrics.saving}
+            deletingId={bodyMetrics.deletingId}
+            onSave={bodyMetrics.save}
+            onDelete={bodyMetrics.remove}
+          />
+          </div>
+          <div>{exerciseProgress}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg mx-auto p-4 lg:hidden">
+      {/* Header: on desktop the copy-a-week controls sit beside the title */}
+      <div className="lg:flex lg:items-center lg:justify-between lg:gap-4 lg:mb-6">
+      <h1 className="text-2xl font-bold mb-6 lg:mb-0 lg:text-3xl">History</h1>
+
+      {copyWeekControls}
+      </div>
+
+      {/* Desktop: body metrics and exercise progress on the left, recent workouts on the right */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-12 lg:items-start">
+      <div>
+
+      <BodyMetricsSection
+        entries={bodyMetrics.entries}
+        loading={bodyMetrics.loading}
+        saving={bodyMetrics.saving}
+        deletingId={bodyMetrics.deletingId}
+        onSave={bodyMetrics.save}
+        onDelete={bodyMetrics.remove}
+      />
+
+      {exerciseProgress}
 
       </div>
 
