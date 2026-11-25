@@ -22,6 +22,11 @@ web/.next/
 web/.env.local
 web/.env*.local
 
+# Firebase CLI debug logs, wherever the CLI is run (web/.gitignore covers web/ only)
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
 # Claude Code
 .claude/
 
