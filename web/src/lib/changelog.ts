@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.38.0',
+    date: '2026-11-24',
+    changes: [
+      'Exercise pages on desktop are now a full report: equipment, muscles and progression; working load and hard streak for the chosen program; heaviest set, best estimated 1RM, change, volume and sessions for 4 weeks to a year.',
+      'A trend chart of estimated 1RM, top set weight or volume, with PRs marked; rep records (heaviest weight at each rep count) and how final sets felt.',
+      'A set log of every set (warm-ups optional) with each session linked, paged 20 at a time and exportable as CSV.',
+      'Assisted pull-ups are reported in bands, timed exercises in time and unweighted ones in reps. Phones keep the existing exercise page.',
+    ],
+  },
+  {
     version: '1.37.0',
     date: '2026-11-24',
     changes: [

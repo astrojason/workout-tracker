@@ -4,6 +4,8 @@ import { use, useState, useMemo } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useExerciseHistory } from "@/hooks/useHistory";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { DesktopExerciseReport } from "@/components/exercise/DesktopExerciseReport";
 import { cleanWeight, formatTimeValue } from "@/lib/types";
 import Link from "next/link";
 import {
@@ -14,17 +16,43 @@ import {
 // A stat tile on phones; a flat, left-aligned block with a top divider on desktop.
 const STAT_CLASS = "desk-flat bg-gray-900 rounded-xl p-3 text-center border border-gray-800 lg:py-4 lg:text-left lg:flex lg:flex-col lg:justify-center";
 
+// Desktop: a full report for the exercise (DesktopExerciseReport). Phones: the progress view below.
 export default function ExerciseProgressPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = use(params);
   const exerciseName = decodeURIComponent(name);
   const { user } = useAuth();
-  const { definitions } = useExerciseDefinitions(user?.uid ?? null);
-  // Current name -> definitionId, so history stays correct even if this exercise
+  const isDesktop = useIsDesktop();
+  const { definitions, loading } = useExerciseDefinitions(user?.uid ?? null);
+  // Current name -> definition, so history stays correct even if this exercise
   // gets renamed later (matched by id, not the name in the URL).
-  const definitionId = useMemo(() => {
+  const definition = useMemo(() => {
     const target = exerciseName.trim().toLowerCase();
-    return Object.values(definitions).find((d) => d.name.trim().toLowerCase() === target)?.id ?? null;
+    return Object.values(definitions).find((d) => d.name.trim().toLowerCase() === target) ?? null;
   }, [definitions, exerciseName]);
+
+  if (isDesktop && user) {
+    return (
+      <div className="hidden lg:block max-w-[1360px] mx-auto p-8">
+        {loading ? (
+          <div role="status" className="flex justify-center py-24">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" aria-hidden="true" />
+          </div>
+        ) : (
+          <DesktopExerciseReport key={definition?.id ?? exerciseName} userId={user.uid} name={exerciseName} definition={definition} />
+        )}
+      </div>
+    );
+  }
+  // Signed in: hidden at desktop width until the width is known, so the phone view never flashes there.
+  return (
+    <div className={user ? "lg:hidden" : ""}>
+      <PhoneExerciseProgress exerciseName={exerciseName} definitionId={definition?.id ?? null} />
+    </div>
+  );
+}
+
+function PhoneExerciseProgress({ exerciseName, definitionId }: { exerciseName: string; definitionId: string | null }) {
+  const { user } = useAuth();
   const { history, isTimeBased, isBodyweight, loading } = useExerciseHistory(user?.uid ?? null, exerciseName, definitionId);
   const [mode, setMode] = useState<"weight" | "volume">("weight");
 

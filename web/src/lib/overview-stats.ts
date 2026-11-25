@@ -84,7 +84,7 @@ export function isWorkingSet(s: CompletedSet): boolean {
   return isLoggedWorkSet(s) && !s.isTimeBased && s.equipmentType !== "assisted_pullup" && s.actualWeight > 0;
 }
 
-function isLoggedWorkSet(s: CompletedSet): boolean {
+export function isLoggedWorkSet(s: CompletedSet): boolean {
   return s.completed && !s.skipped && s.phase !== "warmup" && s.actualReps > 0;
 }
 
