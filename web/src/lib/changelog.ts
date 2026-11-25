@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.36.0',
+    date: '2026-11-24',
+    changes: [
+      'Desktop Home now opens on an Overview report: sessions, volume, average duration, working sets and bodyweight for the last 4 weeks, 12 weeks, 6 months or a year, each compared with the period before.',
+      'Overview charts weekly volume, shows a 12-week consistency grid, and lists recent sessions and automatic weight changes.',
+      'The Overview lift table shows each lift\'s change, top-set trend, best estimated 1RM, last top set and hard streak, and lets you edit a program\'s working weight in place.',
+      'Phones keep the workout-first Home.',
+    ],
+  },
+  {
     version: '1.35.0',
     date: '2026-11-24',
     changes: [

@@ -1,6 +1,6 @@
 // Desktop layout (design "1a Centered workspace"): at desktop widths the bottom nav becomes a top
-// bar, cards flatten into sections with divider lines, and Home gains an "Up today" list and recent
-// workouts beside the program cards. Phone widths keep the existing layout.
+// bar, cards flatten into sections with divider lines, and Home gains an "Up today" list beside the
+// program cards (recent sessions moved into the Overview, see desktop-overview.spec.ts). Phone widths keep the existing layout.
 import { expect, test } from "@playwright/test";
 
 const DESKTOP = { width: 1280, height: 800 };
@@ -96,11 +96,4 @@ test.describe("home side column", () => {
     await expect(upToday.getByText(/Exercise definition missing-def not found/)).toBeVisible();
   });
 
-  test("Recent workouts shows the three latest sessions and links to history", async ({ page }) => {
-    const recent = page.getByRole("region", { name: "Recent Workouts" });
-    const sessionLinks = recent.locator('a[href^="/session/"]');
-    await expect(sessionLinks).toHaveCount(3);
-    await expect(sessionLinks.first()).toHaveAttribute("href", "/session/s1");
-    await expect(recent.getByRole("link", { name: "View history" })).toHaveAttribute("href", "/history");
-  });
 });

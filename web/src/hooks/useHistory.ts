@@ -17,8 +17,9 @@ interface ExerciseStat {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // `sinceDays` limits the load to recent sessions (the landing page only needs the last week);
-// without it the last 50 sessions load, which History and the detail pages want.
-export function useHistory(userId: string | null, sinceDays?: number) {
+// without it the last 50 sessions load, which History and the detail pages want. `limitCount`
+// caps how many load (the desktop Overview needs up to two years for its range comparison).
+export function useHistory(userId: string | null, sinceDays?: number, limitCount = 50) {
   const { showError } = useError();
   const [sessions, setSessions] = useState<WorkoutSessionDoc[]>([]);
   const [exerciseStats, setExerciseStats] = useState<ExerciseStat[]>([]);
@@ -29,7 +30,7 @@ export function useHistory(userId: string | null, sinceDays?: number) {
     setLoading(true);
 
     const since = sinceDays === undefined ? undefined : new Date(Date.now() - sinceDays * DAY_MS);
-    const unsubscribe = subscribeToSessions(userId, 50, (sess) => {
+    const unsubscribe = subscribeToSessions(userId, limitCount, (sess) => {
       // Compute per-exercise best set from sessions client-side.
       const statsMap = new Map<string, ExerciseStat>();
       for (const session of sess) {
@@ -73,7 +74,7 @@ export function useHistory(userId: string | null, sinceDays?: number) {
     }, showError, since);
 
     return unsubscribe;
-  }, [userId, sinceDays, showError]);
+  }, [userId, sinceDays, limitCount, showError]);
 
   return { sessions, exerciseStats, loading };
 }

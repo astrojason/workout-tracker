@@ -10,7 +10,8 @@ import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { ProgramCard } from "@/components/home/ProgramCard";
 import { ConsistencyCard } from "@/components/home/ConsistencyCard";
 import { UpToday } from "@/components/home/UpToday";
-import { RecentWorkouts } from "@/components/home/RecentWorkouts";
+import { DesktopOverview } from "@/components/overview/DesktopOverview";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { ActiveWorkout } from "@/components/workout/ActiveWorkout";
 import { WorkoutComplete } from "@/components/workout/WorkoutComplete";
 import { CoachSection } from "@/components/workout/CoachSection";
@@ -52,6 +53,8 @@ export default function HomePage() {
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState<Date>(new Date());
   const { showError } = useError();
+  // Desktop leads with the reporting Overview; phones keep the workout-first Home.
+  const isDesktop = useIsDesktop();
 
   async function loadLastPerformance(): Promise<WorkoutSessionDoc[]> {
     const last = await getLastPerformance(user!.uid);
@@ -340,13 +343,19 @@ export default function HomePage() {
     </button>
   );
 
-  // Phones: one column. Desktop (lg): program cards in two columns, with consistency, today's
-  // exercises and recent workouts in a side column. The consistency card and custom-workout button
-  // each render once per layout; the other copy is display:none, so only one is ever on screen.
+  // Phones: one column. Desktop (lg): the Overview report first, then today's training — program
+  // cards in two columns with today's exercises beside them (consistency and recent sessions are in
+  // the Overview). The custom-workout button renders once per layout; the other copy is display:none.
   return (
-    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
+    <div className="max-w-lg mx-auto p-4 lg:max-w-[1360px] lg:p-8">
+      {isDesktop && (
+        <div className="hidden lg:block mb-10">
+          <DesktopOverview userId={user.uid} programs={activePrograms} definitions={definitions} onWeightsChanged={refreshPrograms} />
+        </div>
+      )}
+
       {/* Header */}
-      <div className="text-center mb-6 lg:flex lg:items-end lg:justify-between lg:text-left">
+      <div className="text-center mb-6 lg:flex lg:items-end lg:justify-between lg:text-left lg:border-t lg:border-gray-800 lg:pt-8">
         <div>
           <h1 className="text-2xl font-bold lg:text-3xl">{dayName}</h1>
           <p className="text-gray-400">{dateStr}</p>
@@ -439,7 +448,6 @@ export default function HomePage() {
       </div>
 
       <aside className="hidden lg:flex lg:flex-col lg:gap-6">
-        <ConsistencyCard {...consistency} />
         {upToday && (
           <UpToday
             program={upToday.program}
@@ -448,7 +456,6 @@ export default function HomePage() {
             definitions={definitionsFor(upToday.program.id)}
           />
         )}
-        <RecentWorkouts sessions={sessions} />
       </aside>
       </div>
 
