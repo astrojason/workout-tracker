@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Program, UserSettings, Workout } from "@/lib/types";
-import { getAllWorkoutsForProgram, getPrograms, getSettings } from "@/lib/firestore";
+import type { Program, Workout } from "@/lib/types";
+import { getAllWorkoutsForProgram, getPrograms } from "@/lib/firestore";
+import { usePrograms } from "@/hooks/usePrograms";
 import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { exerciseRows, programRows } from "@/lib/library-index";
-import { ProgramsIndex } from "./ProgramsIndex";
+import { ProgramsManager } from "./ProgramsManager";
 import { ExercisesIndex } from "./ExercisesIndex";
 
 // Sessions and last-trained dates on both pages come from this many of the latest sessions.
@@ -22,25 +23,40 @@ function Loading({ what }: { what: string }) {
   );
 }
 
+// Desktop Programs: the programs table with management (the same actions phone Settings offers).
 export function DesktopPrograms({ userId }: { userId: string }) {
   const { showError } = useError();
+  const p = usePrograms(userId);
   const { sessions, loading } = useHistory(userId, undefined, SESSION_LIMIT);
-  const [data, setData] = useState<{ programs: Program[]; workouts: Workout[]; settings: UserSettings } | null>(null);
+  const [workouts, setWorkouts] = useState<Workout[] | null>(null);
+  const [reload, setReload] = useState(0); // bumped after an import or re-import changes workouts
+  const programKey = p.programs.map((x) => x.id).sort().join(",");
 
   useEffect(() => {
+    if (p.loading) return;
     let cancelled = false;
-    (async () => {
-      const [programs, settings] = await Promise.all([getPrograms(userId), getSettings(userId)]);
-      const workouts = (await Promise.all(programs.map((p) => getAllWorkoutsForProgram(userId, p.id)))).flat();
-      if (!cancelled) setData({ programs, workouts, settings });
-    })().catch((err) => {
-      if (!cancelled) { setData({ programs: [], workouts: [], settings: { defaultRestSeconds: 0, soundEnabled: false, currentWeeks: {} } }); showError(err); }
-    });
+    Promise.all(p.programs.map((prog) => getAllWorkoutsForProgram(userId, prog.id)))
+      .then((lists) => { if (!cancelled) setWorkouts(lists.flat()); })
+      .catch((err) => { if (!cancelled) { setWorkouts([]); showError(err); } });
     return () => { cancelled = true; };
-  }, [userId, showError]);
+    // Reload when the set of programs changes or after an import; not on every programs update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, p.loading, programKey, reload, showError]);
 
-  if (!data || loading) return <Loading what="programs" />;
-  return <ProgramsIndex rows={programRows(data.programs, data.workouts, sessions, data.settings.currentWeeks)} sessionLimit={SESSION_LIMIT} />;
+  if (p.loading || workouts === null || loading) return <Loading what="programs" />;
+  return (
+    <ProgramsManager
+      rows={programRows(p.programs, workouts, sessions, p.settings.currentWeeks)}
+      sessionLimit={SESSION_LIMIT}
+      onImport={async (data, name, ask) => { await p.importXLSX(data, name, ask); setReload((n) => n + 1); }}
+      onReimport={async (id, name, data, ask) => { await p.reimportProgram(id, name, data, ask); setReload((n) => n + 1); }}
+      onRename={p.renameProgram}
+      onChangeWeek={p.setCurrentWeek}
+      onArchive={p.archiveProgram}
+      onUnarchive={p.unarchiveProgram}
+      onDelete={p.deleteProgram}
+    />
+  );
 }
 
 export function DesktopExercises({ userId }: { userId: string }) {

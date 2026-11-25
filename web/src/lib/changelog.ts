@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.43.0',
+    date: '2026-11-24',
+    changes: [
+      'Programs on desktop now manages your programs: import a spreadsheet (asking about exercises not in your library), rename in place, change the current week, re-import, archive, unarchive and delete. Re-import, archive and delete ask first, and every action shows progress and any error.',
+      'Settings on desktop keeps only what has no page of its own: default rest between sets, timer sound, your account and the app version, with links to Programs, Exercises, Equipment and Body. Phones keep the full Settings page.',
+      'A default rest or timer sound change that fails to save now goes back to the saved value instead of showing the unsaved one.',
+    ],
+  },
+  {
     version: '1.42.0',
     date: '2026-11-24',
     changes: [

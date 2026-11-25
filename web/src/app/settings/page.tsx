@@ -8,6 +8,8 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import Link from "next/link";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { DesktopSettings } from "@/components/settings/DesktopSettings";
 
 // Desktop programs table: name, length, current week, actions.
 const PROGRAM_COLUMNS = "lg:grid-cols-[minmax(0,1fr)_120px_140px_180px] lg:gap-4 lg:items-center";
@@ -19,6 +21,9 @@ export default function SettingsPage() {
     activePrograms, archivedPrograms, settings, currentWeek, setCurrentWeek,
     importXLSX, reimportProgram, archiveProgram, unarchiveProgram, deleteProgram, renameProgram, updateUserSettings,
   } = usePrograms(user?.uid ?? null);
+
+  // Desktop Settings keeps only what has no top-bar page of its own (see DesktopSettings).
+  const isDesktop = useIsDesktop();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
@@ -172,8 +177,22 @@ export default function SettingsPage() {
     );
   }
 
+  if (isDesktop) {
+    return (
+      <div className="hidden lg:block p-8">
+        <DesktopSettings
+          defaultRestSeconds={settings.defaultRestSeconds}
+          soundEnabled={settings.soundEnabled}
+          email={user.email ?? user.displayName ?? null}
+          onUpdate={updateUserSettings}
+          onSignOut={signOut}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-lg mx-auto p-4 lg:max-w-[1200px] lg:p-8">
+    <div className="max-w-lg mx-auto p-4 lg:hidden">
       <h1 className="text-2xl font-bold mb-6 lg:text-3xl">Settings</h1>
 
       {/* Programs */}

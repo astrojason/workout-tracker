@@ -303,11 +303,18 @@ export function usePrograms(userId: string | null) {
     setPrograms(await getPrograms(userId));
   }, [userId]);
 
+  // Shows the change at once; if saving fails, puts the previous values back and rethrows.
   const updateUserSettings = useCallback(async (updates: Partial<UserSettings>) => {
     if (!userId) return;
+    const previous = Object.fromEntries(Object.keys(updates).map((k) => [k, settings[k as keyof UserSettings]])) as Partial<UserSettings>;
     setSettingsState((prev) => ({ ...prev, ...updates }));
-    await updateSettings(userId, updates);
-  }, [userId]);
+    try {
+      await updateSettings(userId, updates);
+    } catch (err) {
+      setSettingsState((prev) => ({ ...prev, ...previous }));
+      throw err;
+    }
+  }, [userId, settings]);
 
   const refreshCompletedDays = useCallback(async () => {
     if (!userId) return;
