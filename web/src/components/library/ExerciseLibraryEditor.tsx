@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ExerciseDefinition, EquipmentItem, GymMachine } from "@/lib/types";
+import type { ExerciseDefinition, GymMachine, UserEquipmentConfig } from "@/lib/types";
 import type { DefinitionSave } from "@/lib/firestore";
 import type { ExerciseRow } from "@/lib/library-index";
 import { useError } from "@/components/providers/ErrorProvider";
@@ -13,14 +13,14 @@ interface Props {
   sessionLimit: number;
   definitions: Record<string, ExerciseDefinition>;
   machines: GymMachine[];
-  items: EquipmentItem[];
+  equipment: UserEquipmentConfig;
   // Throws on failure (the panel reports it and stays open).
   onSave: (definitionId: string, save: DefinitionSave) => Promise<void>;
 }
 
 // Desktop Exercises: the library table, with each exercise edited in a panel that slides in from
 // the right. ?edit=<definitionId> (linked from Equipment) opens straight on that exercise.
-export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machines, items, onSave }: Props) {
+export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machines, equipment, onSave }: Props) {
   const { showError } = useError();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machine
           key={editing.id}
           definition={editing}
           machines={machines}
-          items={items}
+          equipment={equipment}
           onSave={(save) => onSave(editing.id, save)}
           onSaved={(name) => { setSaved(name); close(); }}
           onClose={close}
@@ -64,10 +64,10 @@ export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machine
   );
 }
 
-function ExerciseEditPanel({ definition, machines, items, onSave, onSaved, onClose, onError }: {
+function ExerciseEditPanel({ definition, machines, equipment, onSave, onSaved, onClose, onError }: {
   definition: ExerciseDefinition;
   machines: GymMachine[];
-  items: EquipmentItem[];
+  equipment: UserEquipmentConfig;
   onSave: (save: DefinitionSave) => Promise<void>;
   onSaved: (name: string) => void;
   onClose: () => void;
@@ -102,7 +102,7 @@ function ExerciseEditPanel({ definition, machines, items, onSave, onSaved, onClo
           variant="panel"
           definition={definition}
           machines={machines}
-          items={items}
+          equipment={equipment}
           onSave={onSave}
           onSaved={(save) => onSaved(save.meta.name ?? definition.name)}
           onCancel={onClose}

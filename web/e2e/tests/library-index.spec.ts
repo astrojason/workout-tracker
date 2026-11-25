@@ -74,6 +74,35 @@ test.describe("programs and exercises", () => {
       await expect(page.getByText(/Preview save failed/).first()).toBeVisible();
     });
 
+    test("has one Equipment dropdown, listing only the equipment you own", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      const equipment = panel(page).getByLabel("Equipment", { exact: true });
+      await expect(panel(page).getByLabel("Equipment item")).toHaveCount(0);
+      await expect(panel(page).getByLabel("Gym machine")).toHaveCount(0);
+      const options = await equipment.locator("option").allTextContents();
+      expect(options).toContain("Olympic bar (45 lb)");
+      expect(options).toContain("FitArc");
+      expect(options).toContain("Chest press");
+      expect(options).not.toContain("EZ bar (15 lb)"); // not owned in the fixture
+      expect(options).not.toContain("PowerBlock (5–50 lb)");
+      await expect(equipment).toHaveValue("type:barbell_45");
+    });
+
+    test("picking one of your items saves the exercise on it", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await panel(page).getByLabel("Equipment", { exact: true }).selectOption({ label: "FitArc" });
+      await panel(page).getByRole("button", { name: "Save" }).click();
+      await expect(page.getByRole("status")).toContainText("Saved Back Squat");
+      await expect(exercises(page).getByRole("row", { name: /Back Squat/ })).toContainText("FitArc");
+    });
+
+    test("bands pick a colour from the bands you own", async ({ page }) => {
+      await exercises(page).getByRole("button", { name: "Edit Back Squat" }).click();
+      await panel(page).getByLabel("Equipment", { exact: true }).selectOption({ label: "Serious Steel bands (Red, Blue)" });
+      const colours = await panel(page).getByLabel("Band colour").locator("option").allTextContents();
+      expect(colours).toEqual(["Red", "Blue"]);
+    });
+
     test("opens straight on the exercise named in ?edit=", async ({ page }) => {
       await page.goto("/test-preview/library-index?edit=squat");
       await page.locator("main[data-hydrated]").waitFor();

@@ -81,11 +81,11 @@ export function DesktopExercises({ userId }: { userId: string }) {
   if (programs === null || loading || !loaded || equipmentLoading) return <Loading what="exercises" />;
   return (
     <ExerciseLibraryEditor
-      rows={exerciseRows(definitions, programs, sessions)}
+      rows={exerciseRows(definitions, programs, sessions, { items: equipment.items ?? [], machines })}
       sessionLimit={SESSION_LIMIT}
       definitions={definitions}
       machines={machines}
-      items={equipment.items ?? []}
+      equipment={equipment}
       onSave={async (id, save) => { await saveExerciseDefinition(userId, id, save); await reload(); }}
     />
   );

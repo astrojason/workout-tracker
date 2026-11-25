@@ -72,12 +72,12 @@ describe("linking an exercise to your own equipment", () => {
   it("saves the chosen equipment item on the exercise", async () => {
     window.history.pushState({}, "", "/settings/exercises?edit=arc");
     render(<ErrorProvider><ExerciseLibraryPage /></ErrorProvider>);
-    fireEvent.change(screen.getByLabelText("Equipment item"), { target: { value: "fitarc" } });
+    fireEvent.change(screen.getByLabelText("Equipment"), { target: { value: "item:fitarc" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(updateMeta).toHaveBeenCalledWith("u1", "arc", expect.objectContaining({ equipmentItemId: "fitarc" })));
+    await waitFor(() => expect(updateMeta).toHaveBeenCalledWith("u1", "arc", expect.objectContaining({ equipmentItemId: "fitarc", equipmentType: "machine" })));
   });
 
-  it("clears the link when None is chosen", async () => {
+  it("saves no item for built-in equipment", async () => {
     window.history.pushState({}, "", "/settings/exercises?edit=arc");
     render(<ErrorProvider><ExerciseLibraryPage /></ErrorProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

@@ -84,7 +84,7 @@ export default function ExerciseLibraryPage() {
                 variant="inline"
                 definition={def}
                 machines={machines}
-                items={items}
+                equipment={equipmentConfig}
                 onSave={async ({ meta, weight }) => {
                   await updateExerciseDefinitionMeta(user.uid, def.id, meta);
                   if (weight) await updateExerciseDefinitionWeight(user.uid, def.id, weight.currentWeight, weight.hardStreak);

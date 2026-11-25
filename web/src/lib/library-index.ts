@@ -1,4 +1,4 @@
-import type { EquipmentType, ExerciseDefinition, Program, ProgressionRule, Workout, WorkoutSessionDoc } from "./types";
+import type { EquipmentItem, EquipmentType, ExerciseDefinition, GymMachine, Program, ProgressionRule, Workout, WorkoutSessionDoc } from "./types";
 import { DAY_ORDER } from "./types";
 import { sessionDate } from "./overview-stats";
 
@@ -21,6 +21,7 @@ export interface ExerciseRow {
   name: string;
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
+  equipmentName?: string | null; // the own item or gym machine it's done on, shown in place of the type
   muscles: string[];
   progressionRule: ProgressionRule;
   programs: string[];      // active programs that carry a working weight for it
@@ -55,6 +56,7 @@ export function programRows(
 
 export function exerciseRows(
   definitions: Record<string, ExerciseDefinition>, programs: Program[], sessions: WorkoutSessionDoc[],
+  owned: { items?: EquipmentItem[]; machines?: GymMachine[] } = {},
 ): ExerciseRow[] {
   const active = programs.filter((p) => !p.archived);
   return Object.values(definitions).map((d) => {
@@ -65,6 +67,8 @@ export function exerciseRows(
       name: d.name,
       equipmentType: d.equipmentType,
       equipmentDetail: d.equipmentDetail,
+      equipmentName: owned.items?.find((i) => i.id === d.equipmentItemId)?.name
+        ?? (d.equipmentType === "machine" ? owned.machines?.find((m) => m.id === d.machineId)?.name : undefined) ?? null,
       muscles: d.muscleGroups,
       progressionRule: d.progressionRule,
       programs: active.filter((p) => p.weights?.[d.id]).map((p) => p.name),

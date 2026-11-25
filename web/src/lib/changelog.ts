@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.46.0',
+    date: '2026-11-25',
+    changes: [
+      'Exercise editor: one Equipment dropdown, filled from your own equipment: the bars, weights, bands and grippers you own, your own items (like a FitArc), your gym machines, and bodyweight. It replaces the fixed list of every kind of equipment, the separate equipment item dropdown and the gym machine dropdown.',
+      'An exercise whose equipment you no longer own keeps it, shown as not in your equipment, until you pick something else.',
+      'Band colour is chosen from the bands you own.',
+      'Exercises: the Equipment column shows the item or gym machine an exercise is done on.',
+    ],
+  },
+  {
     version: '1.45.0',
     date: '2026-11-25',
     changes: [

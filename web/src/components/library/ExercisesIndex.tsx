@@ -67,7 +67,7 @@ export function ExercisesIndex({ rows, sessionLimit, onEdit }: { rows: ExerciseR
                     <Link href={`/exercise/${encodeURIComponent(r.name)}`} className="font-semibold text-indigo-400 hover:text-indigo-300">{r.name}</Link>
                     <button type="button" onClick={() => onEdit(r.id)} aria-label={`Edit ${r.name}`} className="ml-2 text-xs text-gray-400 hover:text-white">Edit</button>
                   </td>
-                  <td className="px-3 py-3 text-gray-300">{equipmentLabel(r.equipmentType)}{r.equipmentDetail ? ` · ${r.equipmentDetail}` : ""}</td>
+                  <td className="px-3 py-3 text-gray-300">{r.equipmentName ?? equipmentLabel(r.equipmentType)}{r.equipmentDetail ? ` · ${r.equipmentDetail}` : ""}</td>
                   <td className="px-3 py-3 text-gray-300">{r.muscles.length > 0 ? r.muscles.join(" · ") : "—"}</td>
                   <td className="px-3 py-3 text-gray-300">{ruleLabel(r.progressionRule)}</td>
                   <td className="px-3 py-3 text-gray-300">{r.programs.length > 0 ? r.programs.join(", ") : "—"}</td>
