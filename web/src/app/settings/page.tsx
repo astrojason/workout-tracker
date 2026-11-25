@@ -521,6 +521,19 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Warm-ups */}
+      <section className="mb-8 lg:mb-0">
+        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Warm-ups</h2>
+        <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <Link href="/settings/warmups" className="px-4 py-3 flex justify-between items-center hover:bg-gray-800/50 transition rounded-xl">
+            <span>Warm-up rules</span>
+            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+      </section>
+
       {/* Sound */}
       <section className="mb-8 lg:mb-0 lg:order-2">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Notifications</h2>

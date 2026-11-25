@@ -84,3 +84,14 @@ describe("linking an exercise to your own equipment", () => {
     await waitFor(() => expect(updateMeta).toHaveBeenCalledWith("u1", "arc", expect.objectContaining({ equipmentItemId: null })));
   });
 });
+
+describe("an exercise's warm-up", () => {
+  it("can be set to no warm-up, and back to following its equipment's rule", async () => {
+    window.history.pushState({}, "", "/settings/exercises?edit=arc");
+    render(<ErrorProvider><ExerciseLibraryPage /></ErrorProvider>);
+    expect(screen.getByLabelText("Warm-up")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Warm-up"), { target: { value: "none" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateMeta).toHaveBeenCalledWith("u1", "arc", expect.objectContaining({ warmup: "none" })));
+  });
+});

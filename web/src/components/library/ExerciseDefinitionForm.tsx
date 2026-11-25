@@ -33,6 +33,7 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
   const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
   const [progressionRule, setProgressionRule] = useState<ProgressionRule>(definition.progressionRule);
   const [isUnilateral, setIsUnilateral] = useState(definition.isUnilateral);
+  const [warmup, setWarmup] = useState<"" | "none">(definition.warmup === "none" ? "none" : "");
   const [isTimeBased, setIsTimeBased] = useState(definition.isTimeBased);
   const [currentWeight, setCurrentWeight] = useState(String(definition.currentWeight));
   const [hardStreak, setHardStreak] = useState(String(definition.hardStreak));
@@ -75,6 +76,7 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
           progressionRule,
           isUnilateral,
           isTimeBased,
+          warmup: warmup || null,
         },
         weight: weight !== definition.currentWeight || streak !== definition.hardStreak ? { currentWeight: weight, hardStreak: streak } : null,
       };
@@ -138,6 +140,17 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
           )}
         </Field>
       )}
+      <Field label="Warm-up" className="col-span-2">
+        {(id) => (
+          <>
+            <select id={id} value={warmup} onChange={(e) => setWarmup(e.target.value as "" | "none")} className="input-field">
+              <option value="">Follow its equipment&apos;s warm-up rule</option>
+              <option value="none">None: never warm up this exercise</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">The rules for each kind of equipment are in Settings → Warm-ups.</p>
+          </>
+        )}
+      </Field>
       <Field label="Default Weight (lbs)">
         {(id) => (
           <>

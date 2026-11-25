@@ -7,6 +7,17 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.48.0',
+    date: '2026-11-25',
+    changes: [
+      'Settings → Warm-ups: edit how warm-up sets are built for each kind of equipment (barbells and plate-loaded, PowerBlock, fixed weights, and no load). Each can ramp through your own steps (share of the work weight × reps, optionally starting with the empty bar), do one lighter set, do fewer reps, or have no warm-up.',
+      'Set the heaviest a warm-up can be, the rest after each warm-up set, and whether a lift is warmed up only once per workout.',
+      'A live preview shows the exact warm-up sets your own lifts would get on your equipment as you edit. Changes save with one Save; Discard asks first.',
+      'An exercise can be set to never warm up (its Warm-up choice in the exercise editor).',
+      'Plate-loaded items like a FitArc now get a ramp that starts from their empty weight.',
+    ],
+  },
+  {
     version: '1.47.0',
     date: '2026-11-25',
     changes: [

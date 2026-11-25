@@ -75,7 +75,7 @@ export function DesktopSettings({ defaultRestSeconds, soundEnabled, email, onUpd
     }
   }
 
-  const sections = [["workout", "Workout"], ["sound", "Sound"], ["account", "Account"], ["about", "About"], ["moved", "Moved to the top bar"]];
+  const sections = [["workout", "Workout"], ["warmups", "Warm-ups"], ["sound", "Sound"], ["account", "Account"], ["about", "About"], ["moved", "Moved to the top bar"]];
 
   return (
     <div className="flex gap-8 items-start max-w-[1100px] mx-auto">
@@ -115,6 +115,16 @@ export function DesktopSettings({ defaultRestSeconds, soundEnabled, email, onUpd
               </span>
             </div>
           </div>
+        </Card>
+
+        <Card id="warmups" title="Warm-ups">
+          <Link href="/settings/warmups" className="px-6 py-5 flex items-center justify-between gap-4 hover:bg-gray-800/40 rounded-b-xl">
+            <span>
+              <span className="block font-semibold">Warm-up rules</span>
+              <span className="block text-sm text-gray-400">How warm-up sets are built for each kind of equipment, with a preview on your own lifts.</span>
+            </span>
+            <span className="text-sm text-indigo-300 shrink-0">Edit →</span>
+          </Link>
         </Card>
 
         <Card id="sound" title="Sound">

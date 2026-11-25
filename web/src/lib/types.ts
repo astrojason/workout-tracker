@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import type { WarmupRules } from "./warmup-rules";
 
 // ── Enums as string unions ──
 
@@ -54,6 +55,7 @@ export interface ExerciseDefinition {
   brand?: string | null;       // equipment maker/model, e.g. "Lifecycle"; lets the AI identify a machine when its photo is unclear
   machineId?: string | null;   // machine only: a GymMachine whose weights replace weightOptions (see applyGymMachines)
   equipmentItemId?: string | null; // one of the user's own equipment items (UserEquipmentConfig.items) it's done with
+  warmup?: "none" | null; // "none": never gets warm-up sets; otherwise it follows its equipment's warm-up rule
   muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
@@ -177,6 +179,7 @@ export interface UserSettings {
   currentWeeks: Record<string, number>; // programId -> currentWeek
   migratedProgramIds?: boolean; // one-time backfill of programId onto legacy Workout/WorkoutSessionDoc docs
   exerciseLibraryMigrated?: boolean; // set by scripts/migrate-exercise-library.ts (manual, not run automatically by the app)
+  warmupRules?: Partial<WarmupRules>; // Settings → Warm-ups; absent = the defaults (see normalizeWarmupRules)
 }
 
 // ── Equipment config ──

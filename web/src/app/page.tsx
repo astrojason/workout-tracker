@@ -30,6 +30,7 @@ import { scanEquipmentPhoto } from "@/lib/equipment-scan";
 import { buildCustomSets, suggestCustomWeight, CUSTOM_PROGRAM_ID, CUSTOM_PROGRAM_NAME, exerciseKey } from "@/lib/custom-workout";
 import type { CustomExerciseInfo, CustomSetEntry } from "@/lib/custom-workout";
 import { saveSession } from "@/lib/firestore";
+import { normalizeWarmupRules } from "@/lib/warmup-rules";
 import { checkForPRs } from "@/lib/pr-detector";
 import type { PRResult } from "@/lib/types";
 
@@ -37,7 +38,7 @@ export default function HomePage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const {
     activePrograms, loading, getTodaysWorkout, getAvailableDays, markDaySkipped,
-    currentWeek, getWorkoutsForDay, updateWorkout, refreshPrograms,
+    currentWeek, getWorkoutsForDay, updateWorkout, refreshPrograms, settings,
   } = usePrograms(user?.uid ?? null);
   const workout = useWorkout(user?.uid ?? null);
   const { config: equipmentConfig } = useEquipmentConfig(user?.uid ?? null);
@@ -64,7 +65,7 @@ export default function HomePage() {
   async function startProgramWorkout(w: Workout): Promise<boolean> {
     try {
       const history = await loadLastPerformance();
-      return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, history);
+      return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, history, normalizeWarmupRules(settings.warmupRules));
     } catch (err) {
       showError(err);
       return false;

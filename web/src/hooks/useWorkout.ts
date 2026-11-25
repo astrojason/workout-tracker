@@ -8,6 +8,7 @@ import type {
 import { resolveWorkout } from "@/lib/types";
 import type { ProgressionChange } from "@/lib/types";
 import { computeNextWeight, liveEasyBump } from "@/lib/progression-service";
+import { DEFAULT_WARMUP_RULES, type WarmupRules } from "@/lib/warmup-rules";
 import { rampWarmups } from "@/lib/warmup-ramp";
 import { currentSetView } from "@/lib/inserted-set";
 import { nextSetSummary } from "@/lib/next-set";
@@ -244,6 +245,7 @@ export function useWorkout(userId: string | null) {
     definitions: Record<string, ExerciseDefinition>,
     equipmentConfig?: UserEquipmentConfig,
     previousSessions: WorkoutSessionDoc[] = [],
+    warmupRules: WarmupRules = DEFAULT_WARMUP_RULES,
   ): boolean => {
     if (!userId) return false;
     endingRef.current = false;
@@ -252,7 +254,7 @@ export function useWorkout(userId: string | null) {
       equipmentConfigRef.current = equipmentConfig;
 
       const baseWorkout = resolveWorkout(workout, definitions);
-      const resolvedWorkout = { ...baseWorkout, exercises: rampWarmups(baseWorkout.exercises, equipmentConfig) };
+      const resolvedWorkout = { ...baseWorkout, exercises: rampWarmups(baseWorkout.exercises, equipmentConfig, warmupRules) };
       const resolvedWeights: Record<string, number> = {};
       for (const exercise of resolvedWorkout.exercises) {
         resolvedWeights[exercise.id] = exercise.currentWeight;
