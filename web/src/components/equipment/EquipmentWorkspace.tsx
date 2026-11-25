@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { rebaseDraft } from "@/lib/equipment-draft";
 import type { ExerciseDefinition, Program, UserEquipmentConfig } from "@/lib/types";
 import { cleanWeight } from "@/lib/types";
 import { equipmentReach, reachStats, unmakeableWeights } from "@/lib/equipment-reach";
@@ -56,7 +57,14 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
     if (ok) setFixed(`✓ ${p.exerciseName} in ${p.programName} is now ${label}`);
   }
 
-  useEffect(() => setDraft(config), [config]);
+  // When the saved equipment changes (first load, a Save, an item saved on its own), take it but
+  // keep any edits not saved yet.
+  const savedRef = useRef(config);
+  useEffect(() => {
+    const previous = savedRef.current;
+    savedRef.current = config;
+    setDraft((d) => rebaseDraft(d, previous, config));
+  }, [config]);
 
   const changed = (Object.keys(draft) as (keyof UserEquipmentConfig)[]).filter((k) => JSON.stringify(draft[k]) !== JSON.stringify(config[k]));
   const reach = equipmentReach(draft);
@@ -224,7 +232,7 @@ export function EquipmentWorkspace({ config, onSave, definitions, programs, mach
           <GripperSection config={draft} onChange={patch} />
         </Card>
         <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 pt-5 [&>section]:mb-5">
-          <EquipmentItemsSection config={draft} onChange={patch} />
+          <EquipmentItemsSection items={config.items ?? []} onSaveItems={(items) => onSave({ ...config, items })} />
         </div>
       </div>
 

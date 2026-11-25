@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { rebaseDraft } from "@/lib/equipment-draft";
 import Link from "next/link";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
@@ -21,8 +22,13 @@ export default function EquipmentPage() {
   const { config, loading, saving, saveConfig } = useEquipmentConfig(user?.uid ?? null);
   const [draft, setDraft] = useState<UserEquipmentConfig>(config);
 
+  // When the saved equipment changes (first load, a Save, an item saved on its own), take it but
+  // keep any edits not saved yet.
+  const savedRef = useRef(config);
   useEffect(() => {
-    setDraft(config);
+    const previous = savedRef.current;
+    savedRef.current = config;
+    setDraft((d) => rebaseDraft(d, previous, config));
   }, [config]);
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(config);
@@ -65,7 +71,7 @@ export default function EquipmentPage() {
           <FixedDumbbellsSection config={draft} onChange={patch} />
           <GripperSection config={draft} onChange={patch} />
           <AssistedPullupSection config={draft} onChange={patch} />
-          <EquipmentItemsSection config={draft} onChange={patch} />
+          <EquipmentItemsSection items={config.items ?? []} onSaveItems={(items) => saveConfig({ ...config, items })} />
         </>
       )}
 

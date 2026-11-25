@@ -66,20 +66,25 @@ test.describe("equipment workspace", () => {
     await items.getByLabel("Empty weight (lb)").fill("5");
     await items.getByLabel("Loaded on").selectOption("1");
     await items.getByRole("button", { name: "Add item" }).click();
+    // Adding saves the item straight away: no page-level Save needed.
+    await expect(items.getByRole("button", { name: "Adding…" })).toBeDisabled();
+    await expect(items.getByRole("status")).toContainText("✓ Added FitArc");
+    await expect(page.getByText("Saved items: FitArc")).toBeVisible();
+    await expect(page.getByText(/unsaved change/)).toHaveCount(0);
     await expect(items.getByRole("listitem").filter({ hasText: "FitArc" })).toContainText("5 lb empty · plates on one side");
     await expect(reach(page).getByRole("row", { name: /FitArc/ })).toContainText("5–");
-    await expect(page.getByText("1 unsaved change")).toBeVisible();
 
     await items.getByLabel("Item name").fill("Medicine balls");
     await items.getByLabel("Kind").selectOption("fixed");
     await items.getByLabel("Weights (lb)").fill("9, 2, 6");
     await items.getByRole("button", { name: "Add item" }).click();
     await expect(reach(page).getByRole("row", { name: /Medicine balls/ })).toContainText("2–9 lb");
+    await expect(page.getByText("Saved items: FitArc, Medicine balls")).toBeVisible();
 
     await items.getByLabel("Item name").fill("Stability ball");
     await items.getByLabel("Kind").selectOption("none");
     await items.getByRole("button", { name: "Add item" }).click();
-    await expect(items.getByRole("listitem").filter({ hasText: "Stability ball" })).toContainText("No weight");
+    await expect(items.getByRole("listitem").filter({ hasText: "Stability ball" })).toContainText(/^Stability ballNo weightEdit/);
     await expect(reach(page).getByRole("row", { name: /Stability ball/ })).toHaveCount(0);
   });
 
@@ -95,6 +100,31 @@ test.describe("equipment workspace", () => {
     await expect(page.getByRole("heading", { name: "Remove Pin" })).toBeVisible();
     await page.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(items.getByRole("listitem").filter({ hasText: "Pin" })).toHaveCount(0);
+    await expect(items.getByRole("status")).toContainText("✓ Removed Pin");
+    await expect(page.getByText("Saved items: none")).toBeVisible();
+  });
+
+  test("saving an item leaves your other unsaved edits unsaved", async ({ page }) => {
+    await page.getByRole("button", { name: "Increase 5 lb plates" }).click();
+    await expect(page.getByText("1 unsaved change")).toBeVisible();
+    const items = page.getByRole("region", { name: "Your own equipment" });
+    await items.getByLabel("Item name").fill("Stability ball");
+    await items.getByLabel("Kind").selectOption("none");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(page.getByText("Saved items: Stability ball")).toBeVisible();
+    await expect(page.getByText(/Last saved: .*5×3/)).toHaveCount(0); // the extra 5 lb plate wasn't saved with it
+    await expect(page.getByText("1 unsaved change")).toBeVisible();     // and are still waiting
+  });
+
+  test("a failed item save keeps the form filled and the item out of the list", async ({ page }) => {
+    const items = page.getByRole("region", { name: "Your own equipment" });
+    await items.getByLabel("Item name").fill("boom");
+    await items.getByLabel("Kind").selectOption("none");
+    await items.getByRole("button", { name: "Add item" }).click();
+    await expect(items.getByRole("button", { name: "Add item" })).toBeEnabled();
+    await expect(items.getByLabel("Item name")).toHaveValue("boom");
+    await expect(items.getByRole("listitem").filter({ hasText: "boom" })).toHaveCount(0);
+    await expect(page.getByText("Saved items: none")).toBeVisible();
   });
 
   test("includes gym machines", async ({ page }) => {

@@ -1,28 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import type { EquipmentItem, EquipmentItemKind, UserEquipmentConfig } from "@/lib/types";
+import type { EquipmentItem, EquipmentItemKind } from "@/lib/types";
 import { cleanWeight } from "@/lib/types";
 import { ITEM_KIND_LABEL, validateEquipmentItem } from "@/lib/equipment-items";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 
 interface Props {
-  config: UserEquipmentConfig;
-  onChange: (patch: Partial<UserEquipmentConfig>) => void;
+  items: EquipmentItem[]; // as saved
+  // Saves the whole list straight away (not with the page's other unsaved edits). Reports its own
+  // error and resolves false on failure.
+  onSaveItems: (items: EquipmentItem[]) => Promise<boolean>;
 }
 
 const newId = () => `item-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-function describe(item: EquipmentItem): string {
+function describe(item: EquipmentItem): string | null {
   if (item.kind === "plate_loaded") return `${cleanWeight(item.baseWeight ?? 0)} lb empty · plates on ${(item.sides ?? 1) === 1 ? "one side" : "both sides"}`;
   if (item.kind === "fixed") return `${(item.weights ?? []).map(cleanWeight).join(", ")} lb`;
-  return "No weight";
+  return null; // the kind label already says "No weight"
 }
 
 // The user's own equipment that the fixed categories don't cover (a FitArc, medicine balls, a
-// stability ball). Edits go into the equipment draft and save with the rest of it.
-export function EquipmentItemsSection({ config, onChange }: Props) {
-  const items = config.items ?? [];
+// stability ball). Adding, editing or removing one saves it immediately: these are separate
+// actions with their own buttons, so they mustn't wait for the page's Save.
+export function EquipmentItemsSection({ items, onSaveItems }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<EquipmentItemKind>("plate_loaded");
@@ -31,6 +33,8 @@ export function EquipmentItemsSection({ config, onChange }: Props) {
   const [weights, setWeights] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<EquipmentItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
 
   function reset() {
     setEditingId(null); setName(""); setKind("plate_loaded"); setBaseWeight(""); setSides(1); setWeights(""); setError(null);
@@ -46,15 +50,32 @@ export function EquipmentItemsSection({ config, onChange }: Props) {
     setError(null);
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const result = validateEquipmentItem({ name, kind, baseWeight, sides, weights }, items, editingId ?? undefined);
     if (!result.ok) { setError(result.error); return; }
     const next = editingId
       ? items.map((i) => (i.id === editingId ? { id: i.id, ...result.item } : i))
       : [...items, { id: newId(), ...result.item }];
-    onChange({ items: next });
+    setBusy(true);
+    setDone(null);
+    const ok = await onSaveItems(next);
+    setBusy(false);
+    // On failure the error is already shown; keep the form as typed so nothing is lost.
+    if (!ok) return;
+    setDone(`✓ ${editingId ? "Saved" : "Added"} ${result.item.name}`);
     reset();
+  }
+
+  async function remove(item: EquipmentItem) {
+    setBusy(true);
+    setDone(null);
+    const ok = await onSaveItems(items.filter((i) => i.id !== item.id));
+    setBusy(false);
+    setRemoving(null);
+    if (!ok) return;
+    if (editingId === item.id) reset();
+    setDone(`✓ Removed ${item.name}`);
   }
 
   return (
@@ -71,11 +92,11 @@ export function EquipmentItemsSection({ config, onChange }: Props) {
             <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-medium">{item.name}</div>
-                <div className="text-xs text-gray-400">{ITEM_KIND_LABEL[item.kind]} · {describe(item)}</div>
+                <div className="text-xs text-gray-400">{[ITEM_KIND_LABEL[item.kind], describe(item)].filter(Boolean).join(" · ")}</div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button type="button" aria-label={`Edit ${item.name}`} onClick={() => startEdit(item)} className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm">Edit</button>
-                <button type="button" aria-label={`Remove ${item.name}…`} onClick={() => setRemoving(item)} className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-red-900 text-sm text-red-300">Remove…</button>
+                <button type="button" aria-label={`Edit ${item.name}`} disabled={busy} onClick={() => startEdit(item)} className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm">Edit</button>
+                <button type="button" aria-label={`Remove ${item.name}…`} disabled={busy} onClick={() => setRemoving(item)} className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-red-900 text-sm text-red-300">Remove…</button>
               </div>
             </li>
           ))}
@@ -119,22 +140,24 @@ export function EquipmentItemsSection({ config, onChange }: Props) {
         </div>
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         <div className="flex gap-2">
-          <button type="submit" className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold">{editingId ? "Save item" : "Add item"}</button>
-          {editingId && <button type="button" onClick={reset} className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700">Cancel edit</button>}
+          <button type="submit" disabled={busy} className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold disabled:opacity-60 inline-flex items-center justify-center gap-2">
+            {busy && !removing && <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" aria-hidden="true" />}
+            {busy && !removing ? (editingId ? "Saving…" : "Adding…") : editingId ? "Save item" : "Add item"}
+          </button>
+          {editingId && <button type="button" disabled={busy} onClick={reset} className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50">Cancel edit</button>}
         </div>
+        {done && <p role="status" className="text-sm text-green-400">{done}</p>}
       </form>
 
       {removing && (
         <ConfirmDeleteModal
           title={`Remove ${removing.name}`}
-          message={`Remove ${removing.name} from your equipment? Exercises linked to it go back to their own equipment type. Nothing is saved until you press Save.`}
+          message={`Remove ${removing.name} from your equipment? This saves straight away. Exercises linked to it go back to their own equipment type.`}
           confirmLabel="Remove"
+          confirmingLabel="Removing…"
+          isConfirming={busy}
           onCancel={() => setRemoving(null)}
-          onConfirm={() => {
-            onChange({ items: items.filter((i) => i.id !== removing.id) });
-            if (editingId === removing.id) reset();
-            setRemoving(null);
-          }}
+          onConfirm={() => remove(removing)}
         />
       )}
     </section>

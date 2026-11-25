@@ -43,6 +43,8 @@ export default function EquipmentWorkspaceTestPage() {
 
   async function save(config: UserEquipmentConfig) {
     await new Promise((r) => setTimeout(r, 400));
+    // A save the real app would report through the error modal; here it just fails.
+    if ((config.items ?? []).some((i) => i.name === "boom")) return false;
     setSaved(config);
     setLastSaved(config.plates.filter((p) => p.totalOwned > 0).map((p) => `${p.weight}×${p.totalOwned}`).join(" "));
     return true;
@@ -51,6 +53,7 @@ export default function EquipmentWorkspaceTestPage() {
   return (
     <main className="mx-auto max-w-[1360px] p-8" data-hydrated={hydrated || undefined}>
       <p>Last saved: {lastSaved}</p>
+      <p>Saved items: {(saved.items ?? []).map((i) => i.name).join(", ") || "none"}</p>
       <EquipmentWorkspace
         config={saved}
         onSave={save}

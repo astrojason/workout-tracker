@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.46.1',
+    date: '2026-11-25',
+    changes: [
+      'Fixed: adding an item under Your own equipment didn\'t save it. It only joined the page\'s unsaved changes, whose Save button was out of view, so the item vanished when you left. Adding, editing and removing an item now saves it straight away, with "Adding…" while it saves and "✓ Added" when done.',
+      'Saving an item leaves your other unsaved equipment edits as they are, still waiting for Save.',
+      'An item with no weight no longer reads "No weight · No weight".',
+    ],
+  },
+  {
     version: '1.46.0',
     date: '2026-11-25',
     changes: [
