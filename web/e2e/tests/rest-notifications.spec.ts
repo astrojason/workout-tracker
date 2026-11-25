@@ -4,8 +4,8 @@ import { pullUpWorkout } from "../fixtures/workout-fixtures";
 // Full Chromium supports notifications; the default headless shell does not.
 test.use({ channel: "chromium" });
 
-test("opt in during rest and deliver a notification through the real service worker", async ({ page, context }) => {
-  await context.grantPermissions(["notifications"], { origin: "http://localhost:3000" });
+test("opt in during rest and deliver a notification through the real service worker", async ({ page, context, baseURL }) => {
+  await context.grantPermissions(["notifications"], { origin: baseURL });
   await page.addInitScript((workout) => {
     localStorage.setItem("activeWorkout", JSON.stringify({
       workout,
