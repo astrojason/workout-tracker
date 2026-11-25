@@ -6,6 +6,7 @@ import {
   deleteBodyMeasurement,
   getBodyMeasurements,
   saveBodyMeasurement,
+  updateBodyMeasurement,
 } from "@/lib/firestore";
 import type { BodyMeasurementDoc, BodyMeasurementInput } from "@/lib/types";
 
@@ -62,6 +63,21 @@ export function useBodyMeasurements(userId: string | null) {
     }
   }, [userId, showError]);
 
+  const update = useCallback(async (measurementId: string, measurement: BodyMeasurementInput): Promise<boolean> => {
+    if (!userId) return false;
+    setSaving(true);
+    try {
+      await updateBodyMeasurement(userId, measurementId, measurement);
+      setEntries((current) => chronological(current.map((entry) => (entry.id === measurementId ? { id: measurementId, ...measurement } : entry))));
+      return true;
+    } catch (err) {
+      showError(err);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [userId, showError]);
+
   const remove = useCallback(async (measurementId: string): Promise<boolean> => {
     if (!userId) return false;
     setDeletingId(measurementId);
@@ -77,5 +93,5 @@ export function useBodyMeasurements(userId: string | null) {
     }
   }, [userId, showError]);
 
-  return { entries, loading, saving, deletingId, save, remove };
+  return { entries, loading, saving, deletingId, save, update, remove };
 }

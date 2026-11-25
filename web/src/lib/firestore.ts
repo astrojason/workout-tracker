@@ -558,6 +558,19 @@ export async function saveBodyMeasurement(
   return ref.id;
 }
 
+// Replaces a check-in's date and values, so a measurement cleared in the form is removed.
+export async function updateBodyMeasurement(
+  userId: string,
+  measurementId: string,
+  measurement: BodyMeasurementInput,
+): Promise<void> {
+  const { date, ...values } = measurement;
+  await setDoc(doc(bodyMeasurementsCol(userId), measurementId), {
+    date: Timestamp.fromDate(date),
+    ...values,
+  });
+}
+
 export async function deleteBodyMeasurement(userId: string, measurementId: string): Promise<void> {
   await deleteDoc(doc(bodyMeasurementsCol(userId), measurementId));
 }

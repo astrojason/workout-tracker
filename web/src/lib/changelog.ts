@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.40.0',
+    date: '2026-11-24',
+    changes: [
+      'New Body page on desktop (Body in the top bar): body weight, body fat, waist, muscle mass and resting heart rate for 4 weeks to all time, a trend chart of any measurement with a 4-entry average, tape changes over the range, and left vs right differences.',
+      'Log a check-in from the page, or edit one from the measurements table. A check-in no longer needs a body weight, just at least one measurement. Deleting asks first.',
+      'Import check-ins from a spreadsheet and export them as CSV.',
+      'Desktop History no longer shows body metrics (they moved to Body). Phones keep body metrics in History.',
+    ],
+  },
+  {
     version: '1.39.0',
     date: '2026-11-24',
     changes: [

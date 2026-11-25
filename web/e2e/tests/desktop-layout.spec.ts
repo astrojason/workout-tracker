@@ -29,6 +29,16 @@ test.describe("top bar", () => {
     await expect(nav.getByRole("link", { name: /^v\d/ })).toHaveAttribute("href", "/changelog");
   });
 
+  test("the desktop top bar has a Body tab; the phone bottom bar doesn't", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/test-preview/bottom-nav");
+    const body = page.getByRole("navigation").getByRole("link", { name: "Body" });
+    await expect(body).toBeVisible();
+    await expect(body).toHaveAttribute("href", "/body");
+    await page.setViewportSize(PHONE);
+    await expect(body).toBeHidden();
+  });
+
   test("page content starts below the top bar", async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto("/history");

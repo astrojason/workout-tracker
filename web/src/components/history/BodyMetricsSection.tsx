@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   CartesianGrid,
   Line,
@@ -11,64 +11,12 @@ import {
   YAxis,
 } from "recharts";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
-import { useError } from "@/components/providers/ErrorProvider";
-import { parseMeasurementColumns, type MeasurementColumn } from "@/lib/measurements-import";
+import { useMeasurementImport } from "@/components/body/useMeasurementImport";
 import { cleanWeight } from "@/lib/types";
+import { CIRCUMFERENCE_METRICS, METRICS, SMART_SCALE_METRICS, type MetricDefinition, type MetricKey } from "@/lib/body-report";
 import type { BodyMeasurementDoc, BodyMeasurementInput } from "@/lib/types";
 
-type MetricKey = keyof Omit<BodyMeasurementInput, "date">;
 type OptionalMetricKey = Exclude<MetricKey, "weight">;
-
-interface MetricDefinition {
-  key: MetricKey;
-  label: string;
-  unit: "lbs" | "in" | "%" | "bpm" | "kcal" | "years" | "";
-  inputLabel: string;
-}
-
-const CIRCUMFERENCE_METRICS: MetricDefinition[] = [
-  { key: "chest", label: "Chest", unit: "in", inputLabel: "Chest (in)" },
-  { key: "waist", label: "Waist", unit: "in", inputLabel: "Waist (in)" },
-  { key: "hips", label: "Hips", unit: "in", inputLabel: "Hips (in)" },
-  { key: "rightBicep", label: "Right bicep", unit: "in", inputLabel: "Right bicep (in)" },
-  { key: "leftBicep", label: "Left bicep", unit: "in", inputLabel: "Left bicep (in)" },
-  { key: "rightThigh", label: "Right thigh", unit: "in", inputLabel: "Right thigh (in)" },
-  { key: "leftThigh", label: "Left thigh", unit: "in", inputLabel: "Left thigh (in)" },
-  { key: "rightCalf", label: "Right calf", unit: "in", inputLabel: "Right calf (in)" },
-  { key: "leftCalf", label: "Left calf", unit: "in", inputLabel: "Left calf (in)" },
-];
-
-// Superseded by the left/right measurements; kept so older check-ins still display and chart.
-const LEGACY_METRICS: MetricDefinition[] = [
-  { key: "arm", label: "Arm", unit: "in", inputLabel: "Arm (in)" },
-  { key: "thigh", label: "Thigh", unit: "in", inputLabel: "Thigh (in)" },
-];
-
-const SMART_SCALE_METRICS: MetricDefinition[] = [
-  { key: "bodyFatPercentage", label: "Body fat", unit: "%", inputLabel: "Body fat (%)" },
-  { key: "bmi", label: "BMI", unit: "", inputLabel: "BMI" },
-  { key: "heartRate", label: "Heart rate", unit: "bpm", inputLabel: "Heart rate (bpm)" },
-  { key: "muscleMass", label: "Muscle mass", unit: "lbs", inputLabel: "Muscle mass (lbs)" },
-  { key: "boneMass", label: "Bone mass", unit: "lbs", inputLabel: "Bone mass (lbs)" },
-  { key: "bodyWaterPercentage", label: "Body water", unit: "%", inputLabel: "Body water (%)" },
-  { key: "visceralFat", label: "Visceral fat", unit: "", inputLabel: "Visceral fat rating" },
-  { key: "proteinMass", label: "Protein mass", unit: "lbs", inputLabel: "Protein mass (lbs)" },
-  { key: "bmr", label: "BMR", unit: "kcal", inputLabel: "BMR (kcal)" },
-  { key: "metabolicAge", label: "Metabolic age", unit: "years", inputLabel: "Metabolic age (years)" },
-  { key: "standardWeight", label: "Standard weight", unit: "lbs", inputLabel: "Standard weight (lbs)" },
-  { key: "fatFreeBodyWeight", label: "Fat-free weight", unit: "lbs", inputLabel: "Fat-free weight (lbs)" },
-  { key: "proteinPercentage", label: "Protein", unit: "%", inputLabel: "Protein (%)" },
-  { key: "subcutaneousFatPercentage", label: "Subcutaneous fat", unit: "%", inputLabel: "Subcutaneous fat (%)" },
-  { key: "skeletalMusclePercentage", label: "Skeletal muscle", unit: "%", inputLabel: "Skeletal muscle (%)" },
-  { key: "waterWeight", label: "Water weight", unit: "lbs", inputLabel: "Water weight (lbs)" },
-];
-
-const METRICS: MetricDefinition[] = [
-  { key: "weight", label: "Body weight", unit: "lbs", inputLabel: "Body weight (lbs)" },
-  ...CIRCUMFERENCE_METRICS,
-  ...LEGACY_METRICS,
-  ...SMART_SCALE_METRICS,
-];
 
 function asDate(value: BodyMeasurementDoc["date"]): Date {
   return value instanceof Date ? value : value.toDate();
@@ -125,12 +73,8 @@ export function BodyMetricsSection({
   onSave,
   onDelete,
 }: BodyMetricsSectionProps) {
-  const { showError } = useError();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showForm, setShowForm] = useState(false);
-  const [importColumns, setImportColumns] = useState<MeasurementColumn[] | null>(null);
-  const [importDates, setImportDates] = useState<string[]>([]);
-  const [importing, setImporting] = useState(false);
+  const measurementImport = useMeasurementImport(onSave);
   const [date, setDate] = useState(localDateInputValue());
   const [weight, setWeight] = useState("");
   const [measurements, setMeasurements] = useState<Partial<Record<OptionalMetricKey, string>>>({});
@@ -180,43 +124,6 @@ export function BodyMetricsSection({
     if (saved) resetForm();
   }
 
-  async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (!file) return;
-    try {
-      const columns = parseMeasurementColumns(await file.arrayBuffer());
-      if (columns.length === 0) {
-        throw new Error("No measurements found. The spreadsheet needs a \"Measurements\" sheet with filled-in columns.");
-      }
-      setImportColumns(columns);
-      // The first column is the baseline, so it defaults to today; later columns need a date.
-      setImportDates(columns.map((_, index) => (index === 0 ? localDateInputValue() : "")));
-    } catch (err) {
-      showError(err);
-    }
-  }
-
-  async function confirmImport() {
-    if (!importColumns) return;
-    setImporting(true);
-    try {
-      for (let index = 0; index < importColumns.length; index++) {
-        if (!importDates[index]) continue;
-        const saved = await onSave({
-          date: new Date(`${importDates[index]}T12:00:00`),
-          ...importColumns[index].values,
-        });
-        if (!saved) return; // onSave already surfaced the error
-      }
-      setImportColumns(null);
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  const importCount = importDates.filter(Boolean).length;
-
   async function confirmDelete() {
     if (!deleteTarget) return;
     const deleted = await onDelete(deleteTarget.id);
@@ -230,17 +137,10 @@ export function BodyMetricsSection({
           Body metrics
         </h2>
         <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx"
-            aria-label="Measurements spreadsheet"
-            onChange={handleImportFile}
-            className="hidden"
-          />
+          {measurementImport.fileInput}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={measurementImport.open}
             className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 hover:bg-gray-800"
           >
             Import from spreadsheet
@@ -255,48 +155,7 @@ export function BodyMetricsSection({
         </div>
       </div>
 
-      {importColumns && (
-        <div className="mb-3 space-y-3 rounded-xl border border-gray-800 bg-gray-900 p-4">
-          <h3 className="text-sm font-bold">Import measurements</h3>
-          <p className="text-xs text-gray-500">
-            Each column becomes a check-in. Set the date it was measured; leave a date blank to skip that column.
-          </p>
-          {importColumns.map((column, index) => (
-            <div key={column.label} className="text-sm text-gray-400">
-              <span>{column.label}</span>
-              <span className="ml-2 text-xs text-gray-500">
-                ({Object.keys(column.values).length} measurements)
-              </span>
-              <input
-                type="date"
-                aria-label={`Date for ${column.label}`}
-                value={importDates[index] ?? ""}
-                onChange={(event) =>
-                  setImportDates((current) => current.map((value, i) => (i === index ? event.target.value : value)))
-                }
-                className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
-              />
-            </div>
-          ))}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setImportColumns(null)}
-              className="flex-1 rounded-lg border border-gray-700 py-2 text-sm font-semibold hover:bg-gray-800"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmImport}
-              disabled={importing || importCount === 0}
-              className="flex-1 rounded-lg bg-green-600 py-2 text-sm font-bold hover:bg-green-500 disabled:opacity-50"
-            >
-              {importing ? "Importing…" : `Import ${importCount} check-in${importCount === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        </div>
-      )}
+      {measurementImport.panel}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-3 space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-4">

@@ -154,8 +154,8 @@ export default function HistoryPage() {
       )}</>
   );
 
-  // Desktop: the session list and the selected session (editable) side by side, with body
-  // metrics and exercise progress below.
+  // Desktop: the session list and the selected session (editable) side by side, with exercise
+  // progress below. Body metrics are on the desktop Body page.
   if (isDesktop) {
     return (
       <div className="hidden lg:block max-w-[1360px] mx-auto p-8">
@@ -172,19 +172,8 @@ export default function HistoryPage() {
         {sessions.length >= DESKTOP_SESSION_LIMIT && (
           <p className="mt-3 text-sm text-gray-500">Showing your latest {DESKTOP_SESSION_LIMIT} sessions.</p>
         )}
-        <div className="mt-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-12 items-start">
-          <div>
-      <BodyMetricsSection
-            entries={bodyMetrics.entries}
-            loading={bodyMetrics.loading}
-            saving={bodyMetrics.saving}
-            deletingId={bodyMetrics.deletingId}
-            onSave={bodyMetrics.save}
-            onDelete={bodyMetrics.remove}
-          />
-          </div>
-          <div>{exerciseProgress}</div>
-        </div>
+        {/* Body metrics have their own page on desktop (/body). */}
+        <div className="mt-10 max-w-[680px]">{exerciseProgress}</div>
       </div>
     );
   }
