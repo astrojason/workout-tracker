@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { APP_VERSION } from "@/lib/version";
 
-type ActiveTab = "home" | "history" | "body" | "equipment" | "settings" | null;
+type ActiveTab = "home" | "programs" | "exercises" | "history" | "body" | "equipment" | "settings" | null;
 
 // One nav for every width: a compact bar fixed to the bottom on phones, and a top bar with the
 // app name and signed-in email on desktop (lg, 1024px+). globals.css reserves its height.
@@ -24,13 +24,22 @@ export function BottomNav({ active, email }: { active: ActiveTab; email?: string
         <div className="contents lg:flex lg:items-center lg:gap-1">
           <Link href="/" className={cls("home")}>
             <svg className="w-5 h-5 lg:w-[18px] lg:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" /></svg>
-            <span className={label}>Home</span>
+            {/* Home is the workout page on a phone and the Overview report on desktop. */}
+            <span className={label}><span className="lg:hidden">Home</span><span className="hidden lg:inline">Overview</span></span>
+          </Link>
+          {/* Programs, Exercises, Body and Equipment are desktop only: phones reach them from Settings and History. */}
+          <Link href="/programs" className={cls("programs").replace("flex flex-col", "hidden lg:flex flex-col")}>
+            <svg className="w-5 h-5 lg:w-[18px] lg:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z" /></svg>
+            <span className={label}>Programs</span>
+          </Link>
+          <Link href="/exercises" className={cls("exercises").replace("flex flex-col", "hidden lg:flex flex-col")}>
+            <svg className="w-5 h-5 lg:w-[18px] lg:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h10" /></svg>
+            <span className={label}>Exercises</span>
           </Link>
           <Link href="/history" className={cls("history")}>
             <svg className="w-5 h-5 lg:w-[18px] lg:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             <span className={label}>History</span>
           </Link>
-          {/* Body and Equipment are desktop only: phones reach them from History and Settings. */}
           <Link href="/body" className={cls("body").replace("flex flex-col", "hidden lg:flex flex-col")}>
             <svg className="w-5 h-5 lg:w-[18px] lg:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6a2 2 0 100-4 2 2 0 000 4zM5 9l7 1 7-1M12 10v5m0 0l-3 7m3-7l3 7" /></svg>
             <span className={label}>Body</span>

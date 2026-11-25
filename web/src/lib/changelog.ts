@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.42.0',
+    date: '2026-11-24',
+    changes: [
+      'The desktop top bar now has every section: Overview, Programs, Exercises, History, Body, Equipment and Settings. Phones keep Home, History and Settings.',
+      'New Programs page on desktop: each program with its current week, training days, exercises, sessions and last trained, linking to its editor (archived programs on request).',
+      'New Exercises page on desktop: your exercise library with equipment, muscles, progression, the programs using each, sessions and last done, searchable and filterable by equipment, each linking to its report.',
+    ],
+  },
+  {
     version: '1.41.0',
     date: '2026-11-24',
     changes: [

@@ -13,7 +13,8 @@ for (const route of routes) {
     const nav = page.getByRole("navigation");
     await expect(nav).toHaveCount(1);
     await expect(nav.getByRole("link", { name: /^v\d/ })).toBeVisible();
-    await expect(nav.getByRole("link", { name: /home/i })).toBeVisible();
+    // "Home" on a phone, "Overview" on desktop (this suite runs at desktop size).
+    await expect(nav.getByRole("link", { name: /^(home|overview)$/i })).toBeVisible();
   });
 }
 

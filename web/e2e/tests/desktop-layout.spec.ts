@@ -17,7 +17,7 @@ test.describe("top bar", () => {
     expect(navBox.height).toBeLessThanOrEqual(64);
     await expect(nav.getByText("Workout Tracker")).toBeVisible();
 
-    const home = (await nav.getByRole("link", { name: /home/i }).boundingBox())!;
+    const home = (await nav.getByRole("link", { name: "Overview" }).boundingBox())!;
     const history = (await nav.getByRole("link", { name: /history/i }).boundingBox())!;
     const settings = (await nav.getByRole("link", { name: /settings/i }).boundingBox())!;
     expect(Math.abs(home.y - settings.y)).toBeLessThan(4);
@@ -47,6 +47,19 @@ test.describe("top bar", () => {
     await expect(equipment).toHaveAttribute("href", "/equipment");
     await page.setViewportSize(PHONE);
     await expect(equipment).toBeHidden();
+  });
+
+  test("the desktop top bar has every section in order; the phone bar keeps Home, History and Settings", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto("/test-preview/bottom-nav");
+    const tabs = page.getByRole("navigation").getByRole("link").filter({ hasNotText: /^v\d|Workout Tracker/ });
+    // innerText, so the hidden phone label ("Home") isn't counted.
+    await expect(tabs).toHaveText(["Overview", "Programs", "Exercises", "History", "Body", "Equipment", "Settings"], { useInnerText: true });
+    await expect(page.getByRole("link", { name: "Programs" })).toHaveAttribute("href", "/programs");
+    await expect(page.getByRole("link", { name: "Exercises" })).toHaveAttribute("href", "/exercises");
+    await page.setViewportSize(PHONE);
+    const visible = page.getByRole("navigation").getByRole("link").filter({ visible: true }).filter({ hasNotText: /^v\d/ });
+    await expect(visible).toHaveText(["Home", "History", "Settings"], { useInnerText: true });
   });
 
   test("page content starts below the top bar", async ({ page }) => {
