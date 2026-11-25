@@ -2,11 +2,11 @@
 # Builds the Workout Tracker iPhone app (with its Apple Watch app) in Release (standalone JS bundle, no Metro needed) and
 # installs it on a connected iPhone. Uses this machine's Xcode, not EAS cloud.
 #
-# Usage: scripts/ios-install [device name or UDID]
-# With no argument, Expo asks which connected device to use.
+# Usage: scripts/ios-install [iPhone|iPad] [device name or UDID]
+# With no device named, it uses the one paired iPhone (or iPad) that's connected.
 #
 # Needs: the phone connected (or on the same network) with Developer Mode on and
-# trusted, Xcode signed in to your Apple Developer team, and mobile/.env.local
+# trusted, Xcode signed in to your Apple Developer team (68T36GK536, set in app.config.ts), and mobile/.env.local
 # with EXPO_PUBLIC_WEB_URL and EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID (see .env.local.example) (web URL must be the deployed site, not localhost).
 set -euo pipefail
 
@@ -32,37 +32,72 @@ npm install
 echo "==> Regenerating the native iOS project"
 npx expo prebuild --platform ios --clean
 
-DEVICE="${1:-}"
-if [[ -z "$DEVICE" ]]; then
-  # No prompt is possible in a non-interactive shell, so pick the device ourselves when exactly one iPhone is available.
-  LIST="$(mktemp)"
-  xcrun devicectl list devices --json-output "$LIST" >/dev/null 2>&1 || true
-  NAMES="$(python3 - "$LIST" <<'PY'
+KIND="iPhone"
+if [[ "${1:-}" == "iPhone" || "${1:-}" == "iPad" ]]; then
+  KIND="$1"
+  shift
+fi
+WANTED="${1:-}"
+
+# Find the paired $KIND (or the one named $WANTED) and its UDID, which both xcodebuild and devicectl need.
+LIST="$(mktemp)"
+xcrun devicectl list devices --json-output "$LIST" >/dev/null
+MATCHES="$(python3 - "$LIST" "$KIND" "$WANTED" <<'PY'
 import json, sys
-try:
-    devices = json.load(open(sys.argv[1]))["result"]["devices"]
-except Exception:
-    devices = []
+devices = json.load(open(sys.argv[1]))["result"]["devices"]
+kind, wanted = sys.argv[2], sys.argv[3]
 for d in devices:
     hw = d.get("hardwareProperties", {})
-    if hw.get("deviceType") == "iPhone" and hw.get("reality") == "physical" and d.get("connectionProperties", {}).get("pairingState") == "paired":
-        print(d["deviceProperties"]["name"])
+    name = d["deviceProperties"]["name"]
+    if hw.get("reality") != "physical" or d.get("connectionProperties", {}).get("pairingState") != "paired":
+        continue
+    if wanted and wanted not in (name, hw.get("udid")):
+        continue
+    if not wanted and hw.get("deviceType") != kind:
+        continue
+    print(f"{hw['udid']}\t{name}")
 PY
 )"
-  rm -f "$LIST"
-  COUNT="$(printf '%s' "$NAMES" | grep -c . || true)"
-  if [[ "$COUNT" == "1" ]]; then
-    DEVICE="$NAMES"
-  elif [[ "$COUNT" == "0" ]]; then
-    echo "error: no paired iPhone found. Connect and unlock it (Developer Mode on), or pass its name: scripts/ios-install \"My iPhone\"" >&2
-    exit 1
-  else
-    echo "error: several iPhones found; pass one by name: scripts/ios-install \"<name>\"" >&2
-    printf '%s\n' "$NAMES" >&2
-    exit 1
-  fi
+rm -f "$LIST"
+COUNT="$(printf '%s' "$MATCHES" | grep -c . || true)"
+if [[ "$COUNT" == "0" ]]; then
+  echo "error: no paired ${WANTED:-$KIND} found. Connect and unlock it (Developer Mode on), or pass its name: scripts/ios-install \"My iPhone\"" >&2
+  exit 1
+elif [[ "$COUNT" != "1" ]]; then
+  echo "error: several ${KIND}s found; pass one by name: scripts/ios-install \"<name>\"" >&2
+  printf '%s\n' "$MATCHES" | cut -f2 >&2
+  exit 1
+fi
+UDID="$(printf '%s' "$MATCHES" | cut -f1)"
+DEVICE="$(printf '%s' "$MATCHES" | cut -f2)"
+
+# Built and installed with Xcode's own tools rather than `expo run:ios`: Expo's device install hangs at
+# "Connecting to: <device>" and never exits, while devicectl installs and returns in seconds.
+# The app's name has a space ("Workout Tracker"), so prebuild names the workspace and scheme
+# WorkoutTracker; they're set here rather than read from the config.
+APP_NAME="WorkoutTracker"
+BUNDLE_ID="com.astrojason.workout"
+BUILD_DIR="$PWD/ios/build"
+LOG="$BUILD_DIR/xcodebuild.log"
+mkdir -p "$BUILD_DIR"
+
+echo "==> Building a Release build for $DEVICE (takes a few minutes; full log: $LOG)"
+if ! xcodebuild \
+    -workspace "ios/$APP_NAME.xcworkspace" -scheme "$APP_NAME" -configuration Release \
+    -destination "id=$UDID" -derivedDataPath "$BUILD_DIR" \
+    -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
+    build > "$LOG" 2>&1; then
+  grep -E "error:|BUILD FAILED" "$LOG" | tail -20 >&2
+  echo "error: the build failed; see $LOG" >&2
+  exit 1
 fi
 
-echo "==> Building a Release build and installing it on: $DEVICE"
-npx expo run:ios --device "$DEVICE" --configuration Release
+APP="$BUILD_DIR/Build/Products/Release-iphoneos/$APP_NAME.app"
+echo "==> Installing on $DEVICE"
+xcrun devicectl device install app --device "$UDID" "$APP" >/dev/null
+echo "==> Opening Workout Tracker"
+if ! xcrun devicectl device process launch --device "$UDID" --terminate-existing "$BUNDLE_ID" >/dev/null; then
+  echo "Installed, but it couldn't be opened (is the phone locked?). Open Workout Tracker on the phone yourself." >&2
+  exit 1
+fi
 echo "==> Done. If the app won't open, trust your developer certificate in Settings > General > VPN & Device Management."

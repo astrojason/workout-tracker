@@ -20,7 +20,9 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: "com.astrojason.workout",
     supportsTablet: false,
-    appleTeamId: process.env.APPLE_TEAM_ID,
+    // `expo prebuild --clean` regenerates ios/, so the signing team (for the app and its Watch,
+    // widget and Live Activity targets) has to come from here.
+    appleTeamId: "68T36GK536",
     config: { usesNonExemptEncryption: false },
     entitlements: { "com.apple.security.application-groups": [APP_GROUP] },
   },
