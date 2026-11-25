@@ -8,6 +8,7 @@ import {
   calculateLandmine,
   getPowerBlockInstructions,
   nearestPowerBlock,
+  powerBlockWeights,
   plateDisplayString,
   KETTLEBELL_WEIGHTS,
   DEFAULT_EQUIPMENT_CONFIG,
@@ -183,8 +184,9 @@ function PowerBlockWeightInput({
   equipmentConfig?: UserEquipmentConfig;
 }) {
   const [warning, setWarning] = useState<string | null>(null);
-  const min = equipmentConfig?.powerBlock?.minLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.minLbs;
-  const max = equipmentConfig?.powerBlock?.maxLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.maxLbs;
+  const settings = powerBlockWeights(equipmentConfig);
+  const min = settings[0];
+  const max = settings[settings.length - 1];
 
   function handleBlur() {
     const val = parseFloat(value);
@@ -195,7 +197,7 @@ function PowerBlockWeightInput({
     }
     const clamped = nearestPowerBlock(val, equipmentConfig);
     if (clamped !== val) {
-      setWarning(`Clamped to ${clamped} lbs (PowerBlock range: ${min}–${max} lbs).`);
+      setWarning(`Set to ${clamped} lbs, the nearest weight your PowerBlock can be set to (${min}–${max} lbs).`);
     } else {
       setWarning(null);
     }
@@ -207,7 +209,7 @@ function PowerBlockWeightInput({
   if (!isNaN(val)) {
     const snapped = nearestPowerBlock(val, equipmentConfig);
     const inst = getPowerBlockInstructions(snapped);
-    hint = `${snapped} lbs — ${inst.label}`;
+    hint = inst.label === "—" ? `${snapped} lbs` : `${snapped} lbs — ${inst.label}`;
   }
 
   return (
@@ -217,7 +219,7 @@ function PowerBlockWeightInput({
         value={value}
         onChange={(e) => { onChange(e.target.value); setWarning(null); }}
         onBlur={handleBlur}
-        step="2.5"
+        step="any"
         min={min}
         max={max}
         className="input-field"

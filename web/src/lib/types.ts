@@ -206,6 +206,9 @@ export interface UserEquipmentConfig {
     owned: boolean;
     minLbs: number;
     maxLbs: number;
+    // The exact weights the adjustable dumbbells can be set to, when entered (any steps, like a
+    // machine's stack). Absent: every 2.5 lb from minLbs to maxLbs. See powerBlockWeights().
+    weights?: number[];
   };
   fixedDumbbells: number[];
   kettlebells: number[];        // sorted ascending

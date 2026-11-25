@@ -1,5 +1,6 @@
 import type { EquipmentItem, EquipmentItemKind, EquipmentType, ExerciseDefinition, GymMachine, UserEquipmentConfig } from "./types";
 import { cleanWeight } from "./types";
+import { powerBlockWeights } from "./equipment-calculator";
 
 // The exercise editor's single Equipment dropdown, built from what you own: the equipment in
 // Equipment settings, your own items and your gym machines. One value carries the choice:
@@ -37,7 +38,10 @@ function ownedOptions(config: UserEquipmentConfig): EquipmentOption[] {
   if (config.barbells.has45lb) add("barbell_45", TYPE_NAME.barbell_45);
   if (config.barbells.has35lb) add("barbell_35", TYPE_NAME.barbell_35);
   if (config.barbells.hasEZBar) add("barbell_ez", TYPE_NAME.barbell_ez);
-  if (config.powerBlock.owned) add("powerblock", `PowerBlock (${cleanWeight(config.powerBlock.minLbs)}–${cleanWeight(config.powerBlock.maxLbs)} lb)`);
+  if (config.powerBlock.owned) {
+    const pb = powerBlockWeights(config);
+    add("powerblock", `PowerBlock (${cleanWeight(pb[0])}–${cleanWeight(pb[pb.length - 1])} lb)`);
+  }
   if (config.fixedDumbbells.length > 0) add("dumbbell", `Dumbbells (${list([...config.fixedDumbbells].sort((a, b) => a - b))} lb)`);
   if (config.kettlebells.length > 0) add("kettlebell", `Kettlebells (${list([...config.kettlebells].sort((a, b) => a - b))} lb)`);
   if (config.bands.length > 0) add("band", `Serious Steel bands (${list(config.bands)})`);

@@ -82,7 +82,7 @@ function EquipmentContent({ exercise, equipmentDisplay, editable, previousPerfor
           <div className="text-indigo-300 font-semibold">
             {equipmentDisplayText(equipmentDisplay)}
           </div>
-          {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && (
+          {equipmentDisplay.type === "powerblock" && equipmentDisplay.weight > 0 && equipmentDisplay.instructions.label !== "—" && (
             <div className="text-indigo-400/70 text-xs mt-0.5">
               {equipmentDisplay.instructions.label}
             </div>

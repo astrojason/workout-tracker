@@ -54,6 +54,7 @@ export default function EquipmentWorkspaceTestPage() {
     <main className="mx-auto max-w-[1360px] p-8" data-hydrated={hydrated || undefined}>
       <p>Last saved: {lastSaved}</p>
       <p>Saved items: {(saved.items ?? []).map((i) => i.name).join(", ") || "none"}</p>
+      <p>Saved PowerBlock: {(saved.powerBlock.weights ?? []).join(",") || "every 2.5 lb"}</p>
       <EquipmentWorkspace
         config={saved}
         onSave={save}

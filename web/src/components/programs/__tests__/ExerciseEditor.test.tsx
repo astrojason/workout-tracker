@@ -272,7 +272,7 @@ describe("ExerciseEditor", () => {
       expect(weightInput.value).not.toBe("100.3");
     });
 
-    it("snaps PowerBlock weight to the nearest 2.5lb increment and warns when clamped", () => {
+    it("snaps PowerBlock weight to the nearest weight it can be set to, and says so", () => {
       const { container } = render(
         <ExerciseEditor exercise={null} maxOrder={0} definitions={[]} onSave={onSave} onCancel={onCancel} />
       );
@@ -283,7 +283,7 @@ describe("ExerciseEditor", () => {
       fireEvent.blur(weightInput);
 
       expect(weightInput.value).toBe("22.5");
-      expect(screen.getByText(/Clamped to 22.5 lbs/i)).toBeInTheDocument();
+      expect(screen.getByText(/Set to 22.5 lbs, the nearest weight your PowerBlock can be set to/i)).toBeInTheDocument();
     });
 
     it("saves the selected band color as equipmentDetail with zero starting weight", () => {

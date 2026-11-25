@@ -1,5 +1,6 @@
 import type { EquipmentType, ExerciseDefinition, Program, UserEquipmentConfig } from "./types";
 import { findItem, itemLoads, plateLoads } from "./equipment-items";
+import { powerBlockWeights } from "./equipment-calculator";
 
 // What the user's equipment can load, and which programmed working weights it can't make.
 // Barbell loads use the app's own plate calculation, so a load counts only if the workout screen
@@ -19,12 +20,7 @@ const same = (a: number, b: number) => Math.abs(a - b) < EPS;
 
 const barbellLoads = (bar: number, config: UserEquipmentConfig) => plateLoads(bar, 2, config);
 
-function powerBlockLoads(config: UserEquipmentConfig): number[] {
-  if (!config.powerBlock.owned) return [];
-  const loads: number[] = [];
-  for (let w = config.powerBlock.minLbs; w <= config.powerBlock.maxLbs + EPS; w += 2.5) loads.push(Math.round(w * 100) / 100);
-  return loads;
-}
+const powerBlockLoads = (config: UserEquipmentConfig): number[] => (config.powerBlock.owned ? powerBlockWeights(config) : []);
 
 const sorted = (xs: number[]) => [...new Set(xs)].sort((a, b) => a - b);
 

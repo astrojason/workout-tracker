@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ResolvedExercise } from "@/lib/types";
 import { isTimeBased } from "@/lib/types";
-import { getPowerBlockInstructions, nearestPowerBlock } from "@/lib/equipment-calculator";
+import { getPowerBlockInstructions } from "@/lib/equipment-calculator";
 
 interface SetCompletionModalProps {
   exercise: ResolvedExercise;
@@ -81,12 +81,12 @@ export function SetCompletionModal({
               type="number"
               value={weight}
               onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
-              step={isPowerBlock ? "2.5" : isAssistedPullup ? "1" : "2.5"}
+              step={isPowerBlock ? "any" : isAssistedPullup ? "1" : "2.5"}
               className="w-full bg-gray-800 rounded-xl px-4 py-3 text-xl font-bold text-center border border-gray-700 focus:border-indigo-500 outline-none"
             />
-            {isPowerBlock && weight >= 5 && (
+            {isPowerBlock && getPowerBlockInstructions(weight).label !== "—" && (
               <div className="text-indigo-400/70 text-xs mt-1.5 text-center">
-                {getPowerBlockInstructions(nearestPowerBlock(weight)).label}
+                {getPowerBlockInstructions(weight).label}
               </div>
             )}
             {isAssistedPullup && weight > 0 && (

@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useId, useState } from "react";
 import type { UserEquipmentConfig } from "@/lib/types";
+import { powerBlockWeights } from "@/lib/equipment-calculator";
+import { parsePowerBlockWeights } from "@/lib/powerblock";
 
 interface Props {
   config: UserEquipmentConfig;
@@ -12,6 +15,30 @@ export function PowerBlockSection({ config, onChange }: Props) {
 
   function setPowerBlock(patch: Partial<UserEquipmentConfig["powerBlock"]>) {
     onChange({ powerBlock: { ...powerBlock, ...patch } });
+  }
+
+  // The weights as typed. A valid list goes straight into the equipment (min and max kept in step
+  // for older readers); an invalid one is pointed out and leaves the equipment as it was.
+  const weightsId = useId();
+  const weights = powerBlockWeights(config);
+  const weightsKey = weights.join(",");
+  const [text, setText] = useState(weights.join(", "));
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    // Saved or discarded elsewhere: show the weights now in effect, unless that's what's typed.
+    const typed = parsePowerBlockWeights(text);
+    if (!typed.ok || typed.weights.join(",") !== weightsKey) { setText(weightsKey.split(",").join(", ")); setError(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weightsKey]);
+
+  function onWeightsText(value: string) {
+    setText(value);
+    const parsed = parsePowerBlockWeights(value);
+    if (!parsed.ok) { setError(parsed.error); return; }
+    setError(null);
+    if (parsed.weights.join(",") !== weightsKey) {
+      setPowerBlock({ weights: parsed.weights, minLbs: parsed.weights[0], maxLbs: parsed.weights[parsed.weights.length - 1] });
+    }
   }
 
   return (
@@ -34,42 +61,22 @@ export function PowerBlockSection({ config, onChange }: Props) {
           </button>
         </div>
         {powerBlock.owned && (
-          <>
-            <div className="px-4 py-3 flex justify-between items-center">
-              <span className="text-sm text-gray-400">Min weight (lbs)</span>
-              <input
-                type="number"
-                min={5}
-                max={50}
-                step={2.5}
-                value={powerBlock.minLbs}
-                onChange={(e) => {
-                  const raw = parseFloat(e.target.value);
-                  const snapped = Number.isFinite(raw) ? Math.round(raw / 2.5) * 2.5 : 5;
-                  const minLbs = Math.max(5, Math.min(50, Math.min(snapped, powerBlock.maxLbs)));
-                  setPowerBlock({ minLbs });
-                }}
-                className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right"
-              />
-            </div>
-            <div className="px-4 py-3 flex justify-between items-center">
-              <span className="text-sm text-gray-400">Max weight (lbs)</span>
-              <input
-                type="number"
-                min={5}
-                max={50}
-                step={2.5}
-                value={powerBlock.maxLbs}
-                onChange={(e) => {
-                  const raw = parseFloat(e.target.value);
-                  const snapped = Number.isFinite(raw) ? Math.round(raw / 2.5) * 2.5 : 50;
-                  const maxLbs = Math.max(5, Math.min(50, Math.max(snapped, powerBlock.minLbs)));
-                  setPowerBlock({ maxLbs });
-                }}
-                className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-right"
-              />
-            </div>
-          </>
+          <div className="px-4 py-3">
+            <label htmlFor={weightsId} className="text-sm text-gray-400 block mb-1">Adjustable dumbbell weights (lb)</label>
+            <input
+              id={weightsId}
+              type="text"
+              inputMode="decimal"
+              value={text}
+              onChange={(e) => onWeightsText(e.target.value)}
+              aria-invalid={error !== null}
+              aria-describedby={`${weightsId}-help`}
+              className="input-field"
+            />
+            {error
+              ? <p role="alert" className="mt-1 text-xs text-red-400">{error}</p>
+              : <p id={`${weightsId}-help`} className="mt-1 text-xs text-gray-500">Every weight a dumbbell can be set to, separated by commas, like a machine&apos;s stack. Uneven steps are fine.</p>}
+          </div>
         )}
       </div>
     </section>

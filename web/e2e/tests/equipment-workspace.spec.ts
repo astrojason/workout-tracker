@@ -127,6 +127,24 @@ test.describe("equipment workspace", () => {
     await expect(page.getByText("Saved items: none")).toBeVisible();
   });
 
+  test("adjustable dumbbells take the exact weights you enter", async ({ page }) => {
+    const weights = page.getByLabel("Adjustable dumbbell weights (lb)");
+    await expect(weights).toHaveValue(/^5, 7\.5, 10, .*, 50$/); // every 2.5 lb until you change it
+    await weights.fill("5, 10, 15, 22.5");
+    await expect(reach(page).getByRole("row", { name: /PowerBlock/ })).toContainText("5–22.5 lb");
+    await expect(page.getByText("1 unsaved change")).toBeVisible();
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("✓ Saved")).toBeVisible();
+    await expect(page.getByText(/Saved PowerBlock: 5,10,15,22\.5/)).toBeVisible();
+  });
+
+  test("a bad adjustable dumbbell weight is pointed out and not used", async ({ page }) => {
+    const weights = page.getByLabel("Adjustable dumbbell weights (lb)");
+    await weights.fill("5, ten");
+    await expect(page.getByText("\"ten\" isn't a weight. Use numbers in lb, separated by commas.")).toBeVisible();
+    await expect(page.getByText(/unsaved change/)).toHaveCount(0);
+  });
+
   test("includes gym machines", async ({ page }) => {
     await expect(page.getByText("Machines placeholder")).toBeVisible();
   });

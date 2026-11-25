@@ -170,14 +170,31 @@ export function calculateLandmine(targetWeight: number, bWeight: number, config?
 // roundDown: display/manual-entry snapping rounds to the NEAREST 2.5lb step (default).
 // The progression engine always rounds DOWN to the nearest achievable step instead —
 // pass roundDown: true there so a computed weight never exceeds what's actually loadable.
+// Every weight the adjustable dumbbells can be set to, ascending: the weights the user entered, or
+// every 2.5 lb from min to max when none were entered.
+export function powerBlockWeights(config?: Pick<UserEquipmentConfig, "powerBlock">): number[] {
+  const pb = config?.powerBlock ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock;
+  if (pb.weights && pb.weights.length > 0) return [...new Set(pb.weights)].sort((a, b) => a - b);
+  const out: number[] = [];
+  for (let w = pb.minLbs; w <= pb.maxLbs + 1e-9; w += 2.5) out.push(Math.round(w * 100) / 100);
+  return out;
+}
+
+// Snaps to a weight the dumbbells can be set to: the nearest (ties go up), or the heaviest at or
+// under the target with roundDown. Outside the range it clamps to the lightest or heaviest.
 export function nearestPowerBlock(target: number, config?: UserEquipmentConfig, roundDown = false): number {
-  const min = config?.powerBlock?.minLbs ?? 5;
-  const max = config?.powerBlock?.maxLbs ?? 50;
-  const step = 2.5;
-  const snapped = roundDown
-    ? Math.floor((target + 1e-9) / step) * step
-    : Math.round(target / step) * step;
-  return Math.max(min, Math.min(max, snapped));
+  const weights = powerBlockWeights(config);
+  if (target <= weights[0]) return weights[0];
+  if (roundDown) return [...weights].reverse().find((w) => w <= target + 1e-9) ?? weights[0];
+  return weights.reduce((best, w) => (Math.abs(w - target) <= Math.abs(best - target) ? w : best), weights[0]);
+}
+
+// One setting heavier (direction 1) or lighter (-1) than `weight`, staying at the ends. Steppers use
+// this so a big gap between settings can't trap them.
+export function stepPowerBlock(weight: number, direction: 1 | -1, config?: UserEquipmentConfig): number {
+  const weights = powerBlockWeights(config);
+  const i = weights.indexOf(nearestPowerBlock(weight, config));
+  return weights[Math.max(0, Math.min(weights.length - 1, i + direction))];
 }
 
 // PowerBlock Elite EXP Stage 1 selector + rod configuration per weight
@@ -293,7 +310,7 @@ export function getEquipmentDisplay(exercise: ResolvedExercise, weight: number, 
       }
       // If PowerBlock not owned, treat as plain dumbbell
       if (config?.powerBlock?.owned === false) return { type: "dumbbell", weight };
-      if (weight > 0 && weight < (config?.powerBlock?.minLbs ?? 5)) return { type: "dumbbell", weight };
+      if (weight > 0 && weight < powerBlockWeights(config)[0]) return { type: "dumbbell", weight };
       const resolvedWeight = weight > 0 ? nearestPowerBlock(weight, config) : 0;
       const instructions = resolvedWeight > 0
         ? getPowerBlockInstructions(resolvedWeight)

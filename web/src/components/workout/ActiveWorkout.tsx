@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { ActiveSession, ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
 import { isTimeBased, formatTimeValue } from "@/lib/types";
-import { getEquipmentDisplay, nearestPowerBlock } from "@/lib/equipment-calculator";
+import { getEquipmentDisplay, nearestPowerBlock, stepPowerBlock } from "@/lib/equipment-calculator";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestTimer } from "./RestTimer";
 import { SetCompletionModal } from "./SetCompletionModal";
@@ -146,10 +146,10 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
   );
 
   const adjustWeight = (delta: number) => {
-    setWeight((prev) => {
-      const next = prev + delta;
-      return isPowerBlock ? nearestPowerBlock(next, equipmentConfig) : Math.max(0, next);
-    });
+    setWeight((prev) => (isPowerBlock
+      // The next or previous setting the dumbbells have, however far apart they are.
+      ? stepPowerBlock(prev, delta > 0 ? 1 : -1, equipmentConfig)
+      : Math.max(0, prev + delta)));
   };
 
   return (

@@ -5,7 +5,7 @@ import { useState } from "react";
 import type {
   Exercise, ExerciseDefinition, Phase, EquipmentType, ProgressionRule, RepTarget, UserEquipmentConfig, GymMachine,
 } from "@/lib/types";
-import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
+import { DEFAULT_EQUIPMENT_CONFIG, powerBlockWeights } from "@/lib/equipment-calculator";
 import { EquipmentWeightInput, defaultWeightForType } from "./EquipmentWeightInput";
 import { GymMachineSelect } from "./GymMachineSelect";
 import Link from "next/link";
@@ -132,8 +132,9 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
   const isBarbellType = effectiveEquipmentType === "barbell_45" || effectiveEquipmentType === "barbell_35" || effectiveEquipmentType === "barbell_ez";
-  const powerBlockMin = equipmentConfig?.powerBlock?.minLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.minLbs;
-  const powerBlockMax = equipmentConfig?.powerBlock?.maxLbs ?? DEFAULT_EQUIPMENT_CONFIG.powerBlock.maxLbs;
+  const powerBlockSettings = powerBlockWeights(equipmentConfig);
+  const powerBlockMin = powerBlockSettings[0];
+  const powerBlockMax = powerBlockSettings[powerBlockSettings.length - 1];
 
   function handleSave() {
     if (creatingNew && !name.trim()) return;

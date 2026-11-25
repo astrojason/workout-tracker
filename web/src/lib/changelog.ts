@@ -7,6 +7,15 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.50.0',
+    date: '2026-11-25',
+    changes: [
+      'Adjustable dumbbells: enter the exact weights they can be set to (for example 5, 10, 15, 22.5), like a machine\'s stack, instead of a min and max in 2.5 lb steps. Uneven steps are fine; a bad entry is pointed out and not used.',
+      'Everything follows those weights: the workout\'s weight buttons step to the next or previous setting, weights snap to the nearest one you have, and progression, warm-ups and What you can load use them.',
+      'The PowerBlock selector guide now only shows for weights it knows, instead of a dash.',
+    ],
+  },
+  {
     version: '1.49.0',
     date: '2026-11-25',
     changes: [

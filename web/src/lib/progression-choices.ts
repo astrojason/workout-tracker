@@ -1,7 +1,7 @@
 import type { EquipmentType, ExerciseDefinition, ProgressionRule, UserEquipmentConfig } from "./types";
 import { barWeight, cleanWeight } from "./types";
 import { findItem, plateLoads } from "./equipment-items";
-import { KETTLEBELL_WEIGHTS } from "./equipment-calculator";
+import { KETTLEBELL_WEIGHTS, powerBlockWeights } from "./equipment-calculator";
 
 // What an exercise's equipment can load, and the progression rules that fit it. Shared by the
 // exercise editors (which rules to offer), progression (how far a step goes) and warm-ups (which
@@ -33,12 +33,7 @@ function plateSetup(ex: ExerciseEquipment, config: UserEquipmentConfig): { base:
   return bar === null ? null : { base: bar, sides: isOneSidedBar(ex) ? 1 : 2 };
 }
 
-function powerBlockLoads(config: UserEquipmentConfig): number[] {
-  if (!config.powerBlock.owned) return [];
-  const loads: number[] = [];
-  for (let w = config.powerBlock.minLbs; w <= config.powerBlock.maxLbs + EPS; w += 2.5) loads.push(Math.round(w * 100) / 100);
-  return loads;
-}
+const powerBlockLoads = (config: UserEquipmentConfig): number[] => (config.powerBlock.owned ? powerBlockWeights(config) : []);
 
 const sorted = (xs: number[]) => [...new Set(xs)].sort((a, b) => a - b);
 
