@@ -438,9 +438,11 @@ export function formatTimeValue(seconds: number): string {
 }
 
 export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: ResolvedExercise, setNumber?: number): string {
-  if (repMax.type === "failure") return "AMRAP";
-  // lastSetAmrap: only the final set is AMRAP; earlier sets show normal rep range
-  if (exercise?.lastSetAmrap && setNumber !== undefined && setNumber === exercise.sets) return "AMRAP";
+  // A timed set taken to failure is a hold for as long as you can, not a rep count.
+  const toFailure = repMax.type === "failure" ||
+    // lastSetAmrap: only the final set goes to failure; earlier sets show the normal target
+    (exercise?.lastSetAmrap === true && setNumber !== undefined && setNumber === exercise.sets);
+  if (toFailure) return exercise && isTimeBased(exercise) ? "Max hold" : "AMRAP";
   if (exercise && isTimeBased(exercise)) {
     if (repMax.type === "count" && repMin === repMax.value) return formatTimeValue(repMin);
     if (repMax.type === "count") return `${formatTimeValue(repMin)}-${formatTimeValue(repMax.value)}`;
@@ -451,9 +453,9 @@ export function repTargetDisplay(repMin: number, repMax: RepTarget, exercise?: R
 
 // Shown where all sets display the normal rep range, so the AMRAP final set isn't a surprise.
 // Null when every set is already AMRAP (the rep target itself says so) or none are.
-export function finalSetAmrapNote(exercise: Pick<Exercise, "lastSetAmrap" | "repMax">): string | null {
+export function finalSetAmrapNote(exercise: Pick<Exercise, "lastSetAmrap" | "repMax"> & { isTimeBased?: boolean }): string | null {
   if (!exercise.lastSetAmrap || exercise.repMax.type === "failure") return null;
-  return "Final set AMRAP";
+  return exercise.isTimeBased ? "Final set max hold" : "Final set AMRAP";
 }
 
 export function cleanWeight(w: number): string {

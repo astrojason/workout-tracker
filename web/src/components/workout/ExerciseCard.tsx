@@ -35,7 +35,9 @@ function PlateLoadGuide({ equipmentDisplay }: { equipmentDisplay: EquipmentDispl
         <p className="text-sm font-medium text-indigo-200">
           {equipmentDisplay.type === "pulley"
             ? "No plates needed"
-            : `No plates — use the ${cleanWeight(config.barWeight)} lb bar`}
+            : config.barWeight === 0
+              ? "No plates needed"
+              : `No plates — use the ${cleanWeight(config.barWeight)} lb bar`}
         </p>
       ) : (
         <>

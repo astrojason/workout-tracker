@@ -250,10 +250,13 @@ function plateBracketString(config: PlateConfiguration): string {
 }
 
 export function plateFullDisplayString(config: PlateConfiguration): string {
+  // No bar (a 0 lb one-sided item): just the plates; there's no bar to name or end to pick.
+  const noBar = config.barWeight === 0 && config.isLandmine;
   if (config.perSide.length === 0) {
-    return `Bar only (${cleanWeight(config.barWeight)} lbs)`;
+    return noBar ? "No plates" : `Bar only (${cleanWeight(config.barWeight)} lbs)`;
   }
   const brackets = plateBracketString(config);
+  if (noBar) return `${brackets} (${cleanWeight(config.achievedWeight)} lbs)`;
   const label = config.isLandmine ? "one end" : "each side";
   return `${cleanWeight(config.barWeight)}lb bar + ${brackets} ${label} (${cleanWeight(config.achievedWeight)} lbs)`;
 }

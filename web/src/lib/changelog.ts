@@ -7,6 +7,14 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.50.2',
+    date: '2026-11-25',
+    changes: [
+      'Fixed: a timed exercise held to failure (like Scap Hangs) said AMRAP on its work sets. It now says Max hold, and the set log says Max holds count as Hard.',
+      'Fixed: plates on a one-sided item with no bar read "0lb bar + [1x2.5] one end (2.5 lbs)". It now reads just "[1x2.5] (2.5 lbs)", on warm-up and work sets alike.',
+    ],
+  },
+  {
     version: '1.50.1',
     date: '2026-11-25',
     changes: [

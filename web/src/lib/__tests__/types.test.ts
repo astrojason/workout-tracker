@@ -125,6 +125,17 @@ describe("repTargetDisplay", () => {
     expect(repTargetDisplay(120, { type: "count", value: 180 }, exercise)).toBe("2 min-3 min");
   });
 
+  it("shows a max hold, not AMRAP, for a timed exercise held to failure (e.g. Scap Hangs)", () => {
+    const exercise = makeResolved({ repMin: 30, repMax: { type: "failure" }, isTimeBased: true });
+    expect(repTargetDisplay(30, { type: "failure" }, exercise, 1)).toBe("Max hold");
+  });
+
+  it("shows a max hold on the final set of a timed exercise with lastSetAmrap", () => {
+    const exercise = makeResolved({ repMin: 30, repMax: { type: "count", value: 30 }, isTimeBased: true, sets: 3, lastSetAmrap: true });
+    expect(repTargetDisplay(30, { type: "count", value: 30 }, exercise, 2)).toBe("30s");
+    expect(repTargetDisplay(30, { type: "count", value: 30 }, exercise, 3)).toBe("Max hold");
+  });
+
   it("shows seconds for time-based exercises under 60s", () => {
     const exercise = makeResolved({ repMin: 30, isTimeBased: true });
     expect(repTargetDisplay(30, { type: "count", value: 30 }, exercise)).toBe("30s");
@@ -302,6 +313,11 @@ describe("finalSetAmrapNote", () => {
   it("notes that only the final set is AMRAP", async () => {
     const { finalSetAmrapNote } = await import("../types");
     expect(finalSetAmrapNote({ ...base, lastSetAmrap: true })).toBe("Final set AMRAP");
+  });
+
+  it("calls a timed final set a max hold", async () => {
+    const { finalSetAmrapNote } = await import("../types");
+    expect(finalSetAmrapNote({ ...base, lastSetAmrap: true, isTimeBased: true })).toBe("Final set max hold");
   });
 
   it("is empty when the exercise has no AMRAP final set, or every set is already AMRAP", async () => {

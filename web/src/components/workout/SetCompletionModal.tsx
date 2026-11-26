@@ -99,7 +99,7 @@ export function SetCompletionModal({
 
         {/* Rating */}
         {isAmrap ? (
-          <p className="mb-5 text-sm text-gray-400">AMRAP sets count as Hard, so there&apos;s no rating to pick.</p>
+          <p className="mb-5 text-sm text-gray-400">{timeBased ? "Max holds" : "AMRAP sets"} count as Hard, so there&apos;s no rating to pick.</p>
         ) : (
         <div className="mb-5">
           <label className="text-sm text-gray-400 block mb-2">Difficulty</label>

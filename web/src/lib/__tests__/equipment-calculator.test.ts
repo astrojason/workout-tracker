@@ -403,6 +403,22 @@ describe("plateFullDisplayString", () => {
     };
     expect(plateFullDisplayString(config)).toBe("45lb bar + [1x35, 1x5] one end (85 lbs)");
   });
+
+  it("leaves out a 0 lb bar and the side for a one-sided item with no bar", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 2.5, barWeight: 0, achievedWeight: 2.5,
+      perSide: [{ plate: 2.5, count: 1 }],
+      isLandmine: true,
+    };
+    expect(plateFullDisplayString(config)).toBe("[1x2.5] (2.5 lbs)");
+  });
+
+  it("says no plates, not 'Bar only (0 lbs)', for an empty item with no bar", () => {
+    const config: PlateConfiguration = {
+      targetWeight: 0, barWeight: 0, achievedWeight: 0, perSide: [], isLandmine: true,
+    };
+    expect(plateFullDisplayString(config)).toBe("No plates");
+  });
 });
 
 describe("getEquipmentDisplay", () => {
