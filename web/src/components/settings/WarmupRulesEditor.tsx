@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
+import type { ExerciseDefinition, ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
 import { cleanWeight } from "@/lib/types";
 import { rampWarmups } from "@/lib/warmup-ramp";
 import {
@@ -22,6 +22,8 @@ interface Props {
   onSave: (rules: WarmupRules) => Promise<void>; // throws on failure; this component reports it
   lifts: WarmupPreviewLift[];
   equipment: UserEquipmentConfig;
+  library?: Record<string, ExerciseDefinition>; // where a lighter movement can come from
+  bodyweight?: number | null;
 }
 
 const RESTS = [30, 45, 60, 90];
@@ -53,7 +55,7 @@ const lb = (w: number) => `${cleanWeight(w)} lb`;
 
 // Settings → Warm-ups: one rule per equipment group and the limits shared by all, edited as a draft
 // with a live preview, saved with one Save.
-export function WarmupRulesEditor({ rules, onSave, lifts, equipment }: Props) {
+export function WarmupRulesEditor({ rules, onSave, lifts, equipment, library, bodyweight = null }: Props) {
   const { showError } = useError();
   const [draft, setDraft] = useState(() => clone(rules));
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
@@ -193,6 +195,14 @@ export function WarmupRulesEditor({ rules, onSave, lifts, equipment }: Props) {
                   </div>
                 )}
 
+                {g.mode === "substitute" && (
+                  <p className="px-5 py-4 text-sm text-gray-400">
+                    One set of a lighter exercise from your library that works the same muscles, biggest muscle first (a banded press before
+                    push-ups, bodyweight squats before goblet squats). Nothing lighter fits → no warm-up and an active-stretch tip.
+                    The other groups use this too whenever you own nothing lighter.
+                  </p>
+                )}
+
                 {g.mode === "none" && (
                   <p className="px-5 py-4 text-sm text-gray-400">No warm-up sets for this equipment. A program&apos;s own warm-up rows still run.</p>
                 )}
@@ -240,7 +250,7 @@ export function WarmupRulesEditor({ rules, onSave, lifts, equipment }: Props) {
           ) : (
             <ul className="divide-y divide-gray-800">
               {lifts.map(({ exercise, equipment: equipmentText }) => (
-                <PreviewRow key={exercise.definitionId} exercise={exercise} equipmentText={equipmentText} rules={draft} equipment={equipment} />
+                <PreviewRow key={exercise.definitionId} exercise={exercise} equipmentText={equipmentText} rules={draft} equipment={equipment} library={library} bodyweight={bodyweight} />
               ))}
             </ul>
           )}
@@ -260,18 +270,27 @@ export function WarmupRulesEditor({ rules, onSave, lifts, equipment }: Props) {
   );
 }
 
-function PreviewRow({ exercise, equipmentText, rules, equipment }: { exercise: ResolvedExercise; equipmentText: string; rules: WarmupRules; equipment: UserEquipmentConfig }) {
+function PreviewRow({ exercise, equipmentText, rules, equipment, library, bodyweight }: {
+  exercise: ResolvedExercise; equipmentText: string; rules: WarmupRules; equipment: UserEquipmentConfig;
+  library?: Record<string, ExerciseDefinition>; bodyweight: number | null;
+}) {
   const key = warmupGroup(exercise, equipment);
   const group = WARMUP_GROUPS.find((g) => g.key === key)!;
   const rule = rules.groups[key];
-  const sets = rampWarmups([exercise], equipment, rules).filter((e) => e.phase === "warmup");
+  const built = rampWarmups([exercise], equipment, rules, { library, bodyweight });
+  const sets = built.filter((e) => e.phase === "warmup");
+  const tip = built.find((e) => e.phase !== "warmup")?.warmupTip;
   const loaded = exercise.currentWeight > 0 && !exercise.isTimeBased;
   const work = loaded ? `${lb(exercise.currentWeight)} × ${exercise.repMin}` : exercise.isTimeBased ? `${exercise.repMin} s` : `${exercise.repMin} reps`;
-  const sameWeight = loaded && sets.length > 0 && sets.every((s) => s.currentWeight >= exercise.currentWeight);
+  const sameWeight = loaded && sets.length > 0 && sets.every((s) => s.definitionId === exercise.definitionId && s.currentWeight >= exercise.currentWeight);
   const note = exercise.warmup === "none" ? "This exercise is set to no warm-up"
+    : tip ? `Nothing lighter fits: no warm-up. Try ${tip.charAt(0).toLowerCase()}${tip.slice(1)}`
     : sets.length === 0 ? "No warm-up"
     : sameWeight && rule.mode !== "fewer" ? "You own nothing lighter: the work weight for fewer reps"
     : null;
+  const setLabel = (s: ResolvedExercise) => s.definitionId !== exercise.definitionId
+    ? `${s.name}${s.currentWeight > 0 ? ` ${lb(s.currentWeight)}` : s.equipmentDetail ? ` (${s.equipmentDetail})` : ""}`
+    : loaded ? lb(s.currentWeight) : exercise.isTimeBased ? "Hold" : "Bodyweight";
   return (
     <li className="px-5 py-3.5 flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
@@ -282,7 +301,7 @@ function PreviewRow({ exercise, equipmentText, rules, equipment }: { exercise: R
       <div className="flex flex-wrap items-center gap-1.5">
         {sets.map((s) => (
           <span key={s.id} className="inline-flex items-baseline gap-1 rounded-full border border-gray-700 bg-gray-800 px-2.5 py-1 tabular-nums whitespace-nowrap">
-            <strong>{loaded ? lb(s.currentWeight) : exercise.isTimeBased ? "Hold" : "Bodyweight"}</strong>
+            <strong>{setLabel(s)}</strong>
             <span className="text-xs text-gray-400">× {s.repMin}{exercise.isTimeBased ? " s" : ""}</span>
           </span>
         ))}
@@ -291,7 +310,7 @@ function PreviewRow({ exercise, equipmentText, rules, equipment }: { exercise: R
           <strong>{loaded ? lb(exercise.currentWeight) : "Work"}</strong><span className="text-xs">work</span>
         </span>
       </div>
-      {note && <div className={`text-xs ${note.startsWith("You own") ? "text-amber-300" : "text-gray-400"}`}>{note}</div>}
+      {note && <div className={`text-xs ${note.startsWith("You own") || note.startsWith("Nothing") ? "text-amber-300" : "text-gray-400"}`}>{note}</div>}
     </li>
   );
 }

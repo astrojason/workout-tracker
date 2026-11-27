@@ -156,6 +156,17 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
   const isTimeBased = parseBool(row["Is Timed"]) || progressionRule === "add_time" || repMin >= 30;
   const notes = parseString(row["Notes"]) || null;
 
+  // Muscles: comma-separated, biggest first. Bodyweight %: share of bodyweight one rep moves.
+  const muscles = parseString(row["Muscles"]).split(",").map((m) => m.trim()).filter(Boolean);
+  const bodyweightRaw = parseNumber(row["Bodyweight %"]);
+  if (bodyweightRaw !== null && (bodyweightRaw < 0 || bodyweightRaw > 100)) {
+    throw new Error(`Row ${rowNum}: Bodyweight % must be 0–100, got '${row["Bodyweight %"]}'`);
+  }
+  // Warm-up: blank = automatic, "none" = no warm-up this day, anything else names the exercise to
+  // warm up with (from this file or the library; a new name becomes a bodyweight exercise).
+  const warmupRaw = parseString(row["Warm-up"]);
+  const warmupNone = /^(none|no|false|skip)$/i.test(warmupRaw);
+
   const exercise: ParsedExercise = {
     order: orderRaw,
     name,
@@ -173,6 +184,9 @@ function parseRow(row: Record<string, unknown>, rowNum: number, sheetDay: string
     ...(seedWeight !== undefined ? { seedWeight } : {}),
     ...(lastSetAmrap ? { lastSetAmrap: true } : {}),
     ...(restAfter !== undefined ? { restAfter } : {}),
+    ...(muscles.length > 0 ? { muscleGroups: muscles } : {}),
+    ...(bodyweightRaw !== null ? { bodyweightPct: bodyweightRaw } : {}),
+    ...(warmupNone ? { skipWarmup: true } : warmupRaw ? { warmupWith: warmupRaw } : {}),
   };
 
   return { week: weekRaw, day: sheetDay, exercise };

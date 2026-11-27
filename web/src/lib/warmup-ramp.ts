@@ -1,10 +1,11 @@
-import type { ResolvedExercise, UserEquipmentConfig } from "./types";
+import type { ExerciseDefinition, ResolvedExercise, UserEquipmentConfig } from "./types";
 import { barWeight } from "./types";
 import { roundDownToAchievable } from "./progression-service";
 import { equipmentLoads } from "./progression-choices";
 import { DEFAULT_EQUIPMENT_CONFIG } from "./equipment-calculator";
 import { findItem } from "./equipment-items";
 import { DEFAULT_WARMUP_RULES, warmupGroup, type WarmupGroupRule, type WarmupRules } from "./warmup-rules";
+import { activeStretchFor, canBeSubstituted, estimatedLoad, musclesOf } from "./exercise-profile";
 
 // Warm-ups: every exercise outside the warm-up phase gets warm-up sets built from its CURRENT work
 // weight, so warm-ups follow progression instead of staying fixed. None for an exercise marked
@@ -21,13 +22,17 @@ import { DEFAULT_WARMUP_RULES, warmupGroup, type WarmupGroupRule, type WarmupRul
 //   - weights round DOWN to something the equipment can load
 //   - weights strictly increase; a step that duplicates or doesn't exceed the one before is dropped
 //   - warm-up steps carry no progression and are never AMRAP, so they can't change a stored weight
-//   - when there's no lighter load to use (work weight is about the bar, bodyweight, bands,
-//     time-based, no weight set yet), the warm-up is one set at the same setup with fewer reps
-//     or time (the rule's share, half by default)
+//   - when there's no lighter load to use (nothing you own is light enough, bodyweight, bands,
+//     time-based, no weight set yet), the warm-up is a lighter MOVEMENT for the same muscles: one
+//     set of another library exercise that works the lift's biggest muscle and moves clearly less
+//     than the lift (external weight plus the share of bodyweight, see
+//     exercise-profile.ts). Nothing fits → no warm-up, and the lift carries an active-stretch tip.
+//     The rule's "Fewer reps" keeps the old same-setup, fewer-reps set instead.
+//   - a movement chosen on the program day or in the library (`warmupWith`) wins over the pick
 // Which sets, how heavy and how long to rest come from the user's warm-up rules (warmup-rules.ts):
-// one rule per equipment group, plus the limit and rest shared by all. The defaults are what the
-// app always did: a ramp for bars and the PowerBlock, one lighter set for fixed weights, and
-// fewer reps where there's no load to lighten.
+// one rule per equipment group, plus the limit and rest shared by all. The defaults: a ramp for
+// bars and the PowerBlock, one lighter set for fixed weights, and a lighter movement where
+// there's no load to lighten. Every warm-up rests the warm-up rest.
 
 type Step = { weight: number; reps: number };
 
@@ -86,17 +91,84 @@ function singleStep(work: ResolvedExercise, rule: WarmupGroupRule, rules: Warmup
   return weight !== null && weight < work.currentWeight ? { weight, reps: work.repMin } : null;
 }
 
-// The generated warm-up for one working exercise. With nothing lighter to use, it's the work
-// weight for fewer reps (or time).
-function stepsFor(work: ResolvedExercise, rules: WarmupRules, config?: UserEquipmentConfig): Step[] {
+// The generated warm-up for one working exercise. `lighter` is false when there's nothing lighter
+// to use: the caller then looks for a lighter movement (substitute), or, with the rule on "Fewer
+// reps", uses the work weight for fewer reps (or time).
+function stepsFor(work: ResolvedExercise, rules: WarmupRules, config?: UserEquipmentConfig): { steps: Step[]; lighter: boolean } {
   const rule = rules.groups[warmupGroup(work, config)];
-  if (rule.mode === "none") return [];
+  if (rule.mode === "none") return { steps: [], lighter: true };
   const fallback = [{ weight: work.currentWeight, reps: fewerReps(work, rule.fewerPct) }];
-  if (warmupGroup(work, config) === "unloaded" || rule.mode === "fewer") return fallback;
+  if (rule.mode === "fewer") return { steps: fallback, lighter: true };
+  if (rule.mode === "substitute" || warmupGroup(work, config) === "unloaded") return { steps: fallback, lighter: false };
   const steps = rule.mode === "ramp"
     ? rampSteps(work, work.currentWeight, rule, rules, config)
     : [singleStep(work, rule, rules, config)].filter((s): s is Step => s !== null);
-  return steps.length > 0 ? steps : fallback;
+  return steps.length > 0 ? { steps, lighter: true } : { steps: fallback, lighter: false };
+}
+
+const SUBSTITUTE_MAX = 0.95;
+
+export interface WarmupContext {
+  library?: Record<string, ExerciseDefinition>; // the exercises a substitute can come from (program-scoped weights)
+  bodyweight?: number | null;                    // latest weigh-in, lb
+}
+
+// A lighter movement standing in as the warm-up for `work`: one set of the work's reps (or time).
+function substituteWarmup(work: ResolvedExercise, def: ExerciseDefinition, rules: WarmupRules, index: number): ResolvedExercise {
+  const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = def;
+  return {
+    ...rest,
+    id: `${work.id}-sub-${index + 1}`,
+    definitionId: def.id,
+    order: work.order,
+    phase: "warmup",
+    sets: 1,
+    repMin: work.repMin,
+    repMax: { type: "count", value: work.repMin },
+    restSeconds: rules.restSeconds,
+    restAfter: rules.restSeconds,
+    notes: `Warm-up for ${work.name}`,
+    progressionRule: "none",
+    hardStreak: 0,
+    lastSetAmrap: undefined,
+    skipWarmup: undefined,
+    warmupWith: undefined,
+  };
+}
+
+// Lighter movements for the same muscles, best first: each works the lift's biggest muscle, moves
+// clearly less than the lift does (under 95%: the loaded-warm-up limit is for the same movement,
+// and a bodyweight squat before a light goblet squat is already most of the load), and has a load
+// the app can work out. More muscles in common ranks higher; then the one closest to the lift.
+export function substituteCandidates(work: ResolvedExercise, ctx: WarmupContext, config?: UserEquipmentConfig): ExerciseDefinition[] {
+  if (!ctx.library || !canBeSubstituted(work)) return [];
+  const muscles = musclesOf(work);
+  const workLoad = estimatedLoad(work, ctx.bodyweight, config);
+  if (muscles.length === 0 || workLoad === null || workLoad <= 0) return [];
+  const limit = workLoad * SUBSTITUTE_MAX;
+  return Object.values(ctx.library)
+    .flatMap((d) => {
+      if (d.id === work.definitionId || d.isTimeBased !== work.isTimeBased || !canBeSubstituted(d)) return [];
+      const theirs = musclesOf(d);
+      if (!theirs.includes(muscles[0])) return [];
+      const load = estimatedLoad(d, ctx.bodyweight, config);
+      if (load === null || load <= 0 || load > limit + 1e-9) return [];
+      return [{ d, overlap: muscles.filter((m) => theirs.includes(m)).length, load }];
+    })
+    .sort((a, b) => b.overlap - a.overlap || b.load - a.load || a.d.name.localeCompare(b.d.name))
+    .map((c) => c.d);
+}
+
+// The warm-up for a lift with no lighter load: the chosen movement (the program day's, else the
+// library's), else the best lighter movement, each offering the others as swaps. Empty when
+// nothing fits; the lift then carries an active-stretch tip instead.
+function substituteFor(work: ResolvedExercise, rules: WarmupRules, ctx: WarmupContext, config?: UserEquipmentConfig): ResolvedExercise[] {
+  const chosen = work.warmupWith ? ctx.library?.[work.warmupWith] : undefined;
+  const auto = substituteCandidates(work, ctx, config);
+  const picks = chosen ? [chosen, ...auto.filter((d) => d.id !== chosen.id)] : auto;
+  if (picks.length === 0) return [];
+  const options = picks.slice(0, 5).map((d, i) => substituteWarmup(work, d, rules, i));
+  return [{ ...options[0], warmupOptions: options }];
 }
 
 function toWarmups(base: ResolvedExercise, steps: Step[], idPrefix: string, restSeconds: number, lastRestAfter: false | number | undefined): ResolvedExercise[] {
@@ -117,7 +189,7 @@ function toWarmups(base: ResolvedExercise, steps: Step[], idPrefix: string, rest
   }));
 }
 
-export function rampWarmups(exercises: ResolvedExercise[], config?: UserEquipmentConfig, rules: WarmupRules = DEFAULT_WARMUP_RULES): ResolvedExercise[] {
+export function rampWarmups(exercises: ResolvedExercise[], config?: UserEquipmentConfig, rules: WarmupRules = DEFAULT_WARMUP_RULES, ctx: WarmupContext = {}): ResolvedExercise[] {
   const workByLift = new Map<string, ResolvedExercise>();
   for (const e of exercises) {
     if (e.phase !== "warmup" && !workByLift.has(e.definitionId)) workByLift.set(e.definitionId, e);
@@ -126,15 +198,25 @@ export function rampWarmups(exercises: ResolvedExercise[], config?: UserEquipmen
   const warmedLifts = new Set(exercises.filter((e) => e.phase === "warmup").map((e) => e.definitionId));
 
   const rampedLifts = new Set<string>();
+  const standalone = new Set<ResolvedExercise>();
   const result: ResolvedExercise[] = [];
   for (const e of exercises) {
     if (e.phase !== "warmup") {
+      let lift = e;
       if (!e.skipWarmup && e.warmup !== "none" && !warmedLifts.has(e.definitionId)) {
-        result.push(...toWarmups(e, stepsFor(e, rules, config), "warmup", rules.restSeconds, rules.restSeconds));
+        const chosen = e.warmupWith ? ctx.library?.[e.warmupWith] : undefined;
+        const { steps, lighter } = stepsFor(e, rules, config);
+        if (chosen || (!lighter && steps.length > 0)) {
+          const sub = substituteFor(e, rules, ctx, config);
+          if (sub.length > 0) result.push(...sub);
+          else lift = { ...e, warmupTip: activeStretchFor(musclesOf(e)) };
+        } else {
+          result.push(...toWarmups(e, steps, "warmup", rules.restSeconds, rules.restSeconds));
+        }
       }
       // Once per workout: a lift that comes back later gets no second warm-up.
       if (rules.oncePerWorkout) warmedLifts.add(e.definitionId);
-      result.push(e);
+      result.push(lift);
       continue;
     }
     // A program's own warm-up row: replaced by the ramp when the lift's rule is a ramp, otherwise
@@ -142,6 +224,7 @@ export function rampWarmups(exercises: ResolvedExercise[], config?: UserEquipmen
     const work = workByLift.get(e.definitionId);
     const rule = work ? rules.groups[warmupGroup(work, config)] : null;
     if (!work || work.currentWeight <= 0 || !rule) {
+      standalone.add(e); // a warm-up exercise of its own (band pull-aparts), not a lift's warm-up
       result.push(e);
     } else if (rule.mode === "ramp" && warmupGroup(work, config) !== "unloaded") {
       if (rampedLifts.has(e.definitionId)) continue; // folded into the lift's single ramp
@@ -152,5 +235,14 @@ export function rampWarmups(exercises: ResolvedExercise[], config?: UserEquipmen
       result.push(e.currentWeight > work.currentWeight ? { ...e, currentWeight: work.currentWeight } : e);
     }
   }
-  return result.map((e, i) => ({ ...e, order: i + 1 }));
+  // Every lift's warm-up rests the warm-up rest, between its own sets and before what follows,
+  // whatever rest the program row or the work lift it came from carries. A program row that set
+  // its own rest after (a number, or FALSE to flow straight on) keeps that choice. A warm-up
+  // exercise of its own keeps the program's rests.
+  return result.map((e, i) => ({
+    ...e,
+    order: i + 1,
+    ...(e.phase === "warmup" && !standalone.has(e) ? { restSeconds: rules.restSeconds, restAfter: e.restAfter ?? rules.restSeconds } : {}),
+    ...(e.warmupOptions ? { warmupOptions: e.warmupOptions.map((o) => ({ ...o, order: i + 1 })) } : {}),
+  }));
 }

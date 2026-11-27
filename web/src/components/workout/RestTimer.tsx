@@ -16,7 +16,7 @@ interface RestTimerProps {
 
 export function RestTimer({ session, onSkipRest, equipmentConfig, anotherSetOf, onAddAnotherSet }: RestTimerProps) {
   const exercise = session.workout.exercises[session.currentExerciseIndex];
-  const totalRest = exercise.restSeconds || 120;
+  const totalRest = session.restTotal || exercise.restSeconds || 120;
   const progress = session.restTimeRemaining / totalRest;
 
   const minutes = Math.floor(session.restTimeRemaining / 60);

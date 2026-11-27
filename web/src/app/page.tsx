@@ -21,7 +21,7 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { useHistory } from "@/hooks/useHistory";
 import { NativeHomeSummary } from "@/components/home/NativeHomeSummary";
 import { buildHomeSummary } from "@/lib/home-summary";
-import { getLastPerformance } from "@/lib/firestore";
+import { getLastPerformance, getLatestBodyweight } from "@/lib/firestore";
 import type { WorkoutSessionDoc } from "@/lib/types";
 import { calculateWorkoutConsistency, sessionDaysForWeek } from "@/lib/workout-consistency";
 import { Timestamp } from "firebase/firestore";
@@ -64,8 +64,8 @@ export default function HomePage() {
   // failures itself and returns false, which ProgramCard treats as "didn't start".
   async function startProgramWorkout(w: Workout): Promise<boolean> {
     try {
-      const history = await loadLastPerformance();
-      return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, history, normalizeWarmupRules(settings.warmupRules));
+      const [history, bodyweight] = await Promise.all([loadLastPerformance(), getLatestBodyweight(user!.uid)]);
+      return workout.startWorkout(w, definitionsFor(w.programId), equipmentConfig ?? undefined, history, normalizeWarmupRules(settings.warmupRules), bodyweight);
     } catch (err) {
       showError(err);
       return false;
@@ -169,6 +169,7 @@ export default function HomePage() {
         onDismiss={workout.dismissWorkout}
         onPause={workout.pauseWorkout}
         equipmentConfig={equipmentConfig}
+        onSwapWarmup={workout.swapWarmup}
       />
     );
   }

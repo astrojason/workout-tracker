@@ -52,6 +52,7 @@ export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machine
         <ExerciseEditPanel
           key={editing.id}
           definition={editing}
+          library={Object.values(definitions)}
           machines={machines}
           equipment={equipment}
           onSave={(save) => onSave(editing.id, save)}
@@ -64,8 +65,9 @@ export function ExerciseLibraryEditor({ rows, sessionLimit, definitions, machine
   );
 }
 
-function ExerciseEditPanel({ definition, machines, equipment, onSave, onSaved, onClose, onError }: {
+function ExerciseEditPanel({ definition, library, machines, equipment, onSave, onSaved, onClose, onError }: {
   definition: ExerciseDefinition;
+  library: ExerciseDefinition[];
   machines: GymMachine[];
   equipment: UserEquipmentConfig;
   onSave: (save: DefinitionSave) => Promise<void>;
@@ -101,6 +103,7 @@ function ExerciseEditPanel({ definition, machines, equipment, onSave, onSaved, o
         <ExerciseDefinitionForm
           variant="panel"
           definition={definition}
+          library={library}
           machines={machines}
           equipment={equipment}
           onSave={onSave}

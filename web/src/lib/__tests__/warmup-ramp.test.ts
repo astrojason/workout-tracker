@@ -1,7 +1,8 @@
 import { DEFAULT_EQUIPMENT_CONFIG } from "../equipment-calculator";
 import { describe, it, expect } from "vitest";
 import { rampWarmups } from "../warmup-ramp";
-import type { ResolvedExercise } from "../types";
+import type { ExerciseDefinition, ResolvedExercise } from "../types";
+import { DEFAULT_WARMUP_RULES } from "../warmup-rules";
 
 function ex(overrides: Partial<ResolvedExercise>): ResolvedExercise {
   return {
@@ -147,7 +148,7 @@ describe("rampWarmups", () => {
       expect(result[result.length - 1].id).toBe("main");
     });
 
-    it("gives every non-warm-up exercise at least one warm-up set, whatever the equipment", () => {
+    it("gives every non-warm-up exercise a warm-up set, or an active-stretch tip when nothing lighter fits", () => {
       const exercises = [
         ex({ id: "db", definitionId: "db", name: "DB Press", equipmentType: "dumbbell", currentWeight: 50 }),
         ex({ id: "kb", definitionId: "kb", name: "KB Swing", equipmentType: "kettlebell", currentWeight: 35 }),
@@ -161,7 +162,11 @@ describe("rampWarmups", () => {
       const result = rampWarmups(exercises);
       for (const e of exercises) {
         const wu = warmupsBefore(result, e.id);
-        expect(wu.length, e.name).toBeGreaterThanOrEqual(1);
+        if (wu.length === 0) {
+          // No library to find a lighter movement in: no warm-up, and a stretch to do instead.
+          expect(result.find((r) => r.id === e.id)?.warmupTip, e.name).toBeTruthy();
+          continue;
+        }
         for (const step of wu) {
           expect(step.definitionId).toBe(e.definitionId);
           expect(step.progressionRule).toBe("none");
@@ -186,9 +191,10 @@ describe("rampWarmups", () => {
         expect(warmupsBefore(rampWarmups([kb(15)], bells([10, 15, 25])), "kb").map((e) => e.currentWeight)).toEqual([10]);
       });
 
-      it("does the work bell for fewer reps when you have nothing lighter", () => {
-        const wu = warmupsBefore(rampWarmups([kb(15)], bells([15, 25])), "kb");
-        expect(wu.map((e) => [e.currentWeight, e.repMin])).toEqual([[15, 5]]);
+      it("never warms up at the work bell when you have nothing lighter", () => {
+        const result = rampWarmups([kb(15)], bells([15, 25]));
+        expect(warmupsBefore(result, "kb")).toEqual([]);
+        expect(result[0].warmupTip).toBeTruthy();
       });
 
       it("never warms up with a bell you don't own", () => {
@@ -202,17 +208,19 @@ describe("rampWarmups", () => {
       expect(warmupsBefore(result, "m").map((e) => e.currentWeight)).toEqual([70]);
     });
 
-    it("does an unloaded or time-based exercise at the same setup with about half the reps/time", () => {
+    const FEWER = { ...DEFAULT_WARMUP_RULES, groups: { ...DEFAULT_WARMUP_RULES.groups, unloaded: { ...DEFAULT_WARMUP_RULES.groups.unloaded, mode: "fewer" as const } } };
+
+    it("with Fewer reps, does an unloaded or time-based exercise at the same setup with about half the reps/time", () => {
       const result = rampWarmups([
         ex({ id: "bw", definitionId: "bw", equipmentType: "bodyweight", currentWeight: 0, repMin: 10 }),
         ex({ id: "plank", definitionId: "plank", equipmentType: "bodyweight", isTimeBased: true, currentWeight: 0, repMin: 60, repMax: { type: "count", value: 60 } }),
-      ]);
+      ], DEFAULT_EQUIPMENT_CONFIG, FEWER);
       expect(warmupsBefore(result, "bw")[0].repMin).toBe(5);
       expect(warmupsBefore(result, "plank")[0].repMin).toBe(30);
     });
 
     it("never makes a warm-up AMRAP or to failure", () => {
-      const result = rampWarmups([ex({ id: "bw", definitionId: "bw", equipmentType: "bodyweight", currentWeight: 0, repMax: { type: "failure" }, lastSetAmrap: true })]);
+      const result = rampWarmups([ex({ id: "bw", definitionId: "bw", equipmentType: "bodyweight", currentWeight: 0, repMax: { type: "failure" }, lastSetAmrap: true })], DEFAULT_EQUIPMENT_CONFIG, FEWER);
       const wu = warmupsBefore(result, "bw")[0];
       expect(wu.repMax.type).toBe("count");
       expect(wu.lastSetAmrap).toBeUndefined();
@@ -242,5 +250,120 @@ describe("rampWarmups", () => {
       const ramp = rampWarmups([work()]).filter((e) => e.phase === "warmup");
       expect(ramp.every((e) => e.restAfter === 60)).toBe(true);
     });
+  });
+});
+
+describe("warm-up rest", () => {
+  const rules = { ...DEFAULT_WARMUP_RULES, restSeconds: 45 };
+  it("rests the warm-up rest between a program warm-up row's own sets, not the row's rest", () => {
+    // Fixed weights use one lighter set, so the program's own row is kept.
+    const row = sheetWarmup({ equipmentType: "kettlebell", currentWeight: 15, weight: 15, restSeconds: 180, restAfter: undefined, sets: 2 });
+    const result = rampWarmups([row, work({ equipmentType: "kettlebell", currentWeight: 25 })], DEFAULT_EQUIPMENT_CONFIG, rules);
+    const wu = result.find((e) => e.phase === "warmup")!;
+    expect(wu.restSeconds).toBe(45);
+    expect(wu.restAfter).toBe(45);
+  });
+
+  it("rests the warm-up rest after a ramp built from a program row with no rest-after of its own", () => {
+    const result = rampWarmups([sheetWarmup({ restAfter: undefined, restSeconds: 200 }), work()], DEFAULT_EQUIPMENT_CONFIG, rules);
+    for (const wu of result.filter((e) => e.phase === "warmup")) {
+      expect(wu.restSeconds).toBe(45);
+      expect(wu.restAfter).toBe(45);
+    }
+  });
+
+  it("keeps a program row's explicit FALSE (flow straight into the work set)", () => {
+    const result = rampWarmups([sheetWarmup(), work()], DEFAULT_EQUIPMENT_CONFIG, rules);
+    const ramp = result.filter((e) => e.phase === "warmup");
+    expect(ramp[ramp.length - 1].restAfter).toBe(false);
+  });
+
+  it("rests the warm-up rest between generated warm-up sets, not the work rest", () => {
+    const result = rampWarmups([work({ restSeconds: 180 })], DEFAULT_EQUIPMENT_CONFIG, rules);
+    for (const wu of result.filter((e) => e.phase === "warmup")) {
+      expect(wu.restSeconds).toBe(45);
+      expect(wu.restAfter).toBe(45);
+    }
+  });
+});
+
+describe("lighter-movement warm-ups", () => {
+  const def = (o: Partial<ExerciseDefinition> & { id: string; name: string }): ExerciseDefinition => ({
+    muscleGroups: [], equipmentType: "bodyweight", equipmentDetail: null, progressionRule: "none", isUnilateral: false,
+    isTimeBased: false, currentWeight: 0, hardStreak: 0, createdAt: new Date(0), updatedAt: new Date(0), ...o,
+  });
+  const library = Object.fromEntries([
+    def({ id: "bwsquat", name: "Bodyweight Squat" }),
+    def({ id: "bandpress", name: "Banded Chest Press", equipmentType: "band", equipmentDetail: "Blue" }),
+    def({ id: "curl", name: "Band Curl", equipmentType: "band", equipmentDetail: "Red" }),
+    def({ id: "pushup", name: "Push-up" }),
+    def({ id: "goblet", name: "Goblet Squat", equipmentType: "kettlebell", currentWeight: 15 }),
+  ].map((d) => [d.id, d]));
+  const ctx = { library, bodyweight: 180 };
+  const pushup = () => work({ definitionId: "pushup", name: "Push-up", equipmentType: "bodyweight", currentWeight: 0, repMin: 12 });
+  const goblet = () => work({ definitionId: "goblet", name: "Goblet Squat", equipmentType: "kettlebell", currentWeight: 15, repMin: 10 });
+  const kbConfig = { ...DEFAULT_EQUIPMENT_CONFIG, kettlebells: [15, 25, 45] };
+
+  it("warms push-ups up with a lighter movement for the chest, not push-ups for fewer reps", () => {
+    const result = rampWarmups([pushup()], DEFAULT_EQUIPMENT_CONFIG, DEFAULT_WARMUP_RULES, ctx);
+    const wu = result.filter((e) => e.phase === "warmup");
+    expect(wu).toHaveLength(1);
+    expect(wu[0].name).toBe("Banded Chest Press");
+    expect(wu[0].definitionId).toBe("bandpress");
+    expect(wu[0].equipmentDetail).toBe("Blue");
+    expect(wu[0].repMin).toBe(12);
+    expect(wu[0].progressionRule).toBe("none");
+    expect(wu[0].restSeconds).toBe(DEFAULT_WARMUP_RULES.restSeconds);
+  });
+
+  it("warms a goblet squat with your lightest kettlebell up with bodyweight squats", () => {
+    const wu = rampWarmups([goblet()], kbConfig, DEFAULT_WARMUP_RULES, ctx).filter((e) => e.phase === "warmup");
+    expect(wu.map((e) => e.name)).toEqual(["Bodyweight Squat"]);
+  });
+
+  it("still ramps a goblet squat when a lighter kettlebell exists", () => {
+    const wu = rampWarmups([goblet().currentWeight ? { ...goblet(), currentWeight: 45 } : goblet()], kbConfig, DEFAULT_WARMUP_RULES, ctx).filter((e) => e.phase === "warmup");
+    expect(wu.every((e) => e.definitionId === "goblet" && e.currentWeight < 45)).toBe(true);
+  });
+
+  it("skips the warm-up with an active-stretch tip when nothing lighter fits", () => {
+    const swing = work({ definitionId: "swing", name: "KB Swing", equipmentType: "kettlebell", currentWeight: 15 });
+    const result = rampWarmups([swing], kbConfig, DEFAULT_WARMUP_RULES, ctx);
+    expect(result.filter((e) => e.phase === "warmup")).toHaveLength(0);
+    expect(result[0].warmupTip).toMatch(/30s/);
+  });
+
+  it("never picks a movement for other muscles, or one as heavy as the lift", () => {
+    const wu = rampWarmups([pushup()], DEFAULT_EQUIPMENT_CONFIG, DEFAULT_WARMUP_RULES, ctx).filter((e) => e.phase === "warmup");
+    for (const o of wu[0].warmupOptions ?? []) expect(["bandpress"]).toContain(o.definitionId);
+  });
+
+  it("uses the movement chosen on the program day over the library's and the automatic pick", () => {
+    const lib = { ...library, pushup: { ...library.pushup, warmupWith: "bwsquat" } };
+    const fromLibrary = rampWarmups([{ ...pushup(), warmupWith: "bwsquat" }], DEFAULT_EQUIPMENT_CONFIG, DEFAULT_WARMUP_RULES, { ...ctx, library: lib });
+    expect(fromLibrary.find((e) => e.phase === "warmup")?.name).toBe("Bodyweight Squat");
+    // The chosen movement leads, the automatic picks follow as swaps.
+    expect(fromLibrary[0].warmupOptions?.map((o) => o.definitionId)).toEqual(["bwsquat", "bandpress"]);
+  });
+
+  it("keeps the old fewer-reps set when the rule says Fewer reps", () => {
+    const rules = { ...DEFAULT_WARMUP_RULES, groups: { ...DEFAULT_WARMUP_RULES.groups, unloaded: { ...DEFAULT_WARMUP_RULES.groups.unloaded, mode: "fewer" as const } } };
+    const wu = rampWarmups([pushup()], DEFAULT_EQUIPMENT_CONFIG, rules, ctx).filter((e) => e.phase === "warmup");
+    expect(wu.map((e) => [e.name, e.repMin])).toEqual([["Push-up", 6]]);
+  });
+
+  it("uses your bodyweight: a light lifter's push-up is lighter than a Blue band press", () => {
+    const wu = rampWarmups([pushup()], DEFAULT_EQUIPMENT_CONFIG, DEFAULT_WARMUP_RULES, { library, bodyweight: 70 }).filter((e) => e.phase === "warmup");
+    expect(wu).toHaveLength(0);
+  });
+});
+
+describe("warm-up rest for a warm-up exercise of its own", () => {
+  it("keeps the program's rest for a warm-up row that isn't any lift's warm-up", () => {
+    const rotations = ex({ id: "rot", definitionId: "rot", name: "External Rotations", phase: "warmup", sets: 2, restSeconds: 75, restAfter: false, equipmentType: "band", currentWeight: 0 });
+    const result = rampWarmups([rotations, work()], DEFAULT_EQUIPMENT_CONFIG, { ...DEFAULT_WARMUP_RULES, restSeconds: 30 });
+    const r = result.find((e) => e.id === "rot")!;
+    expect(r.restSeconds).toBe(75);
+    expect(r.restAfter).toBe(false);
   });
 });

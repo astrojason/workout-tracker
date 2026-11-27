@@ -130,8 +130,18 @@ export function formatChange(measure: LiftMeasure, change: number): string {
   }
 }
 
+// A set that counts toward a session's volume: any loaded set lifted, warm-ups included. Volume is a
+// guide to recovery, and a warm-up moves real weight; PRs and lift trends still use work sets only.
+export function isVolumeSet(s: CompletedSet): boolean {
+  return s.completed && !s.skipped && s.actualReps > 0 && !s.isTimeBased && s.equipmentType !== "assisted_pullup" && s.actualWeight > 0;
+}
+
+export function setsVolume(sets: CompletedSet[]): number {
+  return sets.filter(isVolumeSet).reduce((sum, s) => sum + s.actualWeight * s.actualReps, 0);
+}
+
 export function sessionVolume(session: WorkoutSessionDoc): number {
-  return (session.sets ?? []).filter(isWorkingSet).reduce((sum, s) => sum + s.actualWeight * s.actualReps, 0);
+  return setsVolume(session.sets ?? []);
 }
 
 function isFinished(session: WorkoutSessionDoc): boolean {

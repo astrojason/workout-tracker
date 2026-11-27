@@ -7,6 +7,20 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.51.0',
+    date: '2026-11-27',
+    changes: [
+      'Warm-ups: a lift with nothing lighter to load (push-ups, bands, timed holds, your lightest kettlebell) no longer warms up with the same exercise for fewer reps. It warms up with one set of a lighter exercise from your library that works the same biggest muscle, like a banded chest press before push-ups or bodyweight squats before a goblet squat.',
+      '"Lighter" counts the share of your bodyweight each exercise moves (from your latest weigh-in) plus its weight; bands count their colour\'s weight. Each exercise has a new Bodyweight moved % field, filled from built-in estimates until you set it.',
+      'Nothing lighter fits (or it\'s a swing, get-up, clean or carry)? No warm-up, and the lift shows an active stretch to do before its first set.',
+      'Choose the warm-up yourself: on the exercise in the library (Warm-up → Warm up with…), for one day in the program editor (Warm Up With), or during the workout with the Warm up with picker on the warm-up set.',
+      'Settings → Warm-ups: the new Lighter movement rule, and the preview shows the movement you\'d get. Fewer reps is still there if you prefer it.',
+      'Fixed: some warm-ups rested the full work-set rest. Every lift\'s warm-up now rests the warm-up rest, and the rest ring (and phone/watch) measures against the rest that\'s actually running.',
+      'Warm-up sets now count toward session and weekly volume, since they move real weight. PRs and lift trends still use work sets only.',
+      'Program import: new optional Warm-up (blank, none, or an exercise to warm up with), Muscles (biggest first) and Bodyweight % columns. A prompt for having an AI write a program in this format is in reference/program-prompt.md.',
+    ],
+  },
+  {
     version: '1.50.2',
     date: '2026-11-25',
     changes: [

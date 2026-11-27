@@ -26,6 +26,10 @@ export interface ParsedExercise {
   notes: string | null;
   lastSetAmrap?: boolean;
   restAfter?: false | number;
+  muscleGroups?: string[];   // biggest first; absent = keep the library's (or the built-in estimate)
+  bodyweightPct?: number;    // share of bodyweight one rep moves; absent = keep the library's
+  skipWarmup?: boolean;      // Warm-up column "none": no warm-up for this occurrence
+  warmupWith?: string;       // Warm-up column naming an exercise: warm up with it on this day
 }
 
 /** One exercise from the spreadsheet that has no same-named exercise in the library. */
@@ -135,6 +139,10 @@ export async function resolveExerciseDefinitions(
     }
   }
 
+  // Warm-up movements named in the Warm-up column, resolved once every row's exercise is: the
+  // file's own exercise, else the library's, else a new bodyweight exercise (e.g. a stretch).
+  const pendingWarmups: { occurrence: Exercise; name: string }[] = [];
+
   const workouts: Workout[] = [];
   for (const pw of parsedWorkouts) {
     const exercises: Exercise[] = [];
@@ -153,12 +161,15 @@ export async function resolveExerciseDefinitions(
             progressionRule: meta.progressionRule,
             isUnilateral: meta.isUnilateral,
             isTimeBased: meta.isTimeBased,
+            ...(meta.muscleGroups ? { muscleGroups: meta.muscleGroups } : {}),
+            ...(meta.bodyweightPct !== undefined ? { bodyweightPct: meta.bodyweightPct } : {}),
           });
           definitionId = match.id;
         } else {
           definitionId = await createExerciseDefinition(userId, {
             name: meta.name,
-            muscleGroups: [],
+            muscleGroups: meta.muscleGroups ?? [],
+            ...(meta.bodyweightPct !== undefined ? { bodyweightPct: meta.bodyweightPct } : {}),
             equipmentType: meta.equipmentType,
             equipmentDetail: meta.equipmentDetail,
             progressionRule: meta.progressionRule,
@@ -171,7 +182,7 @@ export async function resolveExerciseDefinitions(
         resolvedIdByName.set(key, definitionId);
       }
 
-      exercises.push({
+      const occurrence: Exercise = {
         id: crypto.randomUUID(),
         definitionId,
         order: pe.order,
@@ -185,7 +196,10 @@ export async function resolveExerciseDefinitions(
         ...(pe.equipmentDetail !== null ? { equipmentDetail: pe.equipmentDetail } : {}),
         ...(pe.lastSetAmrap ? { lastSetAmrap: true } : {}),
         ...(pe.restAfter !== undefined ? { restAfter: pe.restAfter } : {}),
-      });
+        ...(pe.skipWarmup && pe.phase !== "warmup" ? { skipWarmup: true } : {}),
+      };
+      if (pe.warmupWith && pe.phase !== "warmup" && !pe.skipWarmup) pendingWarmups.push({ occurrence, name: pe.warmupWith });
+      exercises.push(occurrence);
     }
 
     workouts.push({
@@ -197,6 +211,19 @@ export async function resolveExerciseDefinitions(
       exercises,
       ...(pw.isChecklist !== undefined ? { isChecklist: pw.isChecklist } : {}),
     });
+  }
+
+  for (const { occurrence, name } of pendingWarmups) {
+    const key = name.trim().toLowerCase();
+    let id = resolvedIdByName.get(key) ?? byName.get(key)?.id;
+    if (!id) {
+      id = await createExerciseDefinition(userId, {
+        name: name.trim(), muscleGroups: [], equipmentType: "bodyweight", equipmentDetail: null,
+        progressionRule: "none", isUnilateral: false, isTimeBased: false, currentWeight: 0, hardStreak: 0,
+      });
+      resolvedIdByName.set(key, id);
+    }
+    if (id !== occurrence.definitionId) occurrence.warmupWith = id;
   }
 
   const weights: Record<string, ProgramExerciseWeight> = {};

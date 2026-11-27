@@ -70,7 +70,7 @@ export function buildMirrorState(session: ActiveSession, now: number, notify: bo
     sets: exercise.sets,
     weight: next?.weight ?? 0,
     restEndsAt: session.isResting ? now + session.restTimeRemaining * 1000 : null,
-    restSeconds: exercise.restSeconds || 120,
+    restSeconds: session.restTotal || exercise.restSeconds || 120,
     notify,
     nextLabel: next?.label ?? "",
     nextDetail: next?.detail ?? "",

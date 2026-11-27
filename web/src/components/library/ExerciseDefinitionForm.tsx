@@ -6,12 +6,15 @@ import type { DefinitionSave } from "@/lib/firestore";
 import { cleanWeight, parseWeightOptions } from "@/lib/types";
 import { applyEquipmentChoice, equipmentChoiceValue, equipmentOptionGroups } from "@/lib/equipment-choices";
 import { progressionOptionGroups } from "@/lib/progression-choices";
+import { estimateProfile } from "@/lib/exercise-profile";
 
 interface Props {
   definition: ExerciseDefinition;
   machines: GymMachine[];
   // What you own: the Equipment dropdown and band colours come from it.
   equipment: UserEquipmentConfig;
+  // The library, for picking the exercise this one warms up with.
+  library?: ExerciseDefinition[];
   // "inline": the phone library's expanded row. "panel": the desktop side panel, two columns with
   // Save/Cancel pinned to the bottom while the fields scroll.
   variant: "inline" | "panel";
@@ -23,7 +26,7 @@ interface Props {
 }
 
 // Edits one exercise in the library. Shared by the phone library and the desktop Exercises panel.
-export function ExerciseDefinitionForm({ definition, machines, equipment, variant, onSave, onSaved, onCancel, onError }: Props) {
+export function ExerciseDefinitionForm({ definition, machines, equipment, library = [], variant, onSave, onSaved, onCancel, onError }: Props) {
   const [name, setName] = useState(definition.name);
   const [brand, setBrand] = useState(definition.brand ?? "");
   const [weightOptionsText, setWeightOptionsText] = useState(definition.weightOptions?.join(", ") ?? "");
@@ -33,7 +36,9 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
   const [equipmentDetail, setEquipmentDetail] = useState(definition.equipmentDetail ?? "");
   const [progressionRule, setProgressionRule] = useState<ProgressionRule>(definition.progressionRule);
   const [isUnilateral, setIsUnilateral] = useState(definition.isUnilateral);
-  const [warmup, setWarmup] = useState<"" | "none">(definition.warmup === "none" ? "none" : "");
+  // "" = automatic, "none" = never, "with:<id>" = warm up with that exercise.
+  const [warmup, setWarmup] = useState<string>(definition.warmup === "none" ? "none" : definition.warmupWith ? `with:${definition.warmupWith}` : "");
+  const [bodyweightPct, setBodyweightPct] = useState(definition.bodyweightPct != null ? String(definition.bodyweightPct) : "");
   const [isTimeBased, setIsTimeBased] = useState(definition.isTimeBased);
   const [currentWeight, setCurrentWeight] = useState(String(definition.currentWeight));
   const [hardStreak, setHardStreak] = useState(String(definition.hardStreak));
@@ -53,6 +58,8 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
   // Band colours you own, plus the exercise's current colour if you no longer have it.
   const bandColours = [...equipment.bands, ...(definition.equipmentDetail && !equipment.bands.includes(definition.equipmentDetail as never) ? [definition.equipmentDetail] : [])];
   const panel = variant === "panel";
+  const estimate = estimateProfile(name);
+  const warmupChoices = library.filter((d) => d.id !== definition.id).sort((a, b) => a.name.localeCompare(b.name));
   // Paired fields sit side by side in the panel and stack in the phone row.
   const pair = panel ? "col-span-1" : "col-span-2";
 
@@ -76,7 +83,9 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
           progressionRule,
           isUnilateral,
           isTimeBased,
-          warmup: warmup || null,
+          warmup: warmup === "none" ? "none" : null,
+          warmupWith: warmup.startsWith("with:") ? warmup.slice(5) : null,
+          bodyweightPct: bodyweightPct.trim() === "" ? null : Math.min(100, Math.max(0, parseFloat(bodyweightPct) || 0)),
         },
         weight: weight !== definition.currentWeight || streak !== definition.hardStreak ? { currentWeight: weight, hardStreak: streak } : null,
       };
@@ -98,7 +107,16 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
         {(id) => <input id={id} type="text" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Lifecycle" className="input-field" />}
       </Field>
       <Field label="Muscle Groups (comma-separated)" className="col-span-2">
-        {(id) => <input id={id} type="text" value={muscleGroupsText} onChange={(e) => setMuscleGroupsText(e.target.value)} placeholder="e.g. Chest, Triceps" className="input-field" />}
+        {(id) => <input id={id} type="text" value={muscleGroupsText} onChange={(e) => setMuscleGroupsText(e.target.value)} placeholder={estimate?.muscles.length ? `Estimated: ${estimate.muscles.join(", ")}` : "e.g. Chest, Triceps"} className="input-field" />}
+      </Field>
+      <Field label="Bodyweight moved (%)" className="col-span-2">
+        {(id) => (
+          <>
+            <input id={id} type="number" min={0} max={100} step={1} value={bodyweightPct} onChange={(e) => setBodyweightPct(e.target.value)}
+              placeholder={`Estimated: ${estimate?.bodyweightPct ?? 0}%`} className="input-field" />
+            <p className="mt-1 text-xs text-gray-500">How much of your bodyweight one rep lifts (a push-up is about 64%). Picks lighter warm-up movements. Blank uses the estimate.</p>
+          </>
+        )}
       </Field>
       <Field label="Equipment">
         {(id) => (
@@ -143,9 +161,14 @@ export function ExerciseDefinitionForm({ definition, machines, equipment, varian
       <Field label="Warm-up" className="col-span-2">
         {(id) => (
           <>
-            <select id={id} value={warmup} onChange={(e) => setWarmup(e.target.value as "" | "none")} className="input-field">
+            <select id={id} value={warmup} onChange={(e) => setWarmup(e.target.value)} className="input-field">
               <option value="">Follow its equipment&apos;s warm-up rule</option>
               <option value="none">None: never warm up this exercise</option>
+              {warmupChoices.length > 0 && (
+                <optgroup label="Warm up with">
+                  {warmupChoices.map((d) => <option key={d.id} value={`with:${d.id}`}>{d.name}</option>)}
+                </optgroup>
+              )}
             </select>
             <p className="mt-1 text-xs text-gray-500">The rules for each kind of equipment are in Settings → Warm-ups.</p>
           </>

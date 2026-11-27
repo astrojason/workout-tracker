@@ -246,6 +246,7 @@ export function useWorkout(userId: string | null) {
     equipmentConfig?: UserEquipmentConfig,
     previousSessions: WorkoutSessionDoc[] = [],
     warmupRules: WarmupRules = DEFAULT_WARMUP_RULES,
+    bodyweight: number | null = null,
   ): boolean => {
     if (!userId) return false;
     endingRef.current = false;
@@ -254,7 +255,7 @@ export function useWorkout(userId: string | null) {
       equipmentConfigRef.current = equipmentConfig;
 
       const baseWorkout = resolveWorkout(workout, definitions);
-      const resolvedWorkout = { ...baseWorkout, exercises: rampWarmups(baseWorkout.exercises, equipmentConfig, warmupRules) };
+      const resolvedWorkout = { ...baseWorkout, exercises: rampWarmups(baseWorkout.exercises, equipmentConfig, warmupRules, { library: definitions, bodyweight }) };
       const resolvedWeights: Record<string, number> = {};
       for (const exercise of resolvedWorkout.exercises) {
         resolvedWeights[exercise.id] = exercise.currentWeight;
@@ -296,7 +297,7 @@ export function useWorkout(userId: string | null) {
     session.currentSetNumber === currentExercise.sets
   );
 
-  function startRestTimerFromEnd(endDate: Date) {
+  function startRestTimerFromEnd(endDate: Date, total?: number) {
     const generation = ++notificationGenerationRef.current;
     function notify() {
       void notifyRestComplete(
@@ -326,7 +327,7 @@ export function useWorkout(userId: string | null) {
     // advanced by the caller before startRestTimerFromEnd is invoked.
     // The timer only flips isResting → false when it expires; it never
     // advances exercise/set counters itself, eliminating double-advance bugs.
-    setSession((prev) => prev ? { ...prev, isResting: true, restTimeRemaining: remaining } : prev);
+    setSession((prev) => prev ? { ...prev, isResting: true, restTimeRemaining: remaining, restTotal: total ?? prev.restTotal ?? remaining } : prev);
 
     timerRef.current = setInterval(() => {
       const rem = Math.max(0, Math.round((endDate.getTime() - Date.now()) / 1000));
@@ -346,7 +347,7 @@ export function useWorkout(userId: string | null) {
 
   function startRestTimer(seconds: number) {
     const endDate = new Date(Date.now() + seconds * 1000);
-    startRestTimerFromEnd(endDate);
+    startRestTimerFromEnd(endDate, seconds);
   }
 
   const completeSet = useCallback((actualReps: number, actualWeight: number, failed: boolean, givenRating: "easy" | "normal" | "hard", notes?: string) => {
@@ -761,6 +762,24 @@ export function useWorkout(userId: string | null) {
     });
   }, []);
 
+  // Swaps the current warm-up for another lighter movement it offers (warmupOptions). Only before
+  // any set of it is logged, so the logged set always matches the movement done.
+  const swapWarmup = useCallback((optionId: string) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      const current = prev.workout.exercises[prev.currentExerciseIndex];
+      const option = current?.warmupOptions?.find((o) => o.id === optionId);
+      if (!current || !option || option.id === current.id || prev.currentSetNumber !== 1) return prev;
+      const swapped = { ...option, order: current.order, warmupOptions: current.warmupOptions };
+      const exercises = prev.workout.exercises.map((e, i) => (i === prev.currentExerciseIndex ? swapped : e));
+      return {
+        ...prev,
+        workout: { ...prev.workout, exercises },
+        resolvedWeights: { ...prev.resolvedWeights, [swapped.id]: swapped.currentWeight },
+      };
+    });
+  }, []);
+
   return {
     session,
     pausedSession,
@@ -785,5 +804,6 @@ export function useWorkout(userId: string | null) {
     isInsertedSet: onInsertedSet,
     canAddAnotherSet,
     addAnotherSet,
+    swapWarmup,
   };
 }

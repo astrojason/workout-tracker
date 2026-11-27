@@ -24,6 +24,7 @@ interface ActiveWorkoutProps {
   onDismiss: () => void;
   onPause: () => void;
   equipmentConfig?: UserEquipmentConfig;
+  onSwapWarmup?: (optionId: string) => void;
 }
 
 function SetsEditor({ currentSets, completedSets, onSave, onCancel }: {
@@ -197,7 +198,7 @@ function WeightEditor({ currentWeight, exercise, equipmentConfig, onSave, onCanc
 
 export function ActiveWorkout({
   session, onCompleteSet, onSkipSet, onSkipRest, onEndWorkout,
-  onUpdateWeight, onUpdateSets, onInsertSet, canAddAnotherSet = false, onAddAnotherSet, onDismiss, onPause, equipmentConfig,
+  onUpdateWeight, onUpdateSets, onInsertSet, canAddAnotherSet = false, onAddAnotherSet, onDismiss, onPause, equipmentConfig, onSwapWarmup,
 }: ActiveWorkoutProps) {
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -346,6 +347,30 @@ export function ActiveWorkout({
           onEditSets={view.isInserted ? undefined : () => setShowSetsEditor(true)}
           isCustomSet={view.isInserted}
         />
+
+        {/* A lighter-movement warm-up can be swapped for another before its set is done. */}
+        {onSwapWarmup && !view.isInserted && session.currentSetNumber === 1 && (exercise.warmupOptions?.length ?? 0) > 1 && (
+          <label className="flex items-center justify-between gap-3 bg-gray-900 rounded-2xl px-4 py-3 border border-orange-900/50">
+            <span className="text-sm text-gray-400">Warm up with</span>
+            <select
+              aria-label="Warm up with"
+              value={exercise.id}
+              onChange={(e) => onSwapWarmup(e.target.value)}
+              className="input-field max-w-[60%]"
+            >
+              {exercise.warmupOptions!.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}{o.equipmentType === "band" && o.equipmentDetail ? ` (${o.equipmentDetail})` : ""}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {/* No lighter movement fits this lift: the warm-up is skipped, with a stretch to do instead. */}
+        {exercise.warmupTip && !view.isInserted && session.currentSetNumber === 1 && (
+          <p role="note" className="bg-gray-900 rounded-2xl px-4 py-3 border border-amber-900/50 text-sm text-amber-200">
+            No lighter warm-up fits. Before your first set: {exercise.warmupTip}
+          </p>
+        )}
 
         {/* Exercise Timer */}
         {timedExercise && (timerRunning || showSwitchSides) && (

@@ -16,9 +16,24 @@ test.describe("warm-up rules", () => {
   test("previews each lift's warm-up from the saved rules", async ({ page }) => {
     await expect(lift(page, "Back Squat")).toContainText("45 lb× 8");
     await expect(lift(page, "Back Squat")).toContainText("145 lb× 2"); // 80% of 185 is 148: your plates make 145
-    // A 15 lb kettlebell with nothing lighter: the work bell for fewer reps.
-    await expect(lift(page, "KB Swing")).toContainText("You own nothing lighter");
-    await expect(lift(page, "KB Swing")).not.toContainText(/(^|[^\d.])5 lb×/);
+    // A 15 lb kettlebell swing with nothing lighter, and no lighter movement can stand in for a
+    // swing: no warm-up, an active stretch instead, never the work bell for fewer reps.
+    await expect(lift(page, "KB Swing")).toContainText("Nothing lighter fits: no warm-up");
+    await expect(lift(page, "KB Swing")).not.toContainText("15 lb×");
+  });
+
+  test("a lift with no lighter load warms up with a lighter movement for the same muscles", async ({ page }) => {
+    // Push-ups: a banded press works the chest with less than the push-up's share of bodyweight.
+    await expect(lift(page, "Push-up")).toContainText("Banded Chest Press (Blue)");
+    await expect(lift(page, "Push-up")).not.toContainText("Bodyweight×");
+    // A goblet squat with the lightest bell you own: bodyweight squats.
+    await expect(lift(page, "Goblet Squat")).toContainText("Bodyweight Squat");
+    await expect(group(page, "No load to lighten").getByRole("radio", { name: "Lighter movement" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("Fewer reps keeps the old same-setup warm-up", async ({ page }) => {
+    await group(page, "No load to lighten").getByRole("radio", { name: "Fewer reps" }).click();
+    await expect(lift(page, "Push-up")).toContainText("Bodyweight× 6");
   });
 
   test("editing a ramp step updates the preview, then saves with progress and success", async ({ page }) => {

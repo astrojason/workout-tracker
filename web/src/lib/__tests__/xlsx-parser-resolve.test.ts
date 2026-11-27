@@ -164,3 +164,35 @@ describe("resolveExerciseDefinitions — same-name exercise across multiple days
     expect(workouts[1].exercises[0].definitionId).toBe("shared-def-id");
   });
 });
+
+describe("resolveExerciseDefinitions — warm-up column", () => {
+  it("links a named warm-up to the file's exercise, and a 'none' to skipWarmup", async () => {
+    getExerciseDefinitionsMock.mockResolvedValue([]);
+    createExerciseDefinitionMock.mockImplementation(async (_u: string, d: { name: string }) => `id-${d.name}`);
+    const { workouts } = await resolveExerciseDefinitions("user-1", [makeParsedWorkout([
+      makeParsedExercise({ name: "Push-up", equipmentType: "bodyweight", warmupWith: "banded chest press", muscleGroups: ["Chest"], bodyweightPct: 64 }),
+      makeParsedExercise({ order: 2, name: "Banded Chest Press", equipmentType: "band", equipmentDetail: "Blue" }),
+      makeParsedExercise({ order: 3, name: "Bench Press", skipWarmup: true }),
+    ])]);
+    const [pushup, , bench] = workouts[0].exercises;
+    expect(pushup.warmupWith).toBe("id-Banded Chest Press");
+    expect(bench.skipWarmup).toBe(true);
+    expect(createExerciseDefinitionMock).toHaveBeenCalledWith("user-1", expect.objectContaining({ name: "Push-up", muscleGroups: ["Chest"], bodyweightPct: 64 }));
+  });
+
+  it("creates a bodyweight exercise for a warm-up named nowhere else (e.g. a stretch)", async () => {
+    getExerciseDefinitionsMock.mockResolvedValue([makeDefinition()]);
+    createExerciseDefinitionMock.mockResolvedValue("leg-swings");
+    const { workouts } = await resolveExerciseDefinitions("user-1", [makeParsedWorkout([
+      makeParsedExercise({ name: "Bench Press", warmupWith: "Arm Circles" }),
+    ])]);
+    expect(createExerciseDefinitionMock).toHaveBeenCalledWith("user-1", expect.objectContaining({ name: "Arm Circles", equipmentType: "bodyweight", progressionRule: "none" }));
+    expect(workouts[0].exercises[0].warmupWith).toBe("leg-swings");
+  });
+
+  it("updates an existing exercise's muscles only when the file gives them", async () => {
+    getExerciseDefinitionsMock.mockResolvedValue([makeDefinition()]);
+    await resolveExerciseDefinitions("user-1", [makeParsedWorkout([makeParsedExercise()])]);
+    expect(updateExerciseDefinitionMetaMock.mock.calls[0][2]).not.toHaveProperty("muscleGroups");
+  });
+});

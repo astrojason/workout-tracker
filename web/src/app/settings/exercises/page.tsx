@@ -83,6 +83,7 @@ export default function ExerciseLibraryPage() {
               <ExerciseDefinitionForm
                 variant="inline"
                 definition={def}
+                library={sorted}
                 machines={machines}
                 equipment={equipmentConfig}
                 onSave={async ({ meta, weight }) => {

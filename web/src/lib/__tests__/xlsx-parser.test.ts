@@ -368,3 +368,27 @@ describe("parseXLSX - grouping and IDs", () => {
     expect(result.workouts).toHaveLength(2);
   });
 });
+
+describe("parseXLSX - warm-up, muscles and bodyweight columns", () => {
+  it("reads Warm-up none, a named warm-up, Muscles and Bodyweight %", () => {
+    const buf = buildXLSX({ Monday: [
+      makeRow({ Exercise: "Push-up", "Equip Type": "bodyweight", "Total Weight": 0, "Warm-up": "Banded Chest Press", Muscles: "Chest, Triceps, Shoulders", "Bodyweight %": 64 }),
+      makeRow({ Order: 2, Exercise: "Bench Press", "Warm-up": "none" }),
+      makeRow({ Order: 3, Exercise: "Curl", "Equip Type": "powerblock", "Warm-up": "" }),
+    ] });
+    const [pushup, bench, curl] = parseXLSX(buf).workouts[0].exercises;
+    expect(pushup.warmupWith).toBe("Banded Chest Press");
+    expect(pushup.muscleGroups).toEqual(["Chest", "Triceps", "Shoulders"]);
+    expect(pushup.bodyweightPct).toBe(64);
+    expect(bench.skipWarmup).toBe(true);
+    expect(bench.warmupWith).toBeUndefined();
+    expect(curl.skipWarmup).toBeUndefined();
+    expect(curl.warmupWith).toBeUndefined();
+    expect(curl.muscleGroups).toBeUndefined();
+  });
+
+  it("rejects a Bodyweight % outside 0–100", () => {
+    const buf = buildXLSX({ Monday: [makeRow({ "Bodyweight %": 140 })] });
+    expect(() => parseXLSX(buf)).toThrow(/Bodyweight % must be 0–100/);
+  });
+});

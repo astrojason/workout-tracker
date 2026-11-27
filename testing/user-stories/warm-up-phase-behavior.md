@@ -103,17 +103,50 @@ Given Bench Press has a warm-up row and a work row, and its current work weight 
 
 **As a user starting a workout where an exercise has no warm-up row:**
 
-- Every exercise outside the warm-up phase gets at least one warm-up set, placed
-  right before it
+- Every exercise outside the warm-up phase gets a warm-up, placed right before it,
+  unless nothing lighter fits it (see below)
 - Barbell and PowerBlock lifts get the same ramp as above, built from the work weight
 - Dumbbell, kettlebell and other loaded lifts get one set of `repMin` reps at about
-  half the work weight, rounded down to 5 lb (a machine uses its nearest weight
-  option at or under half)
-- Bodyweight, band, gripper, assisted and time-based exercises, or ones with no weight
-  set yet, get one set at the same setup with about half the reps or time
-- Auto warm-ups rest 60s between steps and into the work set, are never AMRAP and
-  never change a stored weight
+  half the work weight, on a weight I own (a machine uses its nearest weight option at
+  or under half)
+- Auto warm-ups rest the warm-up rest (Settings → Warm-ups, 60s by default) between
+  steps and into the work set, are never AMRAP and never change a stored weight
 - A lift that already has a warm-up row, or was already warmed up earlier in the same
   workout, gets no extra warm-up
 - Checking **Skip Warm-Up Sets** on the exercise in the program editor turns this off
   for that exercise (the option isn't shown on warm-up exercises)
+
+---
+
+## Lighter-Movement Warm-Ups (nothing lighter to load)
+
+**As a user whose lift has no lighter load (bodyweight, bands, timed, or my lightest
+weight):**
+
+- Instead of the same exercise for fewer reps, I warm up with one set of a lighter
+  exercise from my library that works the lift's biggest muscle: e.g. a banded chest
+  press before push-ups, bodyweight squats before a goblet squat with my lightest bell
+- "Lighter" compares what one rep moves: the external weight plus the exercise's share
+  of my bodyweight (from my latest weigh-in; each exercise has a Bodyweight moved %, or
+  a built-in estimate). Bands count their colour's weight
+- More muscles in common ranks higher; then the one closest to the lift
+- The warm-up set does the lift's reps, rests the warm-up rest, and counts toward the
+  session's volume, but never toward PRs or progression
+- During the workout I can swap it for another lighter movement ("Warm up with")
+  before doing its set
+- If nothing lighter fits (or the lift is a swing, get-up, clean or carry), there is no
+  warm-up and the lift shows an active-stretch tip before its first set
+- The exercise's **Warm-up** setting in the library can name the exercise to warm up
+  with; **Warm Up With (this day)** in the program editor overrides it for one day
+- Settings → Warm-ups → "Fewer reps" keeps the old same-setup, fewer-reps set
+
+---
+
+## Warm-Up Rest
+
+- Every lift's warm-up rests the warm-up rest between its sets and before the next
+  exercise, whatever rest the program row or the lift carries
+- A program warm-up row's explicit `Rest After` (FALSE or a number) is kept
+- A warm-up exercise of its own (not any lift's warm-up, e.g. External Rotations)
+  keeps the program's rests
+- The rest ring and the phone/watch mirror measure against the rest actually running

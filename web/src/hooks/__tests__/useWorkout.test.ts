@@ -1386,3 +1386,32 @@ describe("useWorkout", () => {
     expect(sets.map((s) => s.actualWeight)).toEqual([65]);
   });
 });
+
+describe("useWorkout — lighter-movement warm-ups", () => {
+  function start() {
+    makeExercise({ name: "Incline Push-up", equipmentType: "bodyweight", currentWeight: 0, definitionId: "incline" });
+    makeExercise({ name: "Knee Push-up", equipmentType: "bodyweight", currentWeight: 0, definitionId: "knee" });
+    const pushup = makeExercise({ name: "Push-up", equipmentType: "bodyweight", currentWeight: 0, skipWarmup: false, restSeconds: 150, repMin: 12 });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    act(() => { result.current.startWorkout(makeWorkout({ exercises: [pushup] }), getDefinitions(), undefined, [], undefined, 180); });
+    return result;
+  }
+
+  it("starts with the best lighter movement, rests the warm-up rest after it, and can swap before the set", () => {
+    const result = start();
+    const first = result.current.session!.workout.exercises[0];
+    expect(first.phase).toBe("warmup");
+    expect(first.name).toBe("Knee Push-up"); // 49% of bodyweight: closer to the push-up's 64% than an incline's 41%
+    const other = first.warmupOptions!.find((o) => o.name === "Incline Push-up")!;
+    act(() => { result.current.swapWarmup(other.id); });
+    expect(result.current.session!.workout.exercises[0].name).toBe("Incline Push-up");
+    expect(result.current.session!.workout.exercises[0].warmupOptions).toHaveLength(2);
+    act(() => { result.current.completeSet(12, 0, false, "normal"); });
+    const s = result.current.session!;
+    expect(s.completedSets[0].exerciseName).toBe("Incline Push-up");
+    expect(s.completedSets[0].phase).toBe("warmup");
+    expect(s.isResting).toBe(true);
+    expect(s.restTotal).toBe(60);
+    expect(s.currentExerciseIndex).toBe(1);
+  });
+});

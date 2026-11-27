@@ -546,6 +546,16 @@ export async function getBodyMeasurements(userId: string): Promise<BodyMeasureme
   return snap.docs.map((entry) => ({ id: entry.id, ...entry.data() } as BodyMeasurementDoc));
 }
 
+// The most recent logged bodyweight (lb), or null when none has been logged.
+export async function getLatestBodyweight(userId: string): Promise<number | null> {
+  const snap = await getDocs(query(bodyMeasurementsCol(userId), orderBy("date", "desc"), limit(20)));
+  for (const entry of snap.docs) {
+    const weight = (entry.data() as BodyMeasurementDoc).weight;
+    if (typeof weight === "number" && weight > 0) return weight;
+  }
+  return null;
+}
+
 export async function saveBodyMeasurement(
   userId: string,
   measurement: BodyMeasurementInput,
@@ -747,7 +757,7 @@ export async function createExerciseDefinition(
 export async function updateExerciseDefinitionMeta(
   userId: string,
   definitionId: string,
-  updates: Partial<Pick<ExerciseDefinition, "name" | "brand" | "weightOptions" | "machineId" | "equipmentItemId" | "warmup" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
+  updates: Partial<Pick<ExerciseDefinition, "name" | "brand" | "weightOptions" | "machineId" | "equipmentItemId" | "warmup" | "warmupWith" | "bodyweightPct" | "muscleGroups" | "equipmentType" | "equipmentDetail" | "progressionRule" | "isUnilateral" | "isTimeBased">>
 ): Promise<void> {
   await updateDoc(doc(exerciseDefinitionsCol(userId), definitionId), {
     ...updates,

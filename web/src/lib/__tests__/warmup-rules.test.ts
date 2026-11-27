@@ -66,7 +66,7 @@ describe("rampWarmups with rules", () => {
   });
 
   it("uses your share of the reps for Fewer reps", () => {
-    const r = rules((x) => { x.groups.unloaded.fewerPct = 30; });
+    const r = rules((x) => { x.groups.unloaded.mode = "fewer"; x.groups.unloaded.fewerPct = 30; });
     const pushup = ex({ equipmentType: "bodyweight", currentWeight: 0, repMin: 10 });
     expect(warmups(rampWarmups([pushup], config, r)).map((e) => e.repMin)).toEqual([3]);
   });

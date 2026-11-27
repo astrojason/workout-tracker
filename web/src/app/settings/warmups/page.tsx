@@ -7,7 +7,7 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { usePrograms } from "@/hooks/usePrograms";
 import { useEquipmentConfig } from "@/hooks/useEquipmentConfig";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
-import { getAllWorkoutsForProgram } from "@/lib/firestore";
+import { getAllWorkoutsForProgram, getLatestBodyweight } from "@/lib/firestore";
 import type { Workout } from "@/lib/types";
 import { normalizeWarmupRules } from "@/lib/warmup-rules";
 import { warmupPreviewLifts } from "@/lib/warmup-preview";
@@ -22,6 +22,15 @@ export default function WarmupsPage() {
   const { config, loading: equipmentLoading } = useEquipmentConfig(user?.uid ?? null);
   const { definitions, machines, loading: definitionsLoading } = useExerciseDefinitions(user?.uid ?? null);
   const [workouts, setWorkouts] = useState<Workout[] | null>(null);
+  const [bodyweight, setBodyweight] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    getLatestBodyweight(user.uid)
+      .then((w) => { if (!cancelled) setBodyweight(w); })
+      .catch((err) => { if (!cancelled) showError(err); });
+    return () => { cancelled = true; };
+  }, [user, showError]);
   const programKey = p.activePrograms.map((x) => x.id).sort().join(",");
 
   useEffect(() => {
@@ -64,6 +73,8 @@ export default function WarmupsPage() {
           rules={rules}
           equipment={config}
           lifts={lifts}
+          library={definitions}
+          bodyweight={bodyweight}
           onSave={(rules) => p.updateUserSettings({ warmupRules: rules })}
         />
       )}

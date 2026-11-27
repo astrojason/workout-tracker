@@ -56,6 +56,8 @@ export interface ExerciseDefinition {
   machineId?: string | null;   // machine only: a GymMachine whose weights replace weightOptions (see applyGymMachines)
   equipmentItemId?: string | null; // one of the user's own equipment items (UserEquipmentConfig.items) it's done with
   warmup?: "none" | null; // "none": never gets warm-up sets; otherwise it follows its equipment's warm-up rule
+  warmupWith?: string | null; // a library exercise (definition id) to warm up with instead of the automatic pick
+  bodyweightPct?: number | null; // share of bodyweight one rep moves (push-up ≈ 64); absent = the built-in estimate (exercise-profile.ts)
   muscleGroups: string[];
   equipmentType: EquipmentType;
   equipmentDetail: string | null;
@@ -95,11 +97,16 @@ export interface Exercise {
   weight?: number;               // this row's own planned weight from the spreadsheet; only a warm-up row uses it — working rows follow the program weight
   equipmentDetail?: string | null; // this row's own band colour/size etc.; wins over the definition's
   skipWarmup?: boolean;          // true = don't generate warm-up sets before this exercise (see warmup-ramp.ts)
+  warmupWith?: string | null;    // this day only: warm up with this library exercise (definition id); wins over the library's choice
 }
 
 // An Exercise occurrence merged with its definition — the shape the workout UI actually works with.
 export type ResolvedExercise = Exercise & Omit<ExerciseDefinition, "id" | "createdAt" | "updatedAt"> & {
   definitionId: string;
+  // Set by warmup-ramp.ts on a substitute warm-up: other lighter movements it can be swapped for.
+  warmupOptions?: ResolvedExercise[];
+  // Set by warmup-ramp.ts on a lift that gets no warm-up because nothing lighter fits it.
+  warmupTip?: string;
 };
 
 export function resolveExercise(
@@ -119,6 +126,7 @@ export function resolveExercise(
     // weight, which warmup-ramp.ts replaces or caps. A band/size can still differ per row.
     ...(exercise.weight !== undefined && exercise.phase === "warmup" ? { currentWeight: exercise.weight } : {}),
     ...(exercise.equipmentDetail !== undefined ? { equipmentDetail: exercise.equipmentDetail } : {}),
+    ...(exercise.warmupWith !== undefined ? { warmupWith: exercise.warmupWith } : {}),
   };
 }
 
@@ -367,6 +375,7 @@ export interface ActiveSession {
   completedSets: CompletedSet[];
   isResting: boolean;
   restTimeRemaining: number;
+  restTotal?: number;              // length of the rest now running, for the progress ring (absent on older sessions)
   startTime: Date;
   prsAchieved: PRResult[];
   // A custom set added mid-exercise, done at the current set position before the planned

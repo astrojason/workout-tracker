@@ -39,17 +39,17 @@ function session(id: string, date: string, sets: CompletedSet[], overrides: Part
 }
 
 describe("buildOverview", () => {
-  it("counts volume from completed working sets only", () => {
+  it("counts volume from completed loaded sets, warm-ups included, but working sets from work sets only", () => {
     const s = session("a", "2026-11-23", [
       set({ actualWeight: 200, actualReps: 5 }),                        // 1000
-      set({ actualWeight: 100, actualReps: 5, phase: "warmup" }),      // warm-up: ignored
+      set({ actualWeight: 100, actualReps: 5, phase: "warmup" }),      // warm-up: 500 volume, not a working set
       set({ actualWeight: 200, actualReps: 0, completed: false }),     // failed: ignored
       set({ actualWeight: 200, actualReps: 5, skipped: true }),        // skipped: ignored
       set({ actualWeight: 0, actualReps: 10, equipmentType: "bodyweight" }), // no load: ignored
       set({ actualWeight: 30, actualReps: 60, isTimeBased: true }),    // time-based: ignored
     ]);
     const o = buildOverview([s], { weeks: 4, now: NOW });
-    expect(o.volume.current).toBe(1000);
+    expect(o.volume.current).toBe(1500);
     expect(o.workingSets.current).toBe(1);
   });
 

@@ -6,7 +6,7 @@ import { findItem } from "./equipment-items";
 // apply to every warm-up. warmup-ramp.ts builds the sets from them.
 
 export type WarmupGroup = "plates" | "powerblock" | "fixed" | "unloaded";
-export type WarmupMode = "ramp" | "single" | "fewer" | "none";
+export type WarmupMode = "ramp" | "single" | "substitute" | "fewer" | "none";
 
 export interface WarmupStep { pct: number; reps: number }
 
@@ -31,22 +31,23 @@ const rule = (mode: WarmupMode, emptyBar = false): WarmupGroupRule => ({
   mode, steps: RAMP.map((s) => ({ ...s })), emptyBar, emptyBarReps: 8, singlePct: 50, fewerPct: 50,
 });
 
-// What the app did before warm-ups were editable.
+// What the app does out of the box. A lift with no lighter load warms up with a lighter movement
+// for the same muscles (see warmup-ramp.ts); "fewer" keeps the old same-weight, fewer-reps set.
 export const DEFAULT_WARMUP_RULES: WarmupRules = {
-  groups: { plates: rule("ramp", true), powerblock: rule("ramp"), fixed: rule("single"), unloaded: rule("fewer") },
+  groups: { plates: rule("ramp", true), powerblock: rule("ramp"), fixed: rule("single"), unloaded: rule("substitute") },
   maxPct: 85,
   restSeconds: 60,
   oncePerWorkout: true,
 };
 
 export const WARMUP_GROUPS: { key: WarmupGroup; title: string; covers: string; modes: WarmupMode[] }[] = [
-  { key: "plates", title: "Barbells and plate-loaded", covers: "Olympic, 35 lb and EZ bars, landmine, and your plate-loaded items like a FitArc", modes: ["ramp", "single", "fewer", "none"] },
-  { key: "powerblock", title: "PowerBlock", covers: "Adjustable dumbbells, in 2.5 lb steps", modes: ["ramp", "single", "fewer", "none"] },
-  { key: "fixed", title: "Fixed weights", covers: "Fixed dumbbells, kettlebells, machine stacks, pulleys, and fixed-weight items like medicine balls", modes: ["ramp", "single", "fewer", "none"] },
-  { key: "unloaded", title: "No load to lighten", covers: "Bodyweight, bands, grippers, pull-up assist, no-weight items, and timed exercises", modes: ["fewer", "none"] },
+  { key: "plates", title: "Barbells and plate-loaded", covers: "Olympic, 35 lb and EZ bars, landmine, and your plate-loaded items like a FitArc", modes: ["ramp", "single", "substitute", "fewer", "none"] },
+  { key: "powerblock", title: "PowerBlock", covers: "Adjustable dumbbells, in 2.5 lb steps", modes: ["ramp", "single", "substitute", "fewer", "none"] },
+  { key: "fixed", title: "Fixed weights", covers: "Fixed dumbbells, kettlebells, machine stacks, pulleys, and fixed-weight items like medicine balls", modes: ["ramp", "single", "substitute", "fewer", "none"] },
+  { key: "unloaded", title: "No load to lighten", covers: "Bodyweight, bands, grippers, pull-up assist, no-weight items, and timed exercises", modes: ["substitute", "fewer", "none"] },
 ];
 
-export const WARMUP_MODE_LABEL: Record<WarmupMode, string> = { ramp: "Ramp", single: "One lighter set", fewer: "Fewer reps", none: "None" };
+export const WARMUP_MODE_LABEL: Record<WarmupMode, string> = { ramp: "Ramp", single: "One lighter set", substitute: "Lighter movement", fewer: "Fewer reps", none: "None" };
 
 const UNLOADED_TYPES = new Set(["bodyweight", "band", "loop_band", "gripper", "assisted_pullup"]);
 

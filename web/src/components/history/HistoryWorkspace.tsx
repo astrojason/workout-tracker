@@ -8,7 +8,7 @@ import { useError } from "@/components/providers/ErrorProvider";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { CopySessionButton } from "@/components/history/CopySessionButton";
 import { groupSetsByOccurrence } from "@/lib/set-groups";
-import { formatMeasure, isWorkingSet, sessionDate, sessionVolume } from "@/lib/overview-stats";
+import { formatMeasure, isWorkingSet, sessionDate, sessionVolume, setsVolume } from "@/lib/overview-stats";
 import { applyDrafts, countChanges, draftError, isDraftChanged, toDraft } from "@/lib/session-edit";
 import type { SetDraft } from "@/lib/session-edit";
 
@@ -217,7 +217,7 @@ function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete }
   const status = statusOf(session);
   const date = sessionDate(session.date);
   const working = visible.filter(isWorkingSet);
-  const volume = working.reduce((n, s) => n + s.actualWeight * s.actualReps, 0);
+  const volume = setsVolume(visible);
   const busy = saveState === "saving" || deleting;
 
   return (

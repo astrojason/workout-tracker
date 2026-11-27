@@ -128,6 +128,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
   const [restSeconds, setRestSeconds] = useState(exercise?.restSeconds ?? 120);
   const [skipRest, setSkipRest] = useState(exercise?.restAfter === false);
   const [skipWarmup, setSkipWarmup] = useState(exercise?.skipWarmup === true);
+  const [warmupWith, setWarmupWith] = useState(exercise?.warmupWith ?? "");
   const [finalSetAmrap, setFinalSetAmrap] = useState(exercise?.repMax.type === "failure");
   const [notes, setNotes] = useState(exercise?.notes ?? "");
 
@@ -156,6 +157,7 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
       ...(finalSetAmrap ? { lastSetAmrap: true as const } : {}),
       ...(skipRest ? { restAfter: false as const } : {}),
       ...(skipWarmup && phase !== "warmup" ? { skipWarmup: true as const } : {}),
+      ...(!skipWarmup && phase !== "warmup" && warmupWith ? { warmupWith } : {}),
     };
 
     if (creatingNew) {
@@ -424,6 +426,14 @@ export function ExerciseEditor({ exercise, maxOrder, definitions, machines = [],
               className="w-5 h-5 accent-indigo-600"
             />
           </label>
+        )}
+        {phase !== "warmup" && !skipWarmup && (
+          <Field label="Warm Up With (this day)">
+            <select value={warmupWith} onChange={(e) => setWarmupWith(e.target.value)} className="input-field" aria-label="Warm Up With (this day)">
+              <option value="">Automatic (or the exercise&apos;s own choice)</option>
+              {sortedDefinitions.filter((d) => d.id !== selectedDef?.id).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </Field>
         )}
 
         {/* Progression + Muscle Groups + Unilateral (new only) */}

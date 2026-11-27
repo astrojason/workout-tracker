@@ -41,6 +41,9 @@ Title Case headers, not snake_case:
 | `Unilateral` | No | `TRUE`/`FALSE` — per-side exercise |
 | `Is Timed` | No | `TRUE`/`FALSE`; also auto-inferred when `Progression = add_time` or `Rep Min ≥ 30` |
 | `Notes` | No | Shown to the user during the workout |
+| `Muscles` | No | Comma-separated, **biggest muscle first** (e.g. `Chest, Triceps, Shoulders`). Used to pick lighter warm-up movements. Blank keeps the library's list (or the app's built-in estimate). |
+| `Bodyweight %` | No | 0–100: share of bodyweight one rep moves (push-up ≈ 64, squat ≈ 75, bench press 0). Blank keeps the library's value (or the built-in estimate). |
+| `Warm-up` | No | Blank = automatic warm-up. `none` = no warm-up for this row's day. An exercise name = warm up with that exercise on this day (from this file or your library; a name found in neither becomes a new bodyweight exercise, e.g. `Arm Circles`). Ignored on `warmup`-phase rows. |
 
 No `Program Name` column — the program name is set once when importing the
 file, not per-row. No `Base Weight` column (that's the old CSV-only format)

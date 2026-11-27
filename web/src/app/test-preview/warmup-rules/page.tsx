@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { WarmupRulesEditor, type WarmupPreviewLift } from "@/components/settings/WarmupRulesEditor";
 import { DEFAULT_WARMUP_RULES, type WarmupRules } from "@/lib/warmup-rules";
 import { DEFAULT_EQUIPMENT_CONFIG } from "@/lib/equipment-calculator";
-import type { ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
+import type { ExerciseDefinition, ResolvedExercise, UserEquipmentConfig } from "@/lib/types";
 
 // Plates without the small change, kettlebells from 15 lb, and a FitArc.
 const equipment: UserEquipmentConfig = {
@@ -28,9 +28,21 @@ const lifts: WarmupPreviewLift[] = [
   { exercise: ex({ definitionId: "squat", name: "Back Squat", currentWeight: 185, repMin: 5 }), equipment: "Olympic bar (45 lb)" },
   { exercise: ex({ definitionId: "arc", name: "FitArc Row", equipmentType: "machine", equipmentItemId: "fitarc", currentWeight: 25, repMin: 10 }), equipment: "FitArc" },
   { exercise: ex({ definitionId: "swing", name: "KB Swing", equipmentType: "kettlebell", currentWeight: 15, repMin: 15 }), equipment: "Kettlebells: 15, 25, 35 lb" },
-  { exercise: ex({ definitionId: "goblet", name: "Goblet Squat", equipmentType: "kettlebell", currentWeight: 35, repMin: 10 }), equipment: "Kettlebells: 15, 25, 35 lb" },
+  { exercise: ex({ definitionId: "goblet", name: "Goblet Squat", equipmentType: "kettlebell", currentWeight: 15, repMin: 10 }), equipment: "Kettlebells: 15, 25, 35 lb" },
   { exercise: ex({ definitionId: "pushup", name: "Push-up", equipmentType: "bodyweight", repMin: 12 }), equipment: "Bodyweight" },
 ];
+
+// The library a lighter movement can come from.
+const def = (o: Partial<ExerciseDefinition> & { id: string; name: string }): ExerciseDefinition => ({
+  muscleGroups: [], equipmentType: "bodyweight", equipmentDetail: null, progressionRule: "none", isUnilateral: false,
+  isTimeBased: false, currentWeight: 0, hardStreak: 0, createdAt: new Date(0), updatedAt: new Date(0), ...o,
+});
+const library: Record<string, ExerciseDefinition> = Object.fromEntries([
+  def({ id: "bwsquat", name: "Bodyweight Squat" }),
+  def({ id: "bandpress", name: "Banded Chest Press", equipmentType: "band", equipmentDetail: "Blue" }),
+  def({ id: "pushup", name: "Push-up" }),
+  def({ id: "goblet", name: "Goblet Squat", equipmentType: "kettlebell", currentWeight: 15 }),
+].map((d) => [d.id, d]));
 
 export default function WarmupRulesTestPage() {
   const [saved, setSaved] = useState<WarmupRules>(DEFAULT_WARMUP_RULES);
@@ -50,6 +62,8 @@ export default function WarmupRulesTestPage() {
         rules={saved}
         lifts={lifts}
         equipment={equipment}
+        library={library}
+        bodyweight={180}
         onSave={async (rules) => {
           await new Promise((r) => setTimeout(r, 400));
           if (failNext) { setFailNext(false); throw new Error("Preview save failed"); }
