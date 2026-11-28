@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CompletedSet, ExerciseDefinition, WorkoutSessionDoc } from "@/lib/types";
+import type { CompletedSet, ExerciseDefinition, PRResult, WorkoutSessionDoc } from "@/lib/types";
 import { formatDuration } from "@/lib/types";
 import { useError } from "@/components/providers/ErrorProvider";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
 import { CopySessionButton } from "@/components/history/CopySessionButton";
+import { AddExerciseForm } from "@/components/history/AddExerciseForm";
 import { groupSetsByOccurrence } from "@/lib/set-groups";
 import { formatMeasure, isWorkingSet, sessionDate, sessionVolume } from "@/lib/overview-stats";
 import { applyDrafts, countChanges, draftError, isDraftChanged, toDraft } from "@/lib/session-edit";
@@ -20,6 +21,7 @@ export interface HistoryWorkspaceProps {
   definitions: Record<string, ExerciseDefinition>;
   onSave: (sessionId: string, update: SessionUpdate) => Promise<void>;
   onDelete: (sessionId: string) => Promise<void>;
+  onAddExercise: (sessionId: string, sets: CompletedSet[]) => Promise<PRResult[]>; // a forgotten exercise, after the fact
 }
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -29,7 +31,7 @@ const STATUS_STYLE = { completed: "text-green-400", partial: "text-gray-300", sk
 
 // Desktop History: the session list on the left (search + status filter), the selected session on
 // the right with its logged sets editable in place.
-export function HistoryWorkspace({ sessions, definitions, onSave, onDelete }: HistoryWorkspaceProps) {
+export function HistoryWorkspace({ sessions, definitions, onSave, onDelete, onAddExercise }: HistoryWorkspaceProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(sessions[0]?.id ?? null);
@@ -123,6 +125,7 @@ export function HistoryWorkspace({ sessions, definitions, onSave, onDelete }: Hi
             onDirtyChange={setDirty}
             onSave={(update) => onSave(selected.id, update)}
             onDelete={() => onDelete(selected.id)}
+            onAddExercise={(sets) => onAddExercise(selected.id, sets)}
           />
         ) : (
           <p className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-10 text-center text-gray-400">No workouts yet. Complete a workout to see it here.</p>
@@ -145,12 +148,13 @@ export function HistoryWorkspace({ sessions, definitions, onSave, onDelete }: Hi
 
 type Confirm = { kind: "discard" } | { kind: "remove"; set: CompletedSet } | { kind: "delete" };
 
-function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete }: {
+function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete, onAddExercise }: {
   session: WorkoutSessionDoc;
   definitions: Record<string, ExerciseDefinition>;
   onDirtyChange: (dirty: boolean) => void;
   onSave: (update: SessionUpdate) => Promise<void>;
   onDelete: () => Promise<void>;
+  onAddExercise: (sets: CompletedSet[]) => Promise<PRResult[]>;
 }) {
   const { showError } = useError();
   const sets = useMemo(() => session.sets ?? [], [session.sets]);
@@ -206,9 +210,13 @@ function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete }
     }
   }
 
-  // After a save the session prop carries the new sets; re-seed the drafts from it.
+  // After a save the session prop carries the new sets; re-seed the drafts from it. Otherwise
+  // (an exercise added) keep each set's draft and give the new sets their own.
   useEffect(() => {
-    if (saveState === "saved") setDrafts(sets.map(toDraft));
+    setDrafts((ds) => {
+      const prev = new Map(ds.map((d) => [d.id, d]));
+      return sets.map((s) => (saveState === "saved" ? toDraft(s) : prev.get(s.id) ?? toDraft(s)));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sets]);
 
@@ -289,7 +297,7 @@ function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete }
               </thead>
               <tbody>
                 {groups.flatMap((g) => g.sets.map((s, i) => {
-                  const d = byId.get(s.id)!;
+                  const d = byId.get(s.id) ?? toDraft(s); // a just-added set gets its draft on the next effect
                   const error = draftError(d);
                   const changed = isDraftChanged(s, d);
                   const timed = s.isTimeBased === true;
@@ -373,6 +381,16 @@ function SessionEditor({ session, definitions, onDirtyChange, onSave, onDelete }
           </div>
         )}
       </div>
+
+      {!session.skipped && (
+        <AddExerciseForm
+          definitions={definitions}
+          existingSets={sets}
+          sessionDate={date}
+          disabledReason={changes > 0 ? "Save or discard your edits to add an exercise" : busy ? "Saving…" : null}
+          onAdd={onAddExercise}
+        />
+      )}
 
       {(session.progressionChanges ?? []).length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl">

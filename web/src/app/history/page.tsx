@@ -9,6 +9,7 @@ import { deleteSession, getSessionsForWeek, updateSessionSets } from "@/lib/fire
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { HistoryWorkspace } from "@/components/history/HistoryWorkspace";
+import { addExerciseAfterTheFact } from "@/lib/add-exercise-to-session";
 import { formatSessionsWeekAsText } from "@/lib/week-export";
 import { formatTimeValue } from "@/lib/types";
 import Link from "next/link";
@@ -168,6 +169,7 @@ export default function HistoryPage() {
           definitions={definitions}
           onSave={(id, update) => updateSessionSets(user!.uid, id, update)}
           onDelete={(id) => deleteSession(user!.uid, id)}
+          onAddExercise={(id, sets) => addExerciseAfterTheFact(user!.uid, id, sets)}
         />
         {sessions.length >= DESKTOP_SESSION_LIMIT && (
           <p className="mt-3 text-sm text-gray-500">Showing your latest {DESKTOP_SESSION_LIMIT} sessions.</p>

@@ -1,6 +1,6 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
-  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot, writeBatch, runTransaction,
+  query, where, orderBy, limit, Timestamp, deleteDoc, onSnapshot, writeBatch, runTransaction, arrayUnion,
   type CollectionReference, type DocumentReference,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -502,6 +502,14 @@ export async function updateSessionSets(
   userId: string, sessionId: string, update: { sets: CompletedSet[]; durationSeconds: number },
 ): Promise<void> {
   await updateDoc(doc(sessionsCol(userId), sessionId), update);
+  await rebuildLastPerformance(userId);
+}
+
+// Appends an exercise's sets to a logged session (arrayUnion, so it can't overwrite sets saved
+// elsewhere meanwhile), then rebuilds the last-performance summary so "last time" sees them.
+// Program weights are not touched: see addExerciseAfterTheFact.
+export async function appendSessionSets(userId: string, sessionId: string, sets: CompletedSet[]): Promise<void> {
+  await updateDoc(doc(sessionsCol(userId), sessionId), { sets: arrayUnion(...sets) });
   await rebuildLastPerformance(userId);
 }
 

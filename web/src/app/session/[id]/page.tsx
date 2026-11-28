@@ -14,6 +14,8 @@ import { CoachSection } from "@/components/workout/CoachSection";
 import { useExerciseDefinitions } from "@/hooks/useExerciseDefinitions";
 import { SessionExerciseTable } from "@/components/history/SessionExerciseTable";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { AddExerciseForm } from "@/components/history/AddExerciseForm";
+import { addExerciseAfterTheFact } from "@/lib/add-exercise-to-session";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -130,6 +132,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           {groups.map(({ order, name, exerciseName, sets }) => (
             <SessionExerciseTable key={order} name={name} exerciseName={exerciseName} sets={sets} hasRatings={hasRatings} />
           ))}
+        </div>
+      )}
+
+      {!session.skipped && (
+        <div className="mt-4">
+          <AddExerciseForm
+            definitions={definitions}
+            existingSets={session.sets ?? []}
+            sessionDate={date}
+            onAdd={async (sets) => {
+              const prs = await addExerciseAfterTheFact(user.uid, session.id, sets);
+              setSession((s) => (s ? { ...s, sets: [...(s.sets ?? []), ...sets] } : s));
+              return prs;
+            }}
+          />
         </div>
       )}
 

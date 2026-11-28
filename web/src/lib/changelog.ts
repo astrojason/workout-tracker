@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.51.0',
+    date: '2026-11-27',
+    changes: [
+      'Add a forgotten exercise to a workout you already finished: Add exercise on a session (in History on desktop, or on the session page) lets you pick an exercise from your library or type a new name, enter its sets (weight and reps, or seconds for a timed exercise) and save. The sets count in History, the exercise reports and "last time", and a new best is recorded as a PR. Program weights and progression are not changed.',
+    ],
+  },
+  {
     version: '1.50.2',
     date: '2026-11-25',
     changes: [

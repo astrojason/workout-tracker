@@ -87,3 +87,86 @@ test.describe("history workspace", () => {
     await expect(detail(page)).toContainText("Thursday · Week 6");
   });
 });
+
+// Adding a forgotten exercise to a session that's already saved.
+test.describe("history workspace: add an exercise after the fact", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/test-preview/history-workspace");
+    await page.locator("main[data-hydrated]").waitFor();
+  });
+
+  const detail = (page: import("@playwright/test").Page) => page.getByRole("region", { name: "Selected session" });
+  const form = (page: import("@playwright/test").Page) => page.getByRole("form", { name: "Add exercise" });
+
+  test("adds a new exercise with its sets, showing progress and then success", async ({ page }) => {
+    await detail(page).getByRole("button", { name: "Add exercise" }).click();
+    await form(page).getByLabel("Exercise").fill("Face Pull");
+    await form(page).getByLabel("Weight, set 1").fill("40");
+    await form(page).getByLabel("Reps, set 1").fill("15");
+    await form(page).getByRole("button", { name: "Add another set" }).click();
+    await expect(form(page).getByLabel("Weight, set 2")).toHaveValue("40"); // carries the weight over
+    await form(page).getByLabel("Reps, set 2").fill("12");
+    await form(page).getByRole("button", { name: "Save exercise" }).click();
+    await expect(page.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    await expect(detail(page).getByText("✓ Added Face Pull (2 sets)")).toBeVisible();
+    await expect(detail(page).getByLabel("Weight, Face Pull set 2")).toHaveValue("40");
+    await expect(detail(page).getByLabel("Reps, Face Pull set 2")).toHaveValue("12");
+    await expect(page.getByText(/Last added: Face Pull #3 set 1 40×15, Face Pull #3 set 2 40×12/)).toBeVisible();
+  });
+
+  test("a timed library exercise is entered in seconds", async ({ page }) => {
+    await detail(page).getByRole("button", { name: "Add exercise" }).click();
+    await form(page).getByLabel("Exercise").fill("Plank");
+    await expect(form(page).getByLabel("Seconds, set 1")).toBeVisible();
+    await expect(form(page).getByLabel("Weight, set 1")).toHaveCount(0);
+    await form(page).getByLabel("Seconds, set 1").fill("60");
+    await form(page).getByRole("button", { name: "Save exercise" }).click();
+    await expect(detail(page).getByText("✓ Added Plank (1 set)")).toBeVisible();
+    await expect(page.getByText(/Last added: Plank #3 set 1 0×60 timed/)).toBeVisible();
+  });
+
+  test("an invalid set blocks saving and says why", async ({ page }) => {
+    await detail(page).getByRole("button", { name: "Add exercise" }).click();
+    await form(page).getByLabel("Exercise").fill("Curl");
+    await form(page).getByLabel("Reps, set 1").fill("0");
+    await expect(form(page).getByText("Reps must be a whole number above 0")).toBeVisible();
+    await expect(form(page).getByRole("button", { name: "Save exercise" })).toBeDisabled();
+  });
+
+  test("cancelling with entered sets asks first", async ({ page }) => {
+    await detail(page).getByRole("button", { name: "Add exercise" }).click();
+    await form(page).getByLabel("Exercise").fill("Curl");
+    await form(page).getByLabel("Reps, set 1").fill("8");
+    await form(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("heading", { name: "Discard exercise" })).toBeVisible();
+    await page.getByRole("button", { name: "Keep editing" }).click();
+    await expect(form(page).getByLabel("Reps, set 1")).toHaveValue("8");
+    await form(page).getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
+    await expect(form(page)).toHaveCount(0);
+  });
+
+  test("a failed save shows the error and keeps what was entered", async ({ page }) => {
+    await detail(page).getByRole("button", { name: "Add exercise" }).click();
+    await form(page).getByLabel("Exercise").fill("Broken Lift");
+    await form(page).getByLabel("Reps, set 1").fill("5");
+    await form(page).getByRole("button", { name: "Save exercise" }).click();
+    await expect(page.getByRole("heading", { name: "Error" })).toBeVisible();
+    await expect(page.getByText("Firestore said no")).toBeVisible();
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(form(page).getByLabel("Reps, set 1")).toHaveValue("5");
+  });
+
+  test("can't add while set edits are unsaved", async ({ page }) => {
+    await detail(page).getByLabel("Weight, Back Squat set 1").fill("230");
+    await expect(detail(page).getByRole("button", { name: "Add exercise" })).toBeDisabled();
+    await expect(detail(page).getByText("Save or discard your edits to add an exercise")).toBeVisible();
+  });
+
+  test("a skipped day has no Add exercise", async ({ page }) => {
+    await page.getByRole("navigation", { name: "Sessions" }).getByRole("button").filter({ hasText: "Tuesday" }).click();
+    await expect(detail(page)).toContainText("Marked as skipped");
+    await expect(detail(page).getByRole("button", { name: "Add exercise" })).toHaveCount(0);
+  });
+});

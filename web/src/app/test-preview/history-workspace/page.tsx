@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HistoryWorkspace } from "@/components/history/HistoryWorkspace";
-import type { CompletedSet, ExerciseDefinition, WorkoutSessionDoc } from "@/lib/types";
+import type { CompletedSet, ExerciseDefinition, PRResult, WorkoutSessionDoc } from "@/lib/types";
 
 const DAY = 86_400_000;
 const now = new Date();
@@ -13,7 +13,7 @@ const def = (id: string, name: string): ExerciseDefinition => ({
   id, name, muscleGroups: [], equipmentType: "barbell_45", equipmentDetail: null, progressionRule: "add_5lb",
   isUnilateral: false, isTimeBased: false, currentWeight: 0, hardStreak: 0, createdAt: now, updatedAt: now,
 });
-const definitions = { squat: def("squat", "Back Squat"), bench: def("bench", "Bench Press") };
+const definitions = { squat: def("squat", "Back Squat"), bench: def("bench", "Bench Press"), plank: { ...def("plank", "Plank"), equipmentType: "bodyweight", isTimeBased: true } as ExerciseDefinition };
 
 const set = (id: string, name: string, order: number, setNumber: number, weight: number, reps: number, extra: Partial<CompletedSet> = {}): CompletedSet => ({
   id, exerciseName: name, definitionId: name === "Back Squat" ? "squat" : "bench", exerciseOrder: order, setNumber,
@@ -37,6 +37,7 @@ const initial: WorkoutSessionDoc[] = [
 export default function HistoryWorkspaceTestPage() {
   const [sessions, setSessions] = useState(initial);
   const [lastSaved, setLastSaved] = useState("nothing");
+  const [lastAdded, setLastAdded] = useState("nothing");
   // Set once React has hydrated, so tests don't type before handlers are attached.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
@@ -49,6 +50,13 @@ export default function HistoryWorkspaceTestPage() {
     setSessions((ss) => ss.map((s) => (s.id === id ? { ...s, ...update } : s)));
     setLastSaved(update.sets.map((s) => `${s.exerciseName} set ${s.setNumber} ${s.actualWeight}×${s.actualReps}`).join(", ") + ` · ${update.durationSeconds}s`);
   }
+  async function addExercise(id: string, sets: CompletedSet[]): Promise<PRResult[]> {
+    await new Promise((r) => setTimeout(r, 400));
+    if (sets[0].exerciseName === "Broken Lift") throw new Error("Firestore said no");
+    setSessions((ss) => ss.map((s) => (s.id === id ? { ...s, sets: [...s.sets, ...sets] } : s)));
+    setLastAdded(sets.map((s) => `${s.exerciseName} #${s.exerciseOrder} set ${s.setNumber} ${s.actualWeight}×${s.actualReps}${s.isTimeBased ? " timed" : ""}`).join(", "));
+    return [];
+  }
   async function remove(id: string) {
     await new Promise((r) => setTimeout(r, 400));
     setSessions((ss) => ss.filter((s) => s.id !== id));
@@ -57,7 +65,8 @@ export default function HistoryWorkspaceTestPage() {
   return (
     <main className="mx-auto max-w-[1360px] p-8" data-hydrated={hydrated || undefined}>
       <p>Last saved: {lastSaved}</p>
-      <HistoryWorkspace sessions={sessions} definitions={definitions} onSave={save} onDelete={remove} />
+      <p>Last added: {lastAdded}</p>
+      <HistoryWorkspace sessions={sessions} definitions={definitions} onSave={save} onDelete={remove} onAddExercise={addExercise} />
     </main>
   );
 }
