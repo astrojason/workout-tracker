@@ -3,7 +3,7 @@ import { ExtensionStorage } from "@bacons/apple-targets";
 import * as LiveActivity from "expo-live-activity";
 import * as Notifications from "expo-notifications";
 import { getIsPaired, getIsWatchAppInstalled, updateApplicationContext } from "react-native-watch-connectivity";
-import { liveActivityState } from "./liveActivity";
+import { liveActivityState, planLiveActivity } from "./liveActivity";
 import { APP_GROUP } from "./appGroup";
 import { parseHomeSummary, restNotificationContent, type BridgeMessage, type WorkoutMirrorState } from "./messages";
 
@@ -65,12 +65,13 @@ let activityUnavailableReported = false;
 
 // Keeps one Live Activity (Lock Screen / Dynamic Island, and the watch's Smart Stack) in step
 // with the workout: a countdown while resting, the current set otherwise, ended with the workout.
+// Works from what iOS reports as running, not just the id in memory: that id is lost when iOS
+// relaunches the app (leaving the old activity frozen) and is dead once the activity is swiped away.
 function syncLiveActivity(state: WorkoutMirrorState | null): void {
-  if (state === null) {
-    if (activityId) LiveActivity.stopActivity(activityId, { title: "Workout complete" });
-    activityId = undefined;
-    return;
-  }
+  const plan = planLiveActivity(LiveActivity.getActivityIds(), activityId, state !== null);
+  for (const id of plan.stop) LiveActivity.stopActivity(id, { title: "Workout complete" });
+  activityId = plan.keep;
+  if (state === null) return;
   const content = liveActivityState(state, Date.now());
   if (activityId) {
     LiveActivity.updateActivity(activityId, content);

@@ -1,0 +1,73 @@
+diff --git a/node_modules/expo-live-activity/build/index.d.ts b/node_modules/expo-live-activity/build/index.d.ts
+index 1253114..167ed5a 100644
+--- a/node_modules/expo-live-activity/build/index.d.ts
++++ b/node_modules/expo-live-activity/build/index.d.ts
+@@ -78,6 +78,10 @@ export type LiveActivityModuleEvents = {
+  * @returns {string} The identifier of the started activity or undefined if creating live activity failed.
+  */
+ export declare function startActivity(state: LiveActivityState, config?: LiveActivityConfig): Voidable<string>;
++/**
++ * @returns {string[]} The identifiers of this app's activities that are still active or stale.
++ */
++export declare function getActivityIds(): string[];
+ /**
+  * @param {string} id The identifier of the activity to stop.
+  * @param {LiveActivityState} state The updated state for the live activity.
+diff --git a/node_modules/expo-live-activity/build/index.js b/node_modules/expo-live-activity/build/index.js
+index 4012ddc..40db6fa 100644
+--- a/node_modules/expo-live-activity/build/index.js
++++ b/node_modules/expo-live-activity/build/index.js
+@@ -58,6 +58,14 @@ export function startActivity(state, config) {
+     if (assertIOS('startActivity'))
+         return ExpoLiveActivityModule.startActivity(state, normalizeConfig(config));
+ }
++/**
++ * @returns {string[]} The identifiers of this app's activities that are still active or stale.
++ */
++export function getActivityIds() {
++    if (assertIOS('getActivityIds'))
++        return ExpoLiveActivityModule.getActivityIds();
++    return [];
++}
+ /**
+  * @param {string} id The identifier of the activity to stop.
+  * @param {LiveActivityState} state The updated state for the live activity.
+diff --git a/node_modules/expo-live-activity/ios/ExpoLiveActivityModule.swift b/node_modules/expo-live-activity/ios/ExpoLiveActivityModule.swift
+index 6fdf9f5..889c93b 100644
+--- a/node_modules/expo-live-activity/ios/ExpoLiveActivityModule.swift
++++ b/node_modules/expo-live-activity/ios/ExpoLiveActivityModule.swift
+@@ -270,6 +270,15 @@ public class ExpoLiveActivityModule: Module {
+       }
+     }
+ 
++    // The ids of this app's activities still on screen (not ended or swiped away), so the app can
++    // find activities it started before a relaunch instead of trusting an id held in memory.
++    Function("getActivityIds") { () -> [String] in
++      guard #available(iOS 16.2, *) else { throw UnsupportedOSException("16.2") }
++      return Activity<LiveActivityAttributes>.activities
++        .filter { $0.activityState == .active || $0.activityState == .stale }
++        .map { $0.id }
++    }
++
+     Function("stopActivity") { (activityId: String, state: LiveActivityState) in
+       guard #available(iOS 16.2, *) else { throw UnsupportedOSException("16.2") }
+ 
+diff --git a/node_modules/expo-live-activity/src/index.ts b/node_modules/expo-live-activity/src/index.ts
+index 675bc9e..ab9cc64 100644
+--- a/node_modules/expo-live-activity/src/index.ts
++++ b/node_modules/expo-live-activity/src/index.ts
+@@ -165,6 +165,14 @@ export function startActivity(state: LiveActivityState, config?: LiveActivityCon
+   if (assertIOS('startActivity')) return ExpoLiveActivityModule.startActivity(state, normalizeConfig(config))
+ }
+ 
++/**
++ * @returns {string[]} The identifiers of this app's activities that are still active or stale.
++ */
++export function getActivityIds(): string[] {
++  if (assertIOS('getActivityIds')) return ExpoLiveActivityModule.getActivityIds()
++  return []
++}
++
+ /**
+  * @param {string} id The identifier of the activity to stop.
+  * @param {LiveActivityState} state The updated state for the live activity.

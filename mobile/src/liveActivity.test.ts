@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { liveActivityState } from "./liveActivity";
+import { liveActivityState, planLiveActivity } from "./liveActivity";
 import type { WorkoutMirrorState } from "./messages";
 
 const base: WorkoutMirrorState = {
@@ -33,5 +33,31 @@ describe("liveActivityState", () => {
   it("falls back to a plain subtitle when there is no next step during rest", () => {
     const state = liveActivityState({ ...base, restEndsAt: 61_000, nextLabel: "", nextDetail: "" }, 1_000);
     expect(state.subtitle).toBe("Catch your breath");
+  });
+});
+
+describe("planLiveActivity", () => {
+  it("keeps updating the activity it started while that activity is still running", () => {
+    expect(planLiveActivity(["a"], "a", true)).toEqual({ keep: "a", stop: [], start: false });
+  });
+
+  it("adopts the running activity after the app was relaunched and forgot its id", () => {
+    expect(planLiveActivity(["old"], undefined, true)).toEqual({ keep: "old", stop: [], start: false });
+  });
+
+  it("ends extra activities left over from an earlier launch", () => {
+    expect(planLiveActivity(["old", "a"], "a", true)).toEqual({ keep: "a", stop: ["old"], start: false });
+  });
+
+  it("starts a new activity when the remembered one was swiped away", () => {
+    expect(planLiveActivity([], "gone", true)).toEqual({ keep: undefined, stop: [], start: true });
+  });
+
+  it("starts an activity when none is running", () => {
+    expect(planLiveActivity([], undefined, true)).toEqual({ keep: undefined, stop: [], start: true });
+  });
+
+  it("ends every running activity when the workout ends, including forgotten ones", () => {
+    expect(planLiveActivity(["old", "a"], "a", false)).toEqual({ keep: undefined, stop: ["old", "a"], start: false });
   });
 });

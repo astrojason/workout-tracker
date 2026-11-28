@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView as RawWebView, type WebViewMessageEvent } from "react-native-webview";
 import { parseMessage, replyScript, WEB_ERROR_HOOK } from "./src/messages";
 import { handleMessage } from "./src/native";
+import { recoverFromKilledPage } from "./src/webViewRecovery";
 
 // react-native-webview 14's published prop types collapse to `never` under React Native 0.88's
 // types, so type just the props this app uses.
@@ -18,10 +19,11 @@ interface WebViewProps {
   onLoadEnd: () => void;
   onError: (event: { nativeEvent: { description: string } }) => void;
   onHttpError: (event: { nativeEvent: { statusCode: number } }) => void;
+  onContentProcessDidTerminate: () => void;
   allowsBackForwardNavigationGestures: boolean;
   style: object;
 }
-interface WebViewHandle { injectJavaScript: (script: string) => void }
+interface WebViewHandle { injectJavaScript: (script: string) => void; reload: () => void }
 const WebView = RawWebView as unknown as React.ComponentType<WebViewProps>;
 
 const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL;
@@ -74,6 +76,14 @@ export default function App() {
           onLoadEnd={() => setLoading(false)}
           onError={(e) => setError(`Failed to load ${WEB_URL}: ${e.nativeEvent.description}`)}
           onHttpError={(e) => setError(`Failed to load ${WEB_URL}: HTTP ${e.nativeEvent.statusCode}`)}
+          onContentProcessDidTerminate={() => {
+            try {
+              recoverFromKilledPage(webView.current, setLoading);
+            } catch (err) {
+              setLoading(false);
+              setError(errorText(err));
+            }
+          }}
           allowsBackForwardNavigationGestures
           style={{ flex: 1, backgroundColor: "#111827" }}
         />
