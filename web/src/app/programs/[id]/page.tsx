@@ -10,8 +10,8 @@ import { scanEquipmentPhoto, identifyEquipment } from "@/lib/equipment-scan";
 import { ExerciseEditor, type ExerciseEditorResult } from "@/components/programs/ExerciseEditor";
 import { createExerciseDefinition, updateProgramExerciseWeight } from "@/lib/firestore";
 import type { Exercise, Workout } from "@/lib/types";
-import { scopeDefinitions, DAY_ORDER, isChecklistWorkout, resolveWorkout, resolveExercise } from "@/lib/types";
-import { ExerciseSummary, UnresolvedExerciseSummary } from "@/components/programs/ExerciseSummary";
+import { scopeDefinitions, DAY_ORDER, isChecklistWorkout, resolveWorkout } from "@/lib/types";
+import { ProgramDayExercises } from "@/components/programs/ProgramDayExercises";
 import { formatWeekAsText } from "@/lib/week-export";
 import Link from "next/link";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
@@ -235,88 +235,18 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
             </button>
           </div>
 
-          <div className="desk-flat bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
-            {workout.exercises
-              .slice()
-              .sort((a, b) => a.order - b.order)
-              .map((rawExercise) => {
-                // A definitionId with no matching definition (e.g. pre-exercise-library
-                // data that hasn't been through the migration script) must not crash
-                // this whole list — show it as a row the user can still delete.
-                let exercise;
-                try {
-                  exercise = resolveExercise(rawExercise, definitions);
-                } catch (err) {
-                  return (
-                    <div key={rawExercise.id} className="px-4 py-3 lg:px-0 lg:py-4 flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <UnresolvedExerciseSummary error={err} />
-                      </div>
-                      <button
-                        onClick={() => setConfirmDelete({ workoutId: workout.id, exerciseId: rawExercise.id })}
-                        className="text-gray-600 hover:text-red-400 transition p-1 shrink-0"
-                        title="Delete exercise"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                }
-                // The row whose editor is open stays highlighted beside the desktop panel.
-                const isEditing = editingExercise?.exercise?.id === exercise.id;
-                return (
-                  <div
-                    key={exercise.id}
-                    aria-current={isEditing || undefined}
-                    className={`px-4 py-3 lg:py-4 ${isEditing ? "bg-indigo-950/60 lg:-mx-3 lg:px-3 lg:rounded-lg" : "lg:px-0"}`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <ExerciseSummary exercise={exercise} />
-                        {exercise.notes && (
-                          <div className="text-xs text-gray-600 mt-1 truncate">{exercise.notes}</div>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 ml-2 shrink-0">
-                        <button
-                          onClick={() => setEditingExercise({ workout, exercise })}
-                          className="text-gray-600 hover:text-indigo-400 transition p-1"
-                          title="Edit exercise"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete({ workoutId: workout.id, exerciseId: exercise.id })}
-                          className="text-gray-600 hover:text-red-400 transition p-1"
-                          title="Delete exercise"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                  </div>
-                );
-              })}
-
-            {/* Add Exercise */}
-            <div className="px-4 py-3 lg:px-0 lg:py-4">
-              <button
-                onClick={() => setEditingExercise({ workout, exercise: null })}
-                className="text-indigo-400 hover:text-indigo-300 text-sm font-semibold transition"
-              >
-                + Add Exercise
-              </button>
-            </div>
-          </div>
+          <ProgramDayExercises
+            workout={workout}
+            definitions={definitions}
+            editingExerciseId={editingExercise?.exercise?.id}
+            onEdit={(exercise) => setEditingExercise({ workout, exercise })}
+            onDelete={(exerciseId) => setConfirmDelete({ workoutId: workout.id, exerciseId })}
+            onReorder={async (exercises) => {
+              const updatedWorkout = { ...workout, exercises };
+              await updateWorkout(updatedWorkout);
+              setWorkouts((prev) => prev.map((w) => w.id === workout.id ? updatedWorkout : w));
+            }}
+          />
         </div>
       ))}
       </div>

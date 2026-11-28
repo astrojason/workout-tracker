@@ -9,7 +9,7 @@ export function ExerciseSummary({ exercise }: { exercise: ResolvedExercise }) {
     <>
       <div className="flex items-center gap-2 mb-1">
         <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${PHASE_COLORS[exercise.phase] || "bg-gray-600"}`} />
-        <span className="font-semibold truncate">{exercise.name}</span>
+        <span className="font-semibold truncate" data-exercise-name>{exercise.name}</span>
         {exercise.isUnilateral && <span className="text-orange-400 text-xs">ES</span>}
       </div>
       <div className="text-xs text-gray-500">

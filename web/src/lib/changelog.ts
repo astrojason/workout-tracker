@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.53.0',
+    date: '2026-11-28',
+    changes: [
+      'Reorder exercises in a program day: each exercise in the program editor has up and down arrows that move it one place. The new order saves straight away (with a spinner while it saves and a "Saved order" note when done), and a failed save shows the error and keeps the old order.',
+    ],
+  },
+  {
     version: '1.52.0',
     date: '2026-11-27',
     changes: [
