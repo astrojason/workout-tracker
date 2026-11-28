@@ -7,6 +7,13 @@ export type ChangelogEntry = {
 // Newest first. Add an entry here whenever package.json's version is bumped.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.52.0',
+    date: '2026-11-27',
+    changes: [
+      'Banded exercises can now progress: a Serious Steel band or loop band exercise offers a "Next band" progression rule. When the last set reaches the top of the rep range rated Easy (or an AMRAP last set hits twice the target), the next workout moves to the next band you own. The new band is kept per program, overrides the band in the spreadsheet row (warm-up rows keep theirs), holds after more than two weeks away, and is undone if you delete the session.',
+    ],
+  },
+  {
     version: '1.51.0',
     date: '2026-11-27',
     changes: [

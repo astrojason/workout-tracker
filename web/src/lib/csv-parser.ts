@@ -20,7 +20,7 @@ const VALID_EQUIPMENT: Set<string> = new Set([
 const KEYWORD_PROGRESSIONS: Set<string> = new Set([
   "add_5lb", "add_2.5lb", "add_10lb",
   "add_reps", "add_time", "add_rounds",
-  "maintain", "deload", "progress_gripper", "none",
+  "maintain", "deload", "progress_gripper", "next_band", "none",
 ]);
 
 function parseCSVLine(line: string): string[] {

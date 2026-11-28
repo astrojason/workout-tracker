@@ -1,5 +1,5 @@
 import type { EquipmentType, ExerciseDefinition, ProgressionRule, UserEquipmentConfig } from "./types";
-import { barWeight, cleanWeight } from "./types";
+import { ALL_BAND_COLORS, ALL_LOOP_BAND_SIZES, barWeight, cleanWeight } from "./types";
 import { findItem, plateLoads } from "./equipment-items";
 import { KETTLEBELL_WEIGHTS, powerBlockWeights } from "./equipment-calculator";
 
@@ -79,11 +79,23 @@ export interface ProgressionOptionGroup { label: string; options: ProgressionOpt
 const OTHER_RULES: Partial<Record<EquipmentType, ProgressionOption[]>> = {
   assisted_pullup: [{ value: "reduce_assistance", label: "Reduce assistance" }],
   gripper: [{ value: "progress_gripper", label: "Progress gripper" }],
+  band: [{ value: "next_band", label: "Next band" }],
+  loop_band: [{ value: "next_band", label: "Next band" }],
 };
+
+// The band after `current` among the bands you own, lightest to heaviest. Null when it's already
+// the heaviest you own, or the equipment isn't a band.
+export function nextBand(type: EquipmentType, current: string | null, config: UserEquipmentConfig): string | null {
+  const ladder: readonly string[] = type === "band" ? ALL_BAND_COLORS : type === "loop_band" ? ALL_LOOP_BAND_SIZES : [];
+  const owned = type === "band" ? config.bands : config.loopBands;
+  const at = current === null ? -1 : ladder.indexOf(current);
+  return ladder.slice(at + 1).find((b) => (owned as readonly string[]).includes(b)) ?? null;
+}
 
 const RULE_LABEL: Record<string, string> = {
   none: "None", add_weight: "Next weight step", add_reps: "Add reps", add_time: "Add time", add_rounds: "Add rounds",
   maintain: "Maintain", deload: "Deload", reduce_assistance: "Reduce assistance", progress_gripper: "Progress gripper",
+  next_band: "Next band",
 };
 
 export function ruleLabel(rule: ProgressionRule): string {

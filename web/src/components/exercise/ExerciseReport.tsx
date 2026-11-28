@@ -33,7 +33,7 @@ const shortDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", d
 const RULE_LABELS: Record<string, string> = {
   add_5lb: "add 5 lb", "add_2.5lb": "add 2.5 lb", add_10lb: "add 10 lb", add_reps: "add reps", add_time: "add time",
   add_rounds: "add rounds", add_weight: "next weight step", reduce_assistance: "reduce assistance",
-  maintain: "maintain", deload: "deload", progress_gripper: "next gripper", none: "none",
+  maintain: "maintain", deload: "deload", progress_gripper: "next gripper", next_band: "next band", none: "none",
 };
 function ruleLabel(rule: ProgressionRule): string {
   return RULE_LABELS[rule] ?? rule.replace(/_/g, " ");

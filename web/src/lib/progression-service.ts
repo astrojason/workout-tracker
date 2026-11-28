@@ -1,8 +1,8 @@
 import type { ResolvedExercise, CompletedSet, UserEquipmentConfig } from "./types";
 import { barWeight } from "./types";
-import { calculateBarbell, calculateLandmine, nearestPowerBlock, KETTLEBELL_WEIGHTS } from "./equipment-calculator";
+import { calculateBarbell, calculateLandmine, nearestPowerBlock, DEFAULT_EQUIPMENT_CONFIG, KETTLEBELL_WEIGHTS } from "./equipment-calculator";
 import { findItem } from "./equipment-items";
-import { equipmentLoads, nextLoad, previousLoad, weightIncrement } from "./progression-choices";
+import { equipmentLoads, nextBand, nextLoad, previousLoad, weightIncrement } from "./progression-choices";
 
 // Snaps a computed weight down to the nearest achievable equipment value.
 // Barbell/landmine already floor by construction (calculateBarbell/calculateLandmine
@@ -37,6 +37,7 @@ export function roundDownToAchievable(weight: number, exercise: ResolvedExercise
 export interface ProgressionResult {
   currentWeight: number;
   hardStreak: number;
+  equipmentDetail?: string; // "Next band": the band to move to; absent when the band holds
 }
 
 // Runs once, at workout completion, against the last completed set logged for one
@@ -71,8 +72,10 @@ export function computeNextWeight(
   config?: UserEquipmentConfig,
   daysSincePrevious?: number,
 ): ProgressionResult {
-  const result = progressFromRating(exercise, finalSet, config);
-  if (daysSincePrevious === undefined || daysSincePrevious <= HOLD_AFTER_DAYS) return result;
+  const fresh = progressFromRating(exercise, finalSet, config);
+  if (daysSincePrevious === undefined || daysSincePrevious <= HOLD_AFTER_DAYS) return fresh;
+  // After time away a band holds, like a weight would.
+  const { equipmentDetail: _held, ...result } = fresh;
 
   const increment = weightIncrement(exercise.progressionRule);
   if (daysSincePrevious > DELOAD_AFTER_DAYS && increment) {
@@ -110,6 +113,17 @@ function progressFromRating(
     const options = fixedItem?.kind === "fixed" ? fixedItem.weights ?? [] : exercise.weightOptions ?? [];
     const next = finalSetOk ? [...options].sort((x, y) => x - y).find((w) => w > exercise.currentWeight) : undefined;
     if (next !== undefined) return { currentWeight: next, hardStreak: 0 };
+    return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
+  }
+
+  // Bands step up like kettlebells: hold the band while reps climb, then move to the next band
+  // you own once the last set tops the rep range rated Easy (or an AMRAP set reaches 2x the target).
+  if (exercise.progressionRule === "next_band") {
+    const ready = finalSet.completed && (isAmrapFinalSet
+      ? finalSet.actualReps >= (finalSet.targetReps || exercise.repMin) * 2
+      : exercise.repMax.type === "count" && finalSet.rating === "easy" && finalSet.actualReps >= exercise.repMax.value);
+    const next = ready ? nextBand(exercise.equipmentType, exercise.equipmentDetail, config ?? DEFAULT_EQUIPMENT_CONFIG) : null;
+    if (next !== null) return { currentWeight: exercise.currentWeight, hardStreak: 0, equipmentDetail: next };
     return { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak };
   }
 

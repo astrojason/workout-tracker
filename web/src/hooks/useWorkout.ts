@@ -561,13 +561,16 @@ export function useWorkout(userId: string | null) {
           ? undefined
           : Math.floor((session.startTime.getTime() - previousAt) / 86_400_000);
         const result = computeNextWeight(exercise, finalSet, equipmentConfigRef.current, daysSincePrevious);
-        if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak) continue;
-        await updateProgramExerciseWeight(userId, session.workout.programId, exercise.definitionId, result.currentWeight, result.hardStreak);
-        const after = { currentWeight: result.currentWeight, hardStreak: result.hardStreak };
+        if (result.currentWeight === exercise.currentWeight && result.hardStreak === exercise.hardStreak && result.equipmentDetail === undefined) continue;
+        await updateProgramExerciseWeight(userId, session.workout.programId, exercise.definitionId, result.currentWeight, result.hardStreak, result.equipmentDetail);
+        // The program's stored band (if any) before and after; undefined fields are left out for Firestore.
+        const bandBefore = exercise.progressedDetail;
+        const bandAfter = result.equipmentDetail ?? bandBefore;
+        const after = { currentWeight: result.currentWeight, hardStreak: result.hardStreak, ...(bandAfter ? { equipmentDetail: bandAfter } : {}) };
         const earlier = changes.get(exercise.definitionId);
         changes.set(exercise.definitionId, {
           definitionId: exercise.definitionId,
-          before: earlier?.before ?? { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak },
+          before: earlier?.before ?? { currentWeight: exercise.currentWeight, hardStreak: exercise.hardStreak, ...(bandBefore ? { equipmentDetail: bandBefore } : {}) },
           after,
         });
       }

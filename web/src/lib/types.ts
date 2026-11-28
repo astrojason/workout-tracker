@@ -31,6 +31,7 @@ export type ProgressionRule =
   | "maintain"
   | "deload"
   | "progress_gripper"
+  | "next_band"
   | "none"
   | string; // free-form: band color (e.g. "Blue"), band count (e.g. "2 bands")
 
@@ -55,6 +56,7 @@ export interface ExerciseDefinition {
   brand?: string | null;       // equipment maker/model, e.g. "Lifecycle"; lets the AI identify a machine when its photo is unclear
   machineId?: string | null;   // machine only: a GymMachine whose weights replace weightOptions (see applyGymMachines)
   equipmentItemId?: string | null; // one of the user's own equipment items (UserEquipmentConfig.items) it's done with
+  progressedDetail?: string; // not stored: the program's progressed band, laid on by scopeDefinitions
   warmup?: "none" | null; // "none": never gets warm-up sets; otherwise it follows its equipment's warm-up rule
   muscleGroups: string[];
   equipmentType: EquipmentType;
@@ -119,6 +121,8 @@ export function resolveExercise(
     // weight, which warmup-ramp.ts replaces or caps. A band/size can still differ per row.
     ...(exercise.weight !== undefined && exercise.phase === "warmup" ? { currentWeight: exercise.weight } : {}),
     ...(exercise.equipmentDetail !== undefined ? { equipmentDetail: exercise.equipmentDetail } : {}),
+    // A band the program has progressed to beats the row's own; a warm-up row keeps its lighter band.
+    ...(def.progressedDetail && exercise.phase !== "warmup" ? { equipmentDetail: def.progressedDetail } : {}),
   };
 }
 
@@ -148,6 +152,7 @@ export function resolveWorkout(
 export interface ProgramExerciseWeight {
   currentWeight: number;
   hardStreak: number;
+  equipmentDetail?: string; // the band a "Next band" exercise has progressed to; wins over the row's band
 }
 
 export interface Program {
@@ -167,8 +172,9 @@ export function scopeDefinitions(
 ): Record<string, ExerciseDefinition> {
   if (!program?.weights) return definitions;
   const scoped: Record<string, ExerciseDefinition> = { ...definitions };
-  for (const [definitionId, w] of Object.entries(program.weights)) {
-    if (scoped[definitionId]) scoped[definitionId] = { ...scoped[definitionId], ...w };
+  for (const [definitionId, { equipmentDetail, ...w }] of Object.entries(program.weights)) {
+    if (!scoped[definitionId]) continue;
+    scoped[definitionId] = { ...scoped[definitionId], ...w, ...(equipmentDetail ? { progressedDetail: equipmentDetail } : {}) };
   }
   return scoped;
 }

@@ -117,11 +117,15 @@ export async function setProgramWeights(
   await updateDoc(doc(programsCol(userId), programId), { weights });
 }
 
+// Writes the weight fields one by one, so a band the exercise has progressed to stays put when
+// only its weight changes. `equipmentDetail` is written only when given (a "Next band" step).
 export async function updateProgramExerciseWeight(
-  userId: string, programId: string, definitionId: string, currentWeight: number, hardStreak: number
+  userId: string, programId: string, definitionId: string, currentWeight: number, hardStreak: number, equipmentDetail?: string
 ): Promise<void> {
   await updateDoc(doc(programsCol(userId), programId), {
-    [`weights.${definitionId}`]: { currentWeight, hardStreak },
+    [`weights.${definitionId}.currentWeight`]: currentWeight,
+    [`weights.${definitionId}.hardStreak`]: hardStreak,
+    ...(equipmentDetail !== undefined ? { [`weights.${definitionId}.equipmentDetail`]: equipmentDetail } : {}),
   });
 }
 
@@ -534,7 +538,7 @@ export async function deleteSession(userId: string, sessionId: string): Promise<
     const program = (await getDoc(programRef)).data() as Partial<Program> | undefined;
     for (const { definitionId, before, after } of changes) {
       const current = program?.weights?.[definitionId];
-      if (current?.currentWeight !== after.currentWeight || current?.hardStreak !== after.hardStreak) continue;
+      if (current?.currentWeight !== after.currentWeight || current?.hardStreak !== after.hardStreak || current?.equipmentDetail !== after.equipmentDetail) continue;
       await updateDoc(programRef, { [`weights.${definitionId}`]: before });
     }
   }

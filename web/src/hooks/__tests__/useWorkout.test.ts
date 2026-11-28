@@ -1204,7 +1204,7 @@ describe("useWorkout", () => {
     });
 
     expect(updateProgramExerciseWeightMock).toHaveBeenCalledWith(
-      "user-1", workout.programId, exercise.definitionId, 105, 0
+      "user-1", workout.programId, exercise.definitionId, 105, 0, undefined
     );
   });
 
@@ -1306,8 +1306,35 @@ describe("useWorkout", () => {
     });
 
     expect(updateProgramExerciseWeightMock).toHaveBeenCalledWith(
-      "user-1", workout.programId, exercise.definitionId, 95, 0
+      "user-1", workout.programId, exercise.definitionId, 95, 0, undefined
     );
+  });
+
+  it("endWorkout moves a Next band exercise to the next band and records it for undo", async () => {
+    const { saveSession } = await import("@/lib/firestore");
+    vi.mocked(saveSession).mockClear();
+    const exercise = makeExercise({
+      sets: 1, restSeconds: 0, equipmentType: "band", equipmentDetail: "Red", progressionRule: "next_band",
+      currentWeight: 0, repMax: { type: "count", value: 12 },
+    });
+    const workout = makeWorkout({ exercises: [exercise] });
+    const { result } = renderHook(() => useWorkout("user-1"));
+    await act(async () => { await result.current.startWorkout(workout, getDefinitions()); });
+
+    await act(async () => {
+      result.current.completeSet(12, 0, false, "easy");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateProgramExerciseWeightMock).toHaveBeenCalledWith(
+      "user-1", workout.programId, exercise.definitionId, 0, 0, "Blue"
+    );
+    const saved = vi.mocked(saveSession).mock.calls[0][1];
+    expect(saved.progressionChanges).toEqual([
+      { definitionId: exercise.definitionId, before: { currentWeight: 0, hardStreak: 0 }, after: { currentWeight: 0, hardStreak: 0, equipmentDetail: "Blue" } },
+    ]);
   });
 
   // Regression: a weight typed into the set dialog only applied to that one set,
